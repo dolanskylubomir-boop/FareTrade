@@ -370,25 +370,36 @@
             }, 1500);
         };
 
+// --- 1. OPRAVENÝ NÁHLED OBRÁZKU ---
         window.previewImage = function(input) {
             if (input.files && input.files[0]) {
                 const reader = new FileReader();
                 const container = input.parentElement;
                 reader.onload = function(e) {
-                    container.innerHTML = `<img src="${e.target.result}" class="w-full h-full object-cover rounded-2xl">`;
+                    // Místo smazání prvku ho jen chytře překryjeme tapetou
+                    container.style.backgroundImage = `url(${e.target.result})`;
+                    container.style.backgroundSize = 'cover';
+                    container.style.backgroundPosition = 'center';
+                    // Skryjeme ikonu a text
+                    const svg = container.querySelector('svg');
+                    const span = container.querySelector('span');
+                    if(svg) svg.style.display = 'none';
+                    if(span) span.style.display = 'none';
                     container.classList.remove('border-dashed', 'bg-sky-50', 'border-sky-200');
                 }
                 reader.readAsDataURL(input.files[0]);
             }
         };
 
+
+        // --- 2. OPRAVENÉ ZAPISOVÁNÍ A NAHRÁVÁNÍ FOTEK DO STORAGE ---
         window.handleAdSubmit = async function(e) {
             e.preventDefault();
             if (!supabaseClient) return alert("Supabase není nakonfigurován!");
 
             const btn = document.querySelector('form button[type="submit"]');
             const origText = btn ? btn.innerText : 'Odeslat';
-            if (btn) { btn.innerText = "Zapisuji do databáze..."; btn.disabled = true; }
+            if (btn) { btn.innerText = "Nahrávám fotky a zapisuji..."; btn.disabled = true; }
 
             try {
                 const { data: { user } } = await supabaseClient.auth.getUser();
@@ -403,6 +414,37 @@
 
                 if (!title || !category || !condition) throw new Error("Vyplňte prosím název, kategorii a stav.");
 
+                // --- NAHRÁVÁNÍ FOTEK DO SUPABASE ---
+                const fileInputs = document.querySelectorAll('input[type="file"]');
+                const uploadedImages = [];
+                
+                for (let input of fileInputs) {
+                    if (input.files && input.files[0]) {
+                        const file = input.files[0];
+                        const fileExt = file.name.split('.').pop();
+                        // Unikátní jméno pro každou fotku
+                        const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+                        
+                        const { data, error } = await supabaseClient.storage
+                            .from('inzeraty')
+                            .upload(fileName, file, { cacheControl: '3600', upsert: false });
+                            
+                        if (!error && data) {
+                            // Stažení finální veřejné URL adresy
+                            const { data: publicUrlData } = supabaseClient.storage.from('inzeraty').getPublicUrl(fileName);
+                            uploadedImages.push(publicUrlData.publicUrl);
+                        } else {
+                            console.error("Chyba fotky:", error);
+                        }
+                    }
+                }
+
+                // Pokud zapomněl nahrát fotku, dáme tam fallback z Unsplash
+                if (uploadedImages.length === 0) {
+                    uploadedImages.push('https://images.unsplash.com/photo-1523275335684-37898b6baf30?q=80&w=800&auto=format&fit=crop');
+                }
+                // -----------------------------------
+
                 const adData = {
                     seller_id: user.id,
                     title: title,
@@ -413,8 +455,8 @@
                     weight: parseFloat(document.getElementById('ad-weight').value) || null,
                     dimensions: document.getElementById('ad-dimensions').value || null,
                     shipping_methods: Array.from(document.querySelectorAll('input[name="shipping"]:checked')).map(el => el.value),
-                    images: ['https://images.unsplash.com/photo-1523275335684-37898b6baf30?q=80&w=800&auto=format&fit=crop'],
-                    has_360: false,
+                    images: uploadedImages, // SEM VKLÁDÁME SKUTEČNÉ ODKAZY NA FOTKY
+                    has_360: (uploadedImages.length >= 4), // Pokud nahrál všechny 4 fotky, zapneme 360° prohlížeč
                     status: 'aktivní'
                 };
 
@@ -440,10 +482,9 @@
                 const { error } = await supabaseClient.from(tableName).insert([adData]);
                 if (error) throw new Error(error.message);
 
-                alert("Inzerát byl úspěšně nahrán na tržiště!");
-                // Obnova databáze hned po vložení
+                alert("Inzerát a fotografie byly úspěšně nahrány!");
+                
                 await fetchDatabaseItems(); 
-                // Přesměrování
                 navigate(isAuction ? 'aukce' : 'pevna-cena');
 
             } catch (err) {
@@ -453,15 +494,19 @@
             }
         };
 
-        // --- DASHBOARD A SPRÁVA PROFILU ---
+
+        // --- 3. OPRAVA PROFILU (Vynucená synchronizace) ---
         window.loadProfileData = async function(activeTab = 'inzeraty') {
             if (!supabaseClient) return;
+            
+            // Pojistka: Pokaždé když otevřeš profil, přikážeme webu stáhnout nejnovější inzeráty
+            await fetchDatabaseItems();
+            
             const { data: { user }, error: authErr } = await supabaseClient.auth.getUser();
             if (authErr || !user) { navigate('login'); return; }
             
-            window.currentUser = user; // Pro bezpečné filtrování na kartě inzerátů
+            window.currentUser = user; 
 
-            // Jakmile víme, kdo je přihlášený, překreslíme záložku profilu (zobrazí se inzeráty)
             const tabContainer = document.getElementById('profile-tab-content');
             if (tabContainer) {
                 tabContainer.innerHTML = renderProfileTabContent(activeTab);
@@ -527,7 +572,6 @@
                 }
             }
         };
-
         window.renderProfileTabContent = function(tab) {
             if (tab === 'kyc') {
                 return `
