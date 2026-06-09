@@ -131,9 +131,10 @@
         const ESCROW_FEE = 49;
         const vsechnyKategorie = ['Vše', 'Elektronika', 'Šperky', 'Sběratelství', 'Móda', 'Domácnost'];
 
-        // Globální proměnné pro data
+        // Globální proměnné pro data a přihlášeného uživatele
         let dataAukce = [];
         let dataPevnaCena = [];
+        window.currentUser = null;
 
         // Pomocné funkce
         window.renderCategories = function(view, currentFilter) {
@@ -150,23 +151,28 @@
             return { fee: fee, total: price + fee + ESCROW_FEE };
         };
 
-        // --- NAČÍTÁNÍ Z DATABÁZE ---
+        // --- NAČÍTÁNÍ Z DATABÁZE (Vylepšené) ---
         window.fetchDatabaseItems = async function() {
             if (!supabaseClient) return;
             try {
-                // Připojíme údaje o prodejci
+                // Připojíme údaje o prodejci přes vazbu profiles(...)
                 const { data: dbAukce, error: err1 } = await supabaseClient.from('aukce').select('*, profiles(first_name, last_name, is_verified, rating)');
                 const { data: dbPevna, error: err2 } = await supabaseClient.from('pevna_cena').select('*, profiles(first_name, last_name, is_verified, rating)');
                 
+                if (err1) console.error("Chyba načítání z tabulky Aukce:", err1.message);
+                if (err2) console.error("Chyba načítání z tabulky Pevná cena:", err2.message);
+
                 const getSellerName = (prof) => {
-                    if (!prof) return 'Neznámý prodejce';
+                    if (!prof) return 'Ověřený prodejce';
                     const name = `${prof.first_name || ''} ${prof.last_name || ''}`.trim();
                     return name || 'Uživatel tržiště';
                 };
 
-                if (!err1 && dbAukce) {
+                if (dbAukce) {
                     dataAukce = dbAukce.map(item => ({
                         id: item.id,
+                        seller_id: item.seller_id, // Identifikátor pro profil
+                        type: 'aukce',
                         title: item.title,
                         price: item.current_price || item.starting_price || 0,
                         category: item.category,
@@ -179,9 +185,11 @@
                     }));
                 }
 
-                if (!err2 && dbPevna) {
+                if (dbPevna) {
                     dataPevnaCena = dbPevna.map(item => ({
                         id: item.id,
+                        seller_id: item.seller_id, // Identifikátor pro profil
+                        type: 'pevna_cena',
                         title: item.title,
                         price: item.price || 0,
                         category: item.category,
@@ -193,12 +201,13 @@
                         description: item.description
                     }));
                 }
+                console.log("Úspěšně staženo z DB. Pevná cena:", dataPevnaCena.length, "| Aukce:", dataAukce.length);
             } catch(e) {
-                console.error("Chyba načítání reálných dat:", e);
+                console.error("Kritická chyba načítání reálných dat:", e);
             }
         };
 
-        // --- AUTH & PROFIL ---
+        // --- AUTH & KYC KONTROLA ---
         async function checkUserProfileKYC(user) {
             if (!supabaseClient) return;
             try {
@@ -213,6 +222,7 @@
             supabaseClient.auth.onAuthStateChange(async (event, session) => {
                 const btn = document.getElementById('btn-register-top');
                 if (session && session.user) {
+                    window.currentUser = session.user; // Uložíme si uživatele globálně hned po přihlášení
                     if (btn) {
                         btn.innerText = "Můj Profil";
                         btn.setAttribute('onclick', "navigate('profil')"); 
@@ -221,6 +231,7 @@
                         await checkUserProfileKYC(session.user);
                     }
                 } else {
+                    window.currentUser = null;
                     if (btn) {
                         btn.innerText = "Registrovat";
                         btn.setAttribute('onclick', "navigate('login')");
@@ -302,7 +313,7 @@
             }
         };
 
-        // --- VLOŽENÍ INZERÁTU (ZÁPIS DO DB) ---
+        // --- VLOŽENÍ INZERÁTU A AI ASISTENT ---
         window.toggleAuctionFields = function(isAuction) {
             const fixedPrice = document.getElementById('field-fixed-price');
             const aucPrice = document.getElementById('field-auction-price');
@@ -430,7 +441,9 @@
                 if (error) throw new Error(error.message);
 
                 alert("Inzerát byl úspěšně nahrán na tržiště!");
+                // Obnova databáze hned po vložení
                 await fetchDatabaseItems(); 
+                // Přesměrování
                 navigate(isAuction ? 'aukce' : 'pevna-cena');
 
             } catch (err) {
@@ -440,11 +453,19 @@
             }
         };
 
-        // --- DASHBOARD DATA ---
+        // --- DASHBOARD A SPRÁVA PROFILU ---
         window.loadProfileData = async function(activeTab = 'inzeraty') {
             if (!supabaseClient) return;
-            const { data: { user } } = await supabaseClient.auth.getUser();
-            if (!user) { navigate('login'); return; }
+            const { data: { user }, error: authErr } = await supabaseClient.auth.getUser();
+            if (authErr || !user) { navigate('login'); return; }
+            
+            window.currentUser = user; // Pro bezpečné filtrování na kartě inzerátů
+
+            // Jakmile víme, kdo je přihlášený, překreslíme záložku profilu (zobrazí se inzeráty)
+            const tabContainer = document.getElementById('profile-tab-content');
+            if (tabContainer) {
+                tabContainer.innerHTML = renderProfileTabContent(activeTab);
+            }
             
             const emailEl = document.getElementById('profile-email');
             if(emailEl) emailEl.innerText = user.email;
@@ -549,16 +570,56 @@
                 return `<h3 class="text-xl font-bold text-gray-800 mb-4 fade-in">Oblíbené položky</h3><p class="text-gray-500 text-center py-8 font-medium fade-in">Seznam sledovaných položek je prázdný. Klikněte na ❤️ u inzerátu, který vás zajímá.</p>`;
             }
             
-            return `
-                <div class="flex items-center justify-between mb-6 fade-in">
-                    <h3 class="text-xl font-bold text-gray-800">Moje aktivní nabídky</h3>
-                    <button onclick="navigate('novy-inzerat')" class="bg-sky-100 text-sky-600 hover:bg-sky-200 font-bold py-2 px-4 rounded-xl text-sm transition-colors">+ Nový inzerát</button>
-                </div>
-                <p class="text-gray-500 py-4 text-center fade-in">Zatím zde nemáte žádné aktivní inzeráty. Zkuste nějaký přidat!</p>
-            `;
+            // ZÁLOŽKA AKTIVNÍ INZERÁTY (NAČTENÍ Z DATABÁZE PRO PŘIHLÁŠENÉHO)
+            if (tab === 'inzeraty') {
+                if (!window.currentUser) {
+                    return `<p class="text-gray-500 py-4 text-center fade-in">⏳ Načítám inzeráty ze serveru...</p>`;
+                }
+
+                // Najdeme všechny inzeráty a aukce, kde je ID prodejce stejné jako ID přihlášeného
+                const myAukce = dataAukce.filter(i => i.seller_id === window.currentUser.id);
+                const myPevna = dataPevnaCena.filter(i => i.seller_id === window.currentUser.id);
+                const myAds = [...myAukce, ...myPevna];
+
+                let html = `
+                    <div class="flex items-center justify-between mb-6 fade-in">
+                        <h3 class="text-xl font-bold text-gray-800">Moje aktivní nabídky (${myAds.length})</h3>
+                        <button onclick="navigate('novy-inzerat')" class="bg-sky-100 text-sky-600 hover:bg-sky-200 font-bold py-2 px-4 rounded-xl text-sm transition-colors">+ Nový inzerát</button>
+                    </div>
+                `;
+
+                if (myAds.length === 0) {
+                    html += `<p class="text-gray-500 py-4 text-center fade-in">Zatím zde nemáte žádné aktivní inzeráty. Zkuste nějaký přidat!</p>`;
+                } else {
+                    html += `<div class="flex flex-col gap-4">`;
+                    myAds.forEach(item => {
+                        const isAukce = item.type === 'aukce';
+                        html += `
+                        <div onclick="navigate('${isAukce ? 'aukce-detail' : 'pevna-cena-detail'}/${item.id}')" class="flex items-center gap-4 p-4 border border-gray-100 rounded-2xl hover:shadow-md transition-shadow cursor-pointer fade-in bg-white group">
+                            <div class="w-16 h-16 rounded-xl bg-gray-100 overflow-hidden shrink-0">
+                                <img src="${item.img}" class="w-full h-full object-cover group-hover:scale-110 transition-transform">
+                            </div>
+                            <div class="flex-grow">
+                                <div class="text-xs ${isAukce ? 'text-sky-500' : 'text-pink-500'} font-bold mb-0.5 uppercase">${isAukce ? 'Aukce' : 'Pevná cena'}</div>
+                                <h4 class="font-bold text-gray-800 line-clamp-1">${item.title}</h4>
+                            </div>
+                            <div class="text-right">
+                                <div class="text-xs text-gray-400 uppercase font-semibold">Cena</div>
+                                <div class="font-bold text-lg text-gray-800">${item.price.toLocaleString('cs-CZ')} Kč</div>
+                            </div>
+                            <div class="pl-4">
+                                <button class="text-gray-400 hover:text-sky-500 p-2"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg></button>
+                            </div>
+                        </div>
+                        `;
+                    });
+                    html += `</div>`;
+                }
+                return html;
+            }
         };
 
-        // --- STRÁNKY ---
+        // --- ŠABLONY STRÁNEK ---
         const views = {
             home: () => `
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-8 w-full fade-in">
@@ -764,7 +825,7 @@
                             <button onclick="navigate('profil/oblibene')" class="${getTabStyle('oblibene')}">Oblíbené ❤️</button>
                         </div>
                         
-                        <div class="p-8">
+                        <div class="p-8" id="profile-tab-content">
                             ${renderProfileTabContent(activeTab)}
                         </div>
                     </div>
