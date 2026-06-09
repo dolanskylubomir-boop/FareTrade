@@ -1,0 +1,718 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>FairTrade Tržiště</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        pastel: {
+                            blue: '#E0F2FE',
+                            pink: '#FCE7F3',
+                            bg: '#FDF8F3',
+                            text: '#334155'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .fade-in { animation: fadeIn 0.2s ease-in; }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(5px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .bg-animated {
+            background: linear-gradient(-45deg, #FDF8F3, #FCE7F3, #E0F2FE, #F3E8FF);
+            background-size: 400% 400%;
+            animation: gradientBG 15s ease infinite;
+        }
+        @keyframes gradientBG {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        
+        .viewer-360-container {
+            width: 100%;
+            height: 400px;
+            overflow: hidden;
+            position: relative;
+            cursor: grab;
+            perspective: 1000px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .viewer-360-container:active {
+            cursor: grabbing;
+        }
+        .viewer-360-img {
+            max-height: 100%;
+            max-width: 100%;
+            object-fit: contain;
+            pointer-events: none;
+            transform-style: preserve-3d;
+            transition: transform 0.05s linear;
+        }
+        /* Skrytí scrollbaru pro horizontální menu kategorií */
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+</head>
+<body class="bg-animated text-pastel-text font-sans min-h-screen flex flex-col selection:bg-sky-200">
+
+    <header class="w-full py-5 px-6 bg-white/80 backdrop-blur-md shadow-sm z-40 sticky top-0 transition-all">
+        <div class="max-w-6xl mx-auto flex justify-between items-center">
+            
+            <div class="cursor-pointer flex-shrink-0" onclick="navigate('home')">
+                <h1 class="text-3xl md:text-5xl font-extrabold tracking-tight text-pastel-text">
+                    Fair<span class="text-sky-400">Trade</span>
+                </h1>
+            </div>
+            
+            <nav class="hidden md:flex gap-8 text-gray-600 font-bold text-sm uppercase tracking-wider">
+                <button onclick="navigate('kontakt')" class="hover:text-sky-500 transition-colors">Kontakt</button>
+                <button onclick="navigate('vop')" class="hover:text-sky-500 transition-colors">VOP</button>
+            </nav>
+
+            <div class="flex items-center gap-3 md:gap-5">
+                <button id="btn-register-top" onclick="navigate('login')" class="hidden sm:block text-gray-600 hover:text-sky-500 font-bold transition-colors">
+                    Registrovat
+                </button>
+                
+                <button onclick="navigate('login')" class="bg-sky-500 hover:bg-sky-600 text-white font-bold py-2 px-4 md:py-3 md:px-6 rounded-xl md:rounded-2xl transition-all shadow-md flex items-center gap-2 text-sm md:text-base">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                    <span class="hidden md:inline">Vložit inzerát</span>
+                    <span class="md:hidden">Přidat</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main id="app" class="flex-grow w-full max-w-6xl mx-auto p-6 md:p-8 flex flex-col justify-center relative">
+    </main>
+
+    <div id="modal-360" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl w-full max-w-3xl overflow-hidden shadow-2xl">
+            <div class="p-4 flex justify-between items-center border-b border-gray-100">
+                <h3 class="font-bold text-xl flex items-center gap-2">
+                    <svg class="w-6 h-6 text-sky-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                    Interaktivní 360° prohlídka
+                </h3>
+                <button onclick="close360()" class="text-gray-400 hover:text-red-500 transition-colors p-2">
+                    <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+            
+            <div class="viewer-360-container bg-gray-100" id="viewer-container" onmousedown="startDrag(event)" onmousemove="doDrag(event)" onmouseup="stopDrag()" onmouseleave="stopDrag()" ontouchstart="startDrag(event)" ontouchmove="doDrag(event)" ontouchend="stopDrag()">
+                <div class="absolute z-10 top-4 bg-black/60 text-white px-4 py-2 rounded-full text-sm font-bold pointer-events-none flex items-center gap-2">
+                    <svg class="w-4 h-4 animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"></path></svg>
+                    Tážením myší otáčejte
+                </div>
+                <img id="img-360" src="" class="viewer-360-img">
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- SUPABASE KONFIGURACE (Zde doplň své údaje ze Supabase Dashboardu) ---
+        const SUPABASE_URL = 'https://YOUR_SUPABASE_PROJECT_URL.supabase.co';
+        const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
+        
+        let supabaseClient = null;
+        // Bezpečné ověření, zda uživatel již nakonfiguroval klíče
+        if (SUPABASE_URL !== 'https://YOUR_SUPABASE_PROJECT_URL.supabase.co') {
+            supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        }
+
+        const ESCROW_FEE = 49;
+        const vsechnyKategorie = ['Vše', 'Elektronika', 'Šperky', 'Sběratelství', 'Móda', 'Domácnost'];
+
+        // --- LOKÁLNÍ DATA (Mock s 30 unikátními inzeráty sloužící jako okamžitý fallback) ---
+        let dataAukce = [
+            { id: 1, title: 'Prémiové hodinky Rolex', price: 45000, category: 'Šperky', img: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30', has360: true, seller: 'Jan Novák', verified: true, rating: 4.9, description: 'Prodám luxusní sběratelské hodinky z pozůstalosti. Plně funkční automatický strojek, safírové sklíčko bez škrábnutí. K hodinkám je originální certifikát pravosti a dřevěná krabička. Poštovné: 150 Kč (Cenné psaní Česká pošta).' },
+            { id: 2, title: 'Sběratelská mince 1. Republika', price: 1200, category: 'Sběratelství', img: 'https://images.unsplash.com/photo-1621416894569-0f39ed31d247', has360: false, seller: 'Petr Sběratel', verified: true, rating: 4.7, description: 'Vzácná ražba z limitované edice z roku 1928. Mince nebyla nikdy čištěna chemickou cestou a má nádhernou původní patina. Ideální investice. Poštovné: 79 Kč (Zásilkovna).' },
+            { id: 3, title: 'Starožitný fotoaparát Leica', price: 3400, category: 'Elektronika', img: 'https://images.unsplash.com/photo-1516035069371-29a1b244cc32', has360: false, seller: 'Vintage Foto', verified: false, rating: 5.0, description: 'Plně funkční dálkoměrný fotoaparát ze 60. let. Objektiv je čistý, bez plísně a prachu. Časy závěrky běží přesně. Přidám k němu i dobovou koženou brašnu. Poštovné: 119 Kč (PPL).' },
+            { id: 4, title: 'Zlatý prsten se safírem', price: 8900, category: 'Šperky', img: 'https://images.unsplash.com/photo-1611591437281-460bfbe1220a', has360: true, seller: 'Klenoty M&M', verified: true, rating: 4.8, description: 'Zásnubní 14k zlatý prsten s velkým přírodním safírem a drobnými diamanty po stranách. Velikost 52, možnost mírné úpravy u zlatníka. Nenošený. Poštovné: ZDARMA (Kurýr po ČR).' },
+            { id: 5, title: 'Dron DJI Mini 2', price: 6500, category: 'Elektronika', img: 'https://images.unsplash.com/photo-1507582020474-9a35b7d455d9', has360: true, seller: 'Pavel Dvořák', verified: true, rating: 4.6, description: 'Skvělý kompaktní dron pro začátečníky. Nikdy nehavarovaný. Součástí je Fly More Combo, takže dostanete 3 baterie, brašnu a náhradní vrtule. Poštovné: 99 Kč (Balíkovna).' },
+            { id: 6, title: 'Herní notebook ASUS ROG', price: 15500, category: 'Elektronika', img: 'https://images.unsplash.com/photo-1496181133206-80ce9b88a853', has360: false, seller: 'GamerZone', verified: true, rating: 4.9, description: 'Výkonný herní stroj s grafikou RTX 3060 a 16GB RAM. Notebook byl používán primárně s externím monitorem, takže klávesnice je jako nová. Nově přepastován. Poštovné: 130 Kč (DPD).' },
+            { id: 7, title: 'Stříbrný náhrdelník s opálem', price: 850, category: 'Šperky', img: 'https://images.unsplash.com/photo-1599643478524-fb66f7f6f1c7', has360: false, seller: 'Lucie Černá', verified: false, rating: 4.5, description: 'Nádherný jemný řetízek ze stříbra 925 s australským modrým opálem. Vhodný jako dárek, dodám v dárkové krabičce s mašlí. Poštovné: 65 Kč (Doporučené psaní).' },
+            { id: 8, title: 'Pánský oblek na míru', price: 2100, category: 'Móda', img: 'https://images.unsplash.com/photo-1593030761757-71fae45fa0e7', has360: true, seller: 'Elegance Styl', verified: true, rating: 4.7, description: 'Tmavě modrý pánský oblek, nošený pouze dvakrát na svatbě. Materiál 100% vlna. Velikost odpovídá 52 (vhodné pro postavu cca 180 cm). Vyčištěný v čistírně. Poštovné: 89 Kč (Zásilkovna).' },
+            { id: 9, title: 'Sada stříbrných příborů', price: 3000, category: 'Domácnost', img: 'https://images.unsplash.com/photo-1582283084337-3fd9a2fa07b4', has360: false, seller: 'Babiččina půda', verified: true, rating: 5.0, description: 'Kompletní sada pro 6 osob. Puncováno, masivní stříbro. Příbory osázeny do luxusní kazety. Vyžadují lehké přeleštění. Poštovné: 150 Kč.' },
+            { id: 10, title: 'Komiks Rychlé Šípy (1. vydání)', price: 4200, category: 'Sběratelství', img: 'https://images.unsplash.com/photo-1612036782180-6f0b6cd846fe', has360: false, seller: 'Knihomol.cz', verified: true, rating: 4.8, description: 'Originální první sešitové vydání z roku 1969. Obálka mírně opotřebená úměrně věku, ale vnitřní stránky naprosto v pořádku, nepotrhané. Poštovné: 89 Kč (Cenné psaní).' },
+            { id: 11, title: 'Kožená bunda Křivák', price: 1800, category: 'Móda', img: 'https://images.unsplash.com/photo-1551028719-00167b16eac5', has360: true, seller: 'RockRider', verified: false, rating: 4.6, description: 'Pravá hovězí kůže, velmi těžká a odolná. Bunda má krásnou patinu, všechny zipy jsou funkční a nezadrhávají se. Velikost L. Poštovné: 119 Kč (PPL).' },
+            { id: 12, title: 'Gramofon Tesla NZC', price: 2500, category: 'Elektronika', img: 'https://images.unsplash.com/photo-1588667636181-4351659a7fdf', has360: false, seller: 'Retro Audio', verified: true, rating: 4.9, description: 'Legendární československý gramofon s vlastním zesilovačem. Prošel kompletním servisem, je osazen novou jehlou Ortofon. Hraje čistě a bez kolísání otáček. Poštovné: Pouze osobní převzetí v Praze.' },
+            { id: 13, title: 'Designové křeslo Halabala', price: 12000, category: 'Domácnost', img: 'https://images.unsplash.com/photo-1598300042247-d088f8ab3a91', has360: true, seller: 'Nábytek 20. století', verified: true, rating: 5.0, description: 'Ikonické křeslo H-269 po kompletní a velmi nákladné renovaci. Dřevo vyleštěno šelakovou politúrou, nové pružiny a moderní odolná látka. Top stav. Poštovné: 450 Kč (TopTrans).' },
+            { id: 14, title: 'Zlatý dukát František Josef I.', price: 10500, category: 'Sběratelství', img: 'https://images.unsplash.com/photo-1631521741525-4676451a2e8c', has360: false, seller: 'Mince a Medaile', verified: true, rating: 4.9, description: 'Ražba z roku 1915, novoražba. Nejoblíbenější investiční mince v našem regionu. Stav UNC (bez poškození, ryzí zlato). Poštovné: 150 Kč (Cenné pojištěné psaní).' },
+            { id: 15, title: 'Dámské lodičky Christian Louboutin', price: 6500, category: 'Móda', img: 'https://images.unsplash.com/photo-1543163521-1bf539c55dd2', has360: true, seller: 'Markéta V.', verified: false, rating: 4.4, description: 'Klasické černé lodičky s ikonickou červenou podrážkou. Měla jsem je na sobě jen jednou v divadle, nesedí mi velikost. Originální krabice + dustbag. Velikost 38. Poštovné: ZDARMA.' },
+            { id: 16, title: 'Kávovar DeLonghi Magnifica', price: 3800, category: 'Domácnost', img: 'https://images.unsplash.com/photo-1511882150382-421056c89033', has360: false, seller: 'Kávový mág', verified: true, rating: 4.7, description: 'Plně automatický kávovar na zrnkovou kávu s napěňovací tryskou. Pravidelně odvápňován, pije se z něj káva denně. Měníme za pákový přístroj. Poštovné: 130 Kč (PPL).' },
+            { id: 17, title: 'Chytré hodinky Apple Watch S7', price: 5200, category: 'Elektronika', img: 'https://images.unsplash.com/photo-1434493789847-2f02b9d28234', has360: true, seller: 'Apple Lover', verified: true, rating: 4.8, description: 'Verze 45mm, barva Midnight. Na displeji jsou jemné vlásečnicové škrábance od běžného nošení. Kondice baterie 86%. Poštovné: 89 Kč (Zásilkovna).' },
+            { id: 18, title: 'Perlový náhrdelník pravé perly', price: 4100, category: 'Šperky', img: 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908', has360: false, seller: 'Šperky Anna', verified: true, rating: 5.0, description: 'Náhrdelník z pravých říčních perel nejvyšší kvality (AAA). Perly jsou ručně vázané na hedvábné niti se zapínáním z bílého zlata. Délka 45 cm. Poštovné: 100 Kč.' },
+            { id: 19, title: 'Sběratelská Barbie 1990', price: 1500, category: 'Sběratelství', img: 'https://images.unsplash.com/photo-1563124505-87bd38466e35', has360: true, seller: 'Retro Hračky', verified: false, rating: 4.5, description: 'Nerozbalená Barbie z edice Holiday z roku 1990. Krabice má na jednom rohu mírné odřeniny, ale panenka a příslušenství jsou nedotčené sluncem a prachem. Poštovné: 99 Kč.' },
+            { id: 20, title: 'Ručně tkaný vlněný koberec', price: 7000, category: 'Domácnost', img: 'https://images.unsplash.com/photo-1600166898405-da9535204843', has360: false, seller: 'Interiér Design', verified: true, rating: 4.9, description: 'Pravý orientální koberec dovezený z Turecka. Rozměry 200x140 cm. Je profesionálně vyčištěný, nemá žádné skvrny ani vyšlapaná místa. Krásné syté barvy. Poštovné: 300 Kč.' },
+            { id: 21, title: 'Dámská zimní péřová bunda', price: 2400, category: 'Móda', img: 'https://images.unsplash.com/photo-1545083036-b179ca022a16', has360: true, seller: 'Jana T.', verified: false, rating: 4.3, description: 'Dlouhý zimní kabát, výplň tvoří opravdové peří. Extrémně teplá, ideální na hory nebo do velkých mrazů. Má odepínací kožíšek na kapuci. Velikost M. Poštovné: 89 Kč (Zásilkovna).' },
+            { id: 22, title: 'Bezdrátová sluchátka Sony ANC', price: 3100, category: 'Elektronika', img: 'https://images.unsplash.com/photo-1618366712010-f4ae9c647dcb', has360: false, seller: 'Hudební svět', verified: true, rating: 4.8, description: 'Špičková sluchátka Sony WH-1000XM4 s aktivním potlačením hluku. Sluchátka jsou stará rok, hrají bezvadně, náušníky nejsou popraskané. Včetně pevného obalu. Poštovné: ZDARMA.' },
+            { id: 23, title: 'Zlatý řetízek typu Pancer', price: 6800, category: 'Šperky', img: 'https://images.unsplash.com/photo-1596944924616-7b38e7cfac36', has360: true, seller: 'Zlatnictví U Orloje', verified: true, rating: 5.0, description: 'Pevný a velmi odolný zlatý řetízek, vzor Pancer. Váha 4.5g, 14 karátů (585/1000). Vhodný i na každodenní nošení, nepřehrne se. Délka 50 cm. Poštovné: 120 Kč (Cenné psaní).' },
+            { id: 24, title: 'Starožitné kapesní hodinky', price: 5500, category: 'Sběratelství', img: 'https://images.unsplash.com/photo-1501166222995-ff4371b87b7a', has360: false, seller: 'Čas a Historie', verified: true, rating: 4.7, description: 'Stříbrné dvouplášťové kapesní hodinky značky Omega z roku 1910. Ciferník je porcelánový, mírně naprasklý u číslice 3. Strojek byl promazán hodinářem. Poštovné: 90 Kč.' },
+            { id: 25, title: 'Litinový hrnec Staub 24cm', price: 3900, category: 'Domácnost', img: 'https://images.unsplash.com/photo-1584992236310-6edddc08acff', has360: true, seller: 'Šéfkuchař.cz', verified: true, rating: 4.9, description: 'Legendární francouzský litinový hrnec s poklicí a smaltovaným vnitřkem. Skvělý na pomalé pečení masa nebo pečení chleba. Barva třešňově červená. Váží 5 kg. Poštovné: 150 Kč.' },
+            { id: 26, title: 'Kožená kabelka Guess', price: 1600, category: 'Móda', img: 'https://images.unsplash.com/photo-1584916201218-f4242ceb4809', has360: false, seller: 'Fashion Bazar', verified: false, rating: 4.6, description: 'Originální černá kabelka. Nošená jen příležitostně, uši nejsou oloupané a vnitřní látka je naprosto čistá. Ke kabelce přidám dlouhý nastavitelný popruh. Poštovné: 89 Kč (Zásilkovna).' },
+            { id: 27, title: 'Zrcadlovka Canon EOS 80D', price: 11000, category: 'Elektronika', img: 'https://images.unsplash.com/photo-1516035069371-29a1b244cc32', has360: true, seller: 'Karel M.', verified: true, rating: 4.8, description: 'Prodávám spolehlivé tělo Canon. Nafoceno pouze 15 000 závěrek. Skvělé pro začínající i pokročilé fotografy. Součástí prodeje je originální baterie, nabíječka a popruh. Poštovné: 150 Kč.' },
+            { id: 28, title: 'Brož s českými granáty', price: 3200, category: 'Šperky', img: 'https://images.unsplash.com/photo-1596825205568-dbe38c353b3b', has360: false, seller: 'Rodinné klenoty', verified: true, rating: 5.0, description: 'Nádherná tombaková brož osázená pravými českými granáty, pocházející z období první republiky. Kamínky nechybí žádné, zapínání na zadní straně je plně funkční. Poštovné: 80 Kč.' },
+            { id: 29, title: 'Originální podpis Václava Havla', price: 4000, category: 'Sběratelství', img: 'https://images.unsplash.com/photo-1583089892943-e02e5ee6f50b', has360: false, seller: 'Petr Sběratel', verified: true, rating: 4.7, description: 'Autogram Václava Havla z roku 1992, podepsáno na kvalitní fotografii z Hradu. Fotografie je zarámovaná pod antireflexním sklem. Ručím za pravost vrácením peněz. Poštovné: 120 Kč.' },
+            { id: 30, title: 'Robotický vysavač Roborock', price: 4800, category: 'Domácnost', img: 'https://images.unsplash.com/photo-1589923158776-cb4485d99fd6', has360: true, seller: 'SmartHome CZ', verified: true, rating: 4.5, description: 'Chytrý vysavač s funkcí mopování. Připojuje se k aplikaci přes Wi-Fi a tvoří přesnou mapu místnosti pomocí laseru. Baterie vyměněna před měsícem za originální novou. Poštovné: 130 Kč.' }
+        ];
+
+        let dataPevnaCena = [
+            { id: 1, title: 'Limitovaná edice tenisek Air Jordan', price: 2990, category: 'Móda', img: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff', seller: 'SneakerHead', verified: true, rating: 4.6, description: 'Zcela nenošené tenisky z vyprodané sběratelské kolekce. Box je v perfektním stavu bez otlaků. Velikost 43 (délka stélky 27.5 cm). Prodávám, protože nesedí velikost. Poštovné: 99 Kč (Zásilkovna).' },
+            { id: 2, title: 'Herní konzole PlayStation 5', price: 8500, category: 'Elektronika', img: 'https://images.unsplash.com/photo-1486401899868-0e435ed85128', seller: 'GamerZone', verified: true, rating: 4.9, description: 'Verze s Blu-Ray mechanikou. Konzole byla kupována před rokem a půl, je plně funkční a nikdy se nepřehřívala. Přidávám jeden bílý DualSense ovladač a kompletní kabeláž. Poštovné: 150 Kč (PPL).' },
+            { id: 3, title: 'Designová industriální lampa', price: 1500, category: 'Domácnost', img: 'https://images.unsplash.com/photo-1507473885765-e6ed057f782c', seller: 'HomeDeco', verified: false, rating: 4.5, description: 'Masivní kovová stolní lampa s nastavitelným ramenem. Ideální na pracovní stůl, dodá interiéru krásný loftový nádech. Včetně designové žárovky s viditelným vláknem. Poštovné: 120 Kč.' },
+            { id: 4, title: 'Pravá kožená brašna na notebook', price: 3200, category: 'Móda', img: 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62', seller: 'Michal H.', verified: true, rating: 5.0, description: 'Ručně šitá taška z italské hověziny od lokálního brašnáře. Vleze se do ní 15.6 palcový notebook, dokumenty a příslušenství. Taška stárnutím získá nádhernou patinu. Poštovné: ZDARMA.' },
+            { id: 5, title: 'Stříbrný náramek Pandora', price: 1100, category: 'Šperky', img: 'https://images.unsplash.com/photo-1611591437281-460bfbe1220a', seller: 'Klenotnice', verified: true, rating: 4.8, description: 'Základní hadovitý náramek ze stříbra, velikost 19 cm. Zapínání pevně drží. Bez korálků, k náramku dodám certifikát i taštičku z obchodu. Skvělý dárek. Poštovné: 70 Kč (Doporučeně).' },
+            { id: 6, title: 'Model letadla Spitfire 1:48', price: 850, category: 'Sběratelství', img: 'https://images.unsplash.com/photo-1582236528770-4e31e514931a', seller: 'Hobby Modely', verified: true, rating: 4.9, description: 'Detailně zpracovaný kovový model letadla z 2. světové války od značky Corgi. Sloužilo jako výstavní kousek ve vitríně, zcela bez poškození, lak jako nový. Poštovné: 89 Kč (Zásilkovna).' },
+            { id: 7, title: 'Tablet iPad Air (64GB)', price: 9500, category: 'Elektronika', img: 'https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0', seller: 'AppleStore B', verified: true, rating: 4.7, description: 'Tablet je odhlášený z iCloud a vymazaný. Displej byl celou dobu chráněn fólií, takže je absolutně čistý. Přidám smart cover obal v černé barvě. Poštovné: 100 Kč (Kurýr).' },
+            { id: 8, title: 'Sada profesionálních nožů', price: 4500, category: 'Domácnost', img: 'https://images.unsplash.com/photo-1585238204648-936ce9d2d0c2', seller: 'Vaříme doma', verified: true, rating: 4.8, description: 'Sada japonských nožů z damascénské oceli s dřevěným blokem. Nože jsou extrémně ostré a nebyly nikdy broušeny na strojní brusce. Úžasný pomocník do kuchyně. Poštovné: 150 Kč.' },
+            { id: 9, title: 'Zimní vlněná šála vzor káro', price: 450, category: 'Móda', img: 'https://images.unsplash.com/photo-1520006403909-838d6b92c22e', seller: 'Veronika P.', verified: false, rating: 4.4, description: 'Velmi teplá a měkká šála s příměsí kašmíru. Rozměry 180x50 cm, dostatečně velká i na omotání krku natřikrát. Kousavost je nulová, příjemná na dotek. Poštovné: 65 Kč (Balíkovna).' },
+            { id: 10, title: 'Kravatová spona z bílého zlata', price: 5200, category: 'Šperky', img: 'https://images.unsplash.com/photo-1599643478524-fb66f7f6f1c7', seller: 'Pánský styl', verified: true, rating: 5.0, description: 'Minimalistická úzká spona na kravatu, 14 karátové bílé zlato. Elegantní doplněk pro gentlemany, perfektně drží i na užších kravatách. Váha 3.2g. Poštovné: 100 Kč.' },
+            { id: 11, title: 'Sběratelská karta Pokémon Charizard', price: 15000, category: 'Sběratelství', img: 'https://images.unsplash.com/photo-1613771404784-3a5686aa2be3', seller: 'PokéFan', verified: true, rating: 4.8, description: 'Gradovaná karta (PSA 8) z edice Base Set. Holografický efekt je nepoškozený, rohy karty jsou ostré. Skvělá příležitost pro vážné sběratele a investory. Poštovné: 200 Kč (Osobní odběr / Cenné psaní).' },
+            { id: 12, title: 'Mechanická klávesnice Keychron', price: 2100, category: 'Elektronika', img: 'https://images.unsplash.com/photo-1595225476474-87563907a212', seller: 'IT Market', verified: true, rating: 4.9, description: 'Bezdrátová klávesnice s hnědými spínači (Gateron Brown). Vhodná na psaní i hraní. Plně funkční, klávesy nejsou ošoupané, baterie drží přes 3 týdny. Poštovné: 89 Kč (Zásilkovna).' },
+            { id: 13, title: 'Stolní mixér Nutribullet', price: 1200, category: 'Domácnost', img: 'https://images.unsplash.com/photo-1585242944686-2187640ff424', seller: 'Zdravý život', verified: false, rating: 4.6, description: 'Kompaktní mixér na smoothie. Používaný jedno léto, nože jsou stále velmi ostré. V balení je jedna velká a jedna malá nádoba s cestovním víčkem. Poštovné: 99 Kč (Balíkovna).' },
+            { id: 14, title: 'Ray-Ban sluneční brýle Aviator', price: 1800, category: 'Móda', img: 'https://images.unsplash.com/photo-1511499767150-a48a237f0083', seller: 'Optika Plus', verified: true, rating: 4.8, description: 'Klasické pilotky, zlatý rámeček a zelená skla (G-15). Skla nejsou poškrábaná. Součástí je původní kožené pouzdro a čisticí hadřík. Velikost M (58mm). Poštovné: 79 Kč.' },
+            { id: 15, title: 'Dětské náušnice berušky', price: 850, category: 'Šperky', img: 'https://images.unsplash.com/photo-1611591437281-460bfbe1220a', seller: 'Zlatnictví M.', verified: true, rating: 4.9, description: 'Dětské náušničky s dětskou pojistkou (brizurou), materiál žluté zlato. Dekorováno barevným smaltem do tvaru berušky. Vhodné pro holčičky od půl roku. Poštovné: 80 Kč (Doporučeně).' },
+            { id: 16, title: 'Staré elektronkové rádio', price: 3500, category: 'Sběratelství', img: 'https://images.unsplash.com/photo-1588667636181-4351659a7fdf', seller: 'Staré časy', verified: true, rating: 4.5, description: 'Rádio Tesla z 50. let v nádherné dřevěné bedně. Rádio hraje, magické oko svítí, ale vzhledem ke stáří prodávám spíše jako stylovou dekoraci bez záruky. Poštovné: Pouze osobní odběr.' },
+            { id: 17, title: 'Powerbanka Anker 20000mAh', price: 900, category: 'Elektronika', img: 'https://images.unsplash.com/photo-1609081219090-a6d81d3085bf', seller: 'GadgetZone', verified: true, rating: 4.7, description: 'Velmi kvalitní powerbanka, bez problémů nabije dnešní telefon 4x až 5x. Podpora rychlonabíjení (USB-C PD 20W). Bez kosmetických vad. Poštovné: 89 Kč (Zásilkovna).' },
+            { id: 18, title: 'Anatomický paměťový polštář', price: 650, category: 'Domácnost', img: 'https://images.unsplash.com/photo-1505693314120-0d443867891c', seller: 'Spěte zdravě', verified: true, rating: 4.6, description: 'Polštář z líné pěny pro podporu krční páteře. Měla jsem ho pouze vyzkoušený 3 noci, nesedí mi výška. Povlak je vypraný v antibakteriálním pracím gelu. Poštovné: 79 Kč.' },
+            { id: 19, title: 'Pánská kožená peněženka', price: 890, category: 'Móda', img: 'https://images.unsplash.com/photo-1627123424574-724758594e93', seller: 'Kožené výrobky', verified: true, rating: 4.9, description: 'Klasická černá peněženka orientovaná na šířku. Obsahuje kapsu na drobné, dvě přihrádky na bankovky and 8 slotů na karty. Kůže je hladká a měkká. Poštovné: 65 Kč (Doporučené psaní).' },
+            { id: 20, title: 'Visací náušnice s brilianty', price: 22000, category: 'Šperky', img: 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908', seller: 'Klenotník Jiří', verified: true, rating: 5.0, description: 'Luxusní náušnice ze 14k bílého zlata osazené brilianty (celkem 0.5 ct). Zapínání na dámskou patentu. Prodávám včetně znaleckého posudku od certifikovaného gemologa. Poštovné: ZDARMA.' },
+            { id: 21, title: 'Vinylová deska Pink Floyd', price: 1100, category: 'Sběratelství', img: 'https://images.unsplash.com/photo-1461360228753-45c1dc8e258a', seller: 'Music Shop', verified: true, rating: 4.8, description: 'Album The Dark Side of the Moon, originální britské vydání z 80. let. Obal v kategorii VG+, samotná deska hraje nádherně bez lupanců, umytá v pračce desek. Poštovné: 100 Kč (PPL).' },
+            { id: 22, title: 'Monitor Dell UltraSharp 27"', price: 4500, category: 'Elektronika', img: 'https://images.unsplash.com/photo-1527443224154-c4a3942d3acf', seller: 'IT Bazar', verified: true, rating: 4.7, description: 'Profesionální IPS panel s vynikajícím podáním barev (99% sRGB). Pivot podstavec umožňuje otočení na výšku. Bez vadných pixelů, připojení přes HDMI nebo DisplayPort. Poštovné: 160 Kč.' },
+            { id: 23, title: 'Ultrazvukový zvlhčovač vzduchu', price: 1300, category: 'Domácnost', img: 'https://images.unsplash.com/photo-1585242944686-2187640ff424', seller: 'Zdravý vzduch', verified: false, rating: 4.4, description: 'Zvlhčovač s velkou 5L nádrží, vydrží běžet celou noc. Tichý chod, dá se do něj přidat i pár kapek esenciálního oleje. Obsahuje demineralizační filtr proti bílému prachu. Poštovné: 99 Kč (Balíkovna).' },
+            { id: 24, title: 'Značkové sportovní legíny', price: 650, category: 'Móda', img: 'https://images.unsplash.com/photo-1506629082955-511b1aa562c8', seller: 'FitnessGirl', verified: false, rating: 4.6, description: 'Pevné formující legíny s vysokým pasem, neprůhledný materiál. Velikost S. Koupené v outletu, ale jsou mi těsné. Úplně nové, ještě s visačkou. Poštovné: 79 Kč (Zásilkovna).' },
+            { id: 25, title: 'Snubní prsteny stříbro/zirkony', price: 1400, category: 'Šperky', img: 'https://images.unsplash.com/photo-1605100804763-247f67963c9e', seller: 'Šperky K.', verified: true, rating: 4.7, description: 'Sada dvou snubních nebo partnerských prstenů ze stříbra (rhodiované). Dámský je osazen řadou drobných zirkonů. Velikosti 54 a 62. Nové, nepoužité. Poštovné: 80 Kč.' },
+            { id: 26, title: 'Sbírka starých pohlednic (Praha)', price: 900, category: 'Sběratelství', img: 'https://images.unsplash.com/photo-1583089892943-e02e5ee6f50b', seller: 'Sběratelský klub', verified: true, rating: 4.9, description: 'Konvolut 45 kusů starých místopisných pohlednic Prahy z období 1900–1930. Obsahuje i litografie. Krásný stav bez fleků, rohy převážně ostré. Poštovné: 89 Kč (Zásilkovna).' },
+            { id: 27, title: 'Elektronická čtečka Kindle', price: 2200, category: 'Elektronika', img: 'https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0', seller: 'Knihomol', verified: false, rating: 4.8, description: 'Čtečka Paperwhite s podsvíceným displejem. Čte se z ní jako z papíru i na přímém slunci. Verze bez reklam. Součástí je tvrdý otevírací obal, který čtečku chrání. Poštovné: 79 Kč.' },
+            { id: 28, title: 'Zrcadlo v dřevěném rámu', price: 1800, category: 'Domácnost', img: 'https://images.unsplash.com/photo-1505693314120-0d443867891c', seller: 'Dřevodesign', verified: true, rating: 5.0, description: 'Velké nástěnné zrcadlo (120x60 cm) zasazené v masivním dubovém rámu ošetřeném přírodním olejem. Ruční práce, bytelné úchyty na zavěšení. Poštovné: Pouze osobní předání.' },
+            { id: 29, title: 'Pletený svetr z ovčí vlny', price: 1100, category: 'Móda', img: 'https://images.unsplash.com/photo-1545083036-b179ca022a16', seller: 'Anna S.', verified: true, rating: 4.7, description: 'Tradiční norský svetr ručně pletený ze 100% ovčí vlny. Skvěle hřeje, nepropustí vlhkost. Velikost udaná L, ale spíše odpovídá volnějšímu M. Párkrát vzatý. Poštovné: 89 Kč (Zásilkovna).' },
+            { id: 30, title: 'Sběratelská modulation soška', price: 2900, category: 'Sběratelství', img: 'https://images.unsplash.com/photo-1612036782180-6f0b6cd846fe', seller: 'Comic Store', verified: true, rating: 4.8, description: 'Detailně ručně malovaná soška Batmana od Iron Studios v měřítku 1/10. Vystavovaná v bezprašné vitríně mimo sluneční světlo. Původní krabice je součástí. Poštovné: 119 Kč (PPL).' }
+        ];
+
+        // --- DATABÁZOVÁ FUNKCIONALITA SUPABASE ---
+        async function fetchDatabaseItems() {
+            if (!supabaseClient) return;
+            try {
+                // Stažení dat z tabulek 'aukce' a 'pevna_cena'
+                const { data: dbAukce, error: err1 } = await supabaseClient.from('aukce').select('*');
+                const { data: dbPevna, error: err2 } = await supabaseClient.from('pevna_cena').select('*');
+                
+                if (!err1 && dbAukce && dbAukce.length > 0) dataAukce = dbAukce;
+                if (!err2 && dbPevna && dbPevna.length > 0) dataPevnaCena = dbPevna;
+            } catch(e) {
+                console.log("Používají se předpřipravená lokální data.");
+            }
+        }
+
+        // Sledování stavu přihlášení uživatele
+        if (supabaseClient) {
+            supabaseClient.auth.onAuthStateChange((event, session) => {
+                const btn = document.getElementById('btn-register-top');
+                if (session && session.user) {
+                    if (btn) btn.innerText = "Můj Profil";
+                } else {
+                    if (btn) btn.innerText = "Registrovat";
+                }
+            });
+        }
+
+        // Funkce pro autentizaci přes poskytovatele
+        window.loginWithProvider = async function(providerName) {
+            if (!supabaseClient) {
+                alert("Supabase není nakonfigurován! Vyplň SUPABASE_URL a SUPABASE_ANON_KEY v kódu.");
+                return;
+            }
+            await supabaseClient.auth.signInWithOAuth({ provider: providerName });
+        };
+
+        // Registrace a přihlášení e-mailem přes formulář
+        window.handleEmailAuth = async function(e) {
+            e.preventDefault();
+            if (!supabaseClient) return alert("Supabase není nakonfigurován!");
+            
+            const email = document.getElementById('email-input').value;
+            const password = document.getElementById('password-input').value;
+            const action = e.submitter.getAttribute('data-action');
+
+            if (action === 'signup') {
+                const { error } = await supabaseClient.auth.signUp({ email, password });
+                if (error) alert("Chyba registrace: " + error.message);
+                else alert("Registrační e-mail byl odeslán! Zkontrolujte si schránku.");
+            } else {
+                const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+                if (error) alert("Chyba přihlášení: " + error.message);
+                else {
+                    alert("Úspěšně přihlášen!");
+                    navigate('home');
+                }
+            }
+        };
+
+        // Odeslání KYC dat formuláře do tabulky profiles
+        window.handleKYCSubmit = async function(e) {
+            e.preventDefault();
+            if (!supabaseClient) return alert("Supabase není nakonfigurován!");
+            
+            const { data: { user } } = await supabaseClient.auth.getUser();
+            if (!user) return alert("Pro uložení KYC musíte být přihlášeni.");
+
+            const profileData = {
+                id: user.id,
+                first_name: document.getElementById('kyc-fname').value,
+                last_name: document.getElementById('kyc-lname').value,
+                birth_year: parseInt(document.getElementById('kyc-year').value),
+                address: document.getElementById('kyc-address').value,
+                bank_account: document.getElementById('kyc-bank').value,
+                kyc_status: 'submitted'
+            };
+
+            const { error } = await supabaseClient.from('profiles').upsert(profileData);
+            if (error) alert("Chyba ukládání: " + error.message);
+            else {
+                alert("KYC údaje byly bezpečně odeslány ke kontrole!");
+                navigate('home');
+            }
+        };
+
+        // --- ŠABLONY STRÁNEK (NEMĚNÍ DESIGN) ---
+        const views = {
+            home: () => `
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8 w-full fade-in">
+                    <div onclick="navigate('aukce')" class="relative h-[450px] md:h-[500px] rounded-[2rem] overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-300 cursor-pointer bg-white group">
+                        <img src="https://images.unsplash.com/photo-1589829085413-56de8ae18c73?q=80&w=1000&auto=format&fit=crop" class="absolute inset-0 w-full h-full object-cover opacity-90 group-hover:scale-105 transition-transform duration-700">
+                        <div class="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent transition-colors duration-300 group-hover:from-black/60"></div>
+                        <div class="absolute inset-x-0 bottom-0 p-10 transform transition-transform duration-300 group-hover:-translate-y-2">
+                            <h2 class="text-4xl md:text-5xl font-bold text-white mb-3 drop-shadow-lg">Aukce</h2>
+                            <p class="text-white/95 text-xl drop-shadow-md">Přihazuj a získej nejlepší cenu na trhu.</p>
+                        </div>
+                    </div>
+                    <div onclick="navigate('pevna-cena')" class="relative h-[450px] md:h-[500px] rounded-[2rem] overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-300 cursor-pointer bg-white group">
+                        <img src="https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?q=80&w=1000&auto=format&fit=crop" class="absolute inset-0 w-full h-full object-cover opacity-90 group-hover:scale-105 transition-transform duration-700">
+                        <div class="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent transition-colors duration-300 group-hover:from-black/60"></div>
+                        <div class="absolute inset-x-0 bottom-0 p-10 transform transition-transform duration-300 group-hover:-translate-y-2">
+                            <h2 class="text-4xl md:text-5xl font-bold text-white mb-3 drop-shadow-lg">Pevná cena</h2>
+                            <p class="text-white/95 text-xl drop-shadow-md">Kup hned za stanovenou částku bez čekání.</p>
+                        </div>
+                    </div>
+                </div>
+            `,
+            
+            kontakt: () => `
+                <div class="w-full bg-white/90 backdrop-blur-xl p-10 rounded-[2rem] shadow-xl fade-in min-h-[500px] border border-white/50 flex flex-col items-center justify-center relative">
+                    <button onclick="navigate('home')" class="absolute top-8 left-8 text-sky-500 font-bold hover:text-sky-600 transition-colors flex items-center gap-2">← Zpět</button>
+                    <h2 class="text-4xl font-extrabold mb-4 text-pastel-text">Kontakt</h2>
+                    <p class="text-gray-500">Zde se bude nacházet kontaktní formulář, e-mail a adresa provozovatele tržiště.</p>
+                </div>
+            `,
+            
+            vop: () => `
+                <div class="w-full bg-white/90 backdrop-blur-xl p-10 rounded-[2rem] shadow-xl fade-in min-h-[500px] border border-white/50 flex flex-col items-center justify-center relative">
+                    <button onclick="navigate('home')" class="absolute top-8 left-8 text-sky-500 font-bold hover:text-sky-600 transition-colors flex items-center gap-2">← Zpět</button>
+                    <h2 class="text-4xl font-extrabold mb-4 text-pastel-text">Obchodní podmínky</h2>
+                    <p class="text-gray-500">Zde se bude nacházet znění Všeobecných obchodních podmínek (VOP).</p>
+                </div>
+            `,
+
+            login: () => `
+                <div class="w-full max-w-md mx-auto bg-white/90 backdrop-blur-xl p-8 md:p-10 rounded-[2.5rem] shadow-2xl fade-in border border-white/50 relative overflow-hidden">
+                    <button onclick="navigate('home')" class="absolute top-6 left-6 text-gray-400 hover:text-gray-600 transition-colors p-2">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                    </button>
+                    
+                    <div class="text-center mt-6 mb-8">
+                        <h2 class="text-3xl font-extrabold text-pastel-text mb-3">Přihlášení / Registrace</h2>
+                        <p class="text-gray-500 mb-4">Pro pokračování využijte sociální sítě nebo zadejte e-mail.</p>
+                        <button onclick="navigate('kyc')" class="text-xs text-sky-500 font-semibold underline">Přímý skok na ověření totožnosti (KYC)</button>
+                    </div>
+
+                    <div class="flex flex-col gap-4">
+                        <button onclick="loginWithProvider('google')" class="w-full flex items-center justify-center gap-3 bg-white border border-gray-200 text-gray-700 font-bold py-3.5 px-6 rounded-2xl hover:bg-gray-50 hover:shadow-md transition-all">
+                            <svg class="w-6 h-6" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+                            Pokračovat přes Google
+                        </button>
+
+                        <button onclick="loginWithProvider('facebook')" class="w-full flex items-center justify-center gap-3 bg-[#1877F2] text-white font-bold py-3.5 px-6 rounded-2xl hover:bg-[#166FE5] hover:shadow-md transition-all shadow-[0_5px_15px_-5px_rgba(24,119,242,0.5)]">
+                            <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.469h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.469h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+                            Pokračovat přes Facebook
+                        </button>
+
+                        <div class="relative flex py-2 items-center">
+                            <div class="flex-grow border-t border-gray-200"></div>
+                            <span class="flex-shrink-0 mx-4 text-gray-400 text-sm">nebo e-mailem</span>
+                            <div class="flex-grow border-t border-gray-200"></div>
+                        </div>
+
+                        <form onsubmit="handleEmailAuth(event)" class="flex flex-col gap-3">
+                            <input type="email" id="email-input" placeholder="Váš e-mail" required class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-sky-400 bg-white/50">
+                            <input type="password" id="password-input" placeholder="Heslo" required class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-sky-400 bg-white/50">
+                            <div class="flex gap-2 mt-1">
+                                <button type="submit" data-action="signin" class="flex-1 bg-gray-800 text-white font-bold py-3 rounded-xl text-sm hover:bg-gray-900 transition-colors">Přihlásit</button>
+                                <button type="submit" data-action="signup" class="flex-1 bg-white border border-gray-300 text-gray-700 font-bold py-3 rounded-xl text-sm hover:bg-gray-50 transition-colors">Registrovat</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            `,
+
+            // Zbrusu nový formulář pro KYC verifikaci v designu aplikace
+            kyc: () => `
+                <div class="w-full max-w-xl mx-auto bg-white/90 backdrop-blur-xl p-8 md:p-10 rounded-[2.5rem] shadow-2xl fade-in border border-white/50">
+                    <div class="text-center mb-8">
+                        <span class="inline-block bg-sky-100 text-sky-800 text-xs px-3 py-1 rounded-full font-bold uppercase tracking-wide mb-3">Zabezpečení trhu</span>
+                        <h2 class="text-3xl font-extrabold text-pastel-text">Ověření totožnosti (KYC)</h2>
+                        <p class="text-gray-500 text-sm mt-1">Vyplňte prosím pravdivé identifikační údaje pro schválení účtu EDC.</p>
+                    </div>
+                    <form onsubmit="handleKYCSubmit(event)" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div class="flex flex-col gap-1">
+                            <label class="text-xs font-bold text-gray-500 pl-1">Jméno</label>
+                            <input type="text" id="kyc-fname" required class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-sky-400 bg-white/50">
+                        </div>
+                        <div class="flex flex-col gap-1">
+                            <label class="text-xs font-bold text-gray-500 pl-1">Příjmení</label>
+                            <input type="text" id="kyc-lname" required class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-sky-400 bg-white/50">
+                        </div>
+                        <div class="flex flex-col gap-1 sm:col-span-2">
+                            <label class="text-xs font-bold text-gray-500 pl-1">Trvalé bydliště (Adresa)</label>
+                            <input type="text" id="kyc-address" required placeholder="Ulice, č.p., Město, PSČ" class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-sky-400 bg-white/50">
+                        </div>
+                        <div class="flex flex-col gap-1">
+                            <label class="text-xs font-bold text-gray-500 pl-1">Rok narození (RČ)</label>
+                            <input type="number" id="kyc-year" required placeholder="Např. 1990" class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-sky-400 bg-white/50">
+                        </div>
+                        <div class="flex flex-col gap-1">
+                            <label class="text-xs font-bold text-gray-500 pl-1">Bankovní účet</label>
+                            <input type="text" id="kyc-bank" required placeholder="Např. 123456789/0100" class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-sky-400 bg-white/50">
+                        </div>
+                        <div class="sm:col-span-2 mt-4">
+                            <button type="submit" class="w-full bg-sky-500 hover:bg-sky-600 text-white font-bold py-4 rounded-xl transition-all shadow-md text-base">
+                                Odeslat dokumenty k ověření
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            `,
+            
+            aukce: (kategorieFilter = 'Vše') => {
+                const filteredData = dataAukce.filter(item => kategorieFilter === 'Vše' || item.category === kategorieFilter);
+                
+                return `
+                <div class="w-full bg-white/90 backdrop-blur-xl p-6 md:p-10 rounded-[2rem] shadow-xl fade-in min-h-[500px] border border-white/50">
+                    <button onclick="navigate('home')" class="mb-4 text-sky-500 font-bold hover:text-sky-600 transition-colors flex items-center gap-2 text-lg">← Zpět na výběr</button>
+                    <h2 class="text-3xl md:text-4xl font-extrabold mb-6 text-pastel-text">Aktivní aukce <span class="text-lg text-gray-400 font-medium ml-2">(${filteredData.length})</span></h2>
+                    
+                    ${renderCategories('aukce', kategorieFilter)}
+                    
+                    ${filteredData.length === 0 ? '<p class="text-gray-500 py-10 text-center">V této kategorii zatím nejsou žádné aukce.</p>' : ''}
+                    
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                        ${filteredData.map(item => `
+                            <div onclick="navigate('aukce-detail/${item.id}')" class="bg-white rounded-2xl p-4 shadow-sm hover:shadow-lg border border-gray-100 flex flex-col group relative cursor-pointer transition-shadow">
+                                <div class="relative overflow-hidden rounded-xl mb-4 h-48 bg-gray-50">
+                                    <img src="${item.img}?q=80&w=400&auto=format&fit=crop" class="object-cover w-full h-full group-hover:scale-105 transition-transform duration-500">
+                                </div>
+                                <div class="text-xs font-bold text-sky-500 mb-1">${item.category}</div>
+                                <h3 class="text-lg font-bold text-gray-800 line-clamp-2 leading-tight h-12">${item.title}</h3>
+                                
+                                <div class="mt-auto pt-4">
+                                    <p class="text-xs text-gray-400 uppercase font-semibold tracking-wider">Aktuální cena</p>
+                                    <div class="text-2xl font-black text-sky-500 mb-4">${item.price.toLocaleString('cs-CZ')} Kč</div>
+                                    <button class="w-full bg-sky-50 text-sky-600 font-bold py-3 rounded-xl transition-colors border border-sky-100">Otevřít aukci</button>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `},
+
+            'aukce-detail': (id) => {
+                const item = dataAukce.find(i => i.id == id);
+                if (!item) return `<p>Aukce nenalezena.</p>`;
+                const prices = getPriceInfo(item.price);
+                
+                return `
+                <div class="w-full bg-white/90 backdrop-blur-xl p-6 md:p-10 rounded-[2rem] shadow-xl fade-in min-h-[500px] border border-white/50 relative">
+                    <button onclick="navigate('aukce')" class="mb-8 text-sky-500 font-bold hover:text-sky-600 transition-colors flex items-center gap-2 text-lg">← Zpět na seznam</button>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-10">
+                        <div class="bg-white rounded-3xl p-4 md:p-6 flex flex-col items-center justify-center border border-gray-100 relative shadow-inner overflow-hidden group">
+                            <img src="${item.img}?q=80&w=800&auto=format&fit=crop" class="rounded-xl object-cover w-full h-[300px] md:h-[450px]">
+                            
+                            ${item.has360 ? `
+                            <div class="absolute bottom-6 flex gap-2 z-10">
+                                <button onclick="open360('${item.img}?q=80&w=1200&auto=format&fit=crop')" class="bg-white/95 backdrop-blur-md text-gray-800 px-6 py-3 rounded-full shadow-lg font-bold text-sm flex items-center gap-3 hover:bg-white hover:scale-105 transition-all">
+                                    <svg class="w-5 h-5 text-sky-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                                    Spustit 360° Pohled
+                                </button>
+                            </div>` : ''}
+                        </div>
+
+                        <div class="flex flex-col">
+                            <div class="flex gap-2 mb-4">
+                                <span class="inline-block bg-sky-100 text-sky-800 text-sm px-4 py-1.5 rounded-full font-bold uppercase tracking-wide w-max">Aukce</span>
+                                <span class="inline-block bg-gray-100 text-gray-600 text-sm px-4 py-1.5 rounded-full font-bold tracking-wide w-max">${item.category}</span>
+                            </div>
+                            <h2 class="text-3xl md:text-5xl font-extrabold mb-4 text-pastel-text">${item.title}</h2>
+                            
+                            <div class="flex items-center gap-4 bg-gray-50 p-4 rounded-2xl mb-6">
+                                <div class="w-12 h-12 rounded-full bg-sky-200 flex items-center justify-center text-sky-700 font-bold text-lg">${item.seller.charAt(0)}</div>
+                                <div>
+                                    <p class="font-bold text-gray-800 flex items-center gap-1">
+                                        ${item.seller}
+                                        ${item.verified ? `<svg class="w-5 h-5 text-sky-500" fill="currentColor" viewBox="0 0 20 20" title="Ověřený prodejce"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg>` : ''}
+                                    </p>
+                                    <div class="flex items-center text-yellow-500 text-sm font-bold gap-1">
+                                        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path></svg>
+                                        ${item.rating} / 5
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <p class="text-gray-600 mb-8 leading-relaxed">${item.description}</p>
+                            
+                            <div class="bg-sky-50 border border-sky-100 p-6 rounded-3xl mb-8">
+                                <p class="text-gray-400 text-xs font-semibold uppercase tracking-wider mb-1">Cena prodejce</p>
+                                <div class="text-4xl font-black text-gray-800 mb-4" id="price-${item.id}" data-price="${item.price}">${item.price.toLocaleString('cs-CZ')} Kč</div>
+                                
+                                <div class="border-t border-sky-200/50 pt-4 mt-2">
+                                    <p class="text-gray-500 text-sm font-semibold uppercase mb-1">Konečná cena pro kupujícího</p>
+                                    <div class="flex items-end gap-3">
+                                        <div class="text-2xl font-bold text-sky-600" id="total-${item.id}">${prices.total.toLocaleString('cs-CZ')} Kč</div>
+                                        <div class="text-xs text-gray-400 mb-1 pb-0.5" id="fees-${item.id}">(obsahuje +5% poplatek a ${ESCROW_FEE} Kč)</div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="relative w-full">
+                                <button onclick="toggleBidMenu(${item.id})" class="w-full bg-sky-500 hover:bg-sky-600 text-white font-bold py-5 px-8 rounded-2xl transition-all shadow-md text-xl">Přihodit</button>
+                                <div id="bid-menu-${item.id}" class="hidden absolute bottom-full left-0 w-full mb-3 bg-white rounded-2xl shadow-2xl border border-gray-100 p-4 z-20 transition-all">
+                                    <div class="flex flex-wrap justify-center gap-2 md:gap-3">
+                                        ${[50, 100, 200, 500, 1000].map(amount => `<button onclick="placeBid(${item.id}, ${amount})" class="flex-1 min-w-[30%] bg-sky-50 text-sky-700 hover:bg-sky-500 hover:text-white py-3 rounded-xl font-bold text-lg transition-colors">+${amount}</button>`).join('')}
+                                    </div>
+                                    <button onclick="toggleBidMenu(${item.id})" class="absolute -top-3 -right-3 bg-white shadow-md rounded-full p-1.5 text-gray-400">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                `;
+            },
+
+            'pevna-cena': (kategorieFilter = 'Vše') => {
+                const filteredData = dataPevnaCena.filter(item => kategorieFilter === 'Vše' || item.category === kategorieFilter);
+                
+                return `
+                <div class="w-full bg-white/90 backdrop-blur-xl p-6 md:p-10 rounded-[2rem] shadow-xl fade-in min-h-[500px] border border-white/50">
+                    <button onclick="navigate('home')" class="mb-4 text-pink-500 font-bold hover:text-pink-600 transition-colors flex items-center gap-2 text-lg">← Zpět na výběr</button>
+                    <h2 class="text-3xl md:text-4xl font-extrabold mb-6 text-pastel-text">Pevná cena <span class="text-lg text-gray-400 font-medium ml-2">(${filteredData.length})</span></h2>
+                    
+                    ${renderCategories('pevna-cena', kategorieFilter)}
+                    
+                    ${filteredData.length === 0 ? '<p class="text-gray-500 py-10 text-center">V této kategorii zatím není žádné zboží k okamžitému nákupu.</p>' : ''}
+                    
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                        ${filteredData.map(item => `
+                            <div onclick="navigate('pevna-cena-detail/${item.id}')" class="bg-white rounded-2xl p-4 shadow-sm hover:shadow-lg border border-gray-100 flex flex-col group cursor-pointer transition-shadow">
+                                <div class="overflow-hidden rounded-xl mb-4 h-48 bg-gray-50">
+                                    <img src="${item.img}?q=80&w=400&auto=format&fit=crop" class="object-cover w-full h-full group-hover:scale-105 transition-transform duration-500">
+                                </div>
+                                <div class="text-xs font-bold text-pink-500 mb-1">${item.category}</div>
+                                <h3 class="text-lg font-bold text-gray-800 line-clamp-2 leading-tight h-12">${item.title}</h3>
+                                
+                                <div class="mt-auto pt-4">
+                                    <p class="text-xs text-gray-400 uppercase font-semibold tracking-wider">Cena ihned</p>
+                                    <div class="text-2xl font-black text-pink-500 mb-4">${item.price.toLocaleString('cs-CZ')} Kč</div>
+                                    <button class="w-full bg-pink-50 text-pink-600 font-bold py-3 rounded-xl border border-pink-100">Koupit</button>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `},
+            
+            'pevna-cena-detail': (id) => {
+                const item = dataPevnaCena.find(i => i.id == id);
+                if (!item) return `<p>Položka nenalezena.</p>`;
+                const prices = getPriceInfo(item.price);
+
+                return `
+                <div class="w-full bg-white/90 backdrop-blur-xl p-6 md:p-10 rounded-[2rem] shadow-xl fade-in min-h-[500px] border border-white/50">
+                    <button onclick="navigate('pevna-cena')" class="mb-8 text-pink-500 font-bold hover:text-pink-600 transition-colors flex items-center gap-2 text-lg">← Zpět na katalog</button>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-10">
+                        <div class="bg-white rounded-3xl p-4 md:p-6 flex flex-col items-center justify-center border border-gray-100 shadow-inner">
+                            <img src="${item.img}?q=80&w=800&auto=format&fit=crop" class="rounded-xl object-cover w-full h-[300px] md:h-[450px]">
+                        </div>
+                        <div class="flex flex-col">
+                            <div class="flex gap-2 mb-4">
+                                <span class="inline-block bg-pink-100 text-pink-800 text-sm px-4 py-1.5 rounded-full font-bold uppercase tracking-wide w-max">Kup teď</span>
+                                <span class="inline-block bg-gray-100 text-gray-600 text-sm px-4 py-1.5 rounded-full font-bold tracking-wide w-max">${item.category}</span>
+                            </div>
+                            <h2 class="text-3xl md:text-5xl font-extrabold mb-4 text-pastel-text">${item.title}</h2>
+                            
+                            <div class="flex items-center gap-4 bg-gray-50 p-4 rounded-2xl mb-6">
+                                <div class="w-12 h-12 rounded-full bg-pink-200 flex items-center justify-center text-pink-700 font-bold text-lg">${item.seller.charAt(0)}</div>
+                                <div>
+                                    <p class="font-bold text-gray-800 flex items-center gap-1">
+                                        ${item.seller}
+                                        ${item.verified ? `<svg class="w-5 h-5 text-sky-500" fill="currentColor" viewBox="0 0 20 20" title="Ověřený prodejce"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg>` : ''}
+                                    </p>
+                                    <div class="flex items-center text-yellow-500 text-sm font-bold gap-1">
+                                        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path></svg>
+                                        ${item.rating} / 5
+                                    </div>
+                                </div>
+                            </div>
+
+                            <p class="text-gray-600 mb-8 leading-relaxed">${item.description}</p>
+                            
+                            <div class="bg-pink-50 border border-pink-100 p-6 rounded-3xl mb-8">
+                                <p class="text-gray-400 text-xs font-semibold uppercase tracking-wider mb-1">Cena prodejce</p>
+                                <div class="text-4xl font-black text-gray-800 mb-4">${item.price.toLocaleString('cs-CZ')} Kč</div>
+                                
+                                <div class="border-t border-pink-200/50 pt-4 mt-2">
+                                    <p class="text-gray-500 text-sm font-semibold uppercase mb-1">Konečná cena pro kupujícího</p>
+                                    <div class="flex items-end gap-3">
+                                        <div class="text-2xl font-bold text-pink-600">${prices.total.toLocaleString('cs-CZ')} Kč</div>
+                                        <div class="text-xs text-gray-400 mb-1 pb-0.5">(obsahuje +5% poplatek a ${ESCROW_FEE} Kč za úschovu)</div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <button class="w-full bg-pink-500 hover:bg-pink-600 text-white font-bold py-5 px-8 rounded-2xl transition-all shadow-[0_10px_20px_-10px_rgba(236,72,153,0.6)] text-xl">
+                                Koupit ihned
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                `;
+            }
+        };
+
+        // --- NAVIGACE A ROUTING (SPA) ---
+        function navigate(path, param = null) {
+            let viewName = path;
+            let idOrCategory = param;
+
+            if (path.includes('/')) {
+                const parts = path.split('/');
+                viewName = parts[0];
+                idOrCategory = parts[1];
+            }
+
+            const app = document.getElementById('app');
+            if (!views[viewName]) viewName = 'home';
+            
+            let htmlToRender = views[viewName](idOrCategory);
+            app.innerHTML = htmlToRender;
+
+            const fullUrl = idOrCategory && !vsechnyKategorie.includes(idOrCategory) ? `${viewName}/${idOrCategory}` : viewName;
+            if (fullUrl !== 'home') {
+                history.pushState({ view: fullUrl, param: idOrCategory }, '', '#' + fullUrl);
+            } else {
+                history.pushState({ view: 'home' }, '', window.location.pathname);
+            }
+        }
+
+        window.toggleBidMenu = function(id) {
+            document.getElementById('bid-menu-' + id).classList.toggle('hidden');
+        };
+
+        // Real-time aktualizace ceny s přímým zápisem do Supabase DB
+        window.placeBid = async function(id, amount) {
+            const pEl = document.getElementById('price-' + id);
+            const tEl = document.getElementById('total-' + id);
+            
+            let val = parseInt(pEl.getAttribute('data-price')) + amount;
+            
+            // Lokální okamžitá vizuální změna
+            pEl.setAttribute('data-price', val);
+            pEl.innerText = val.toLocaleString('cs-CZ') + ' Kč';
+            tEl.innerText = getPriceInfo(val).total.toLocaleString('cs-CZ') + ' Kč';
+            
+            // Zápis příhozu do Supabase
+            if (supabaseClient) {
+                const { error } = await supabaseClient
+                    .from('aukce')
+                    .update({ price: val })
+                    .eq('id', id);
+                    
+                if (error) console.error("Chyba při synchronizaci příhozu do DB:", error.message);
+            }
+            
+            toggleBidMenu(id);
+        };
+
+        // --- INTERAKTIVNÍ 360° PROHLÍŽEČ ---
+        let isDragging = false;
+        let startX = 0;
+        let currentPos = 0;
+
+        window.open360 = function(imgSrc) {
+            const modal = document.getElementById('modal-360');
+            const img = document.getElementById('img-360');
+            img.src = imgSrc;
+            currentPos = 0;
+            img.style.transform = `rotateY(0deg)`;
+            modal.classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+        }
+
+        window.close360 = function() {
+            document.getElementById('modal-360').classList.add('hidden');
+            document.body.style.overflow = 'auto';
+        }
+
+        function startDrag(e) {
+            isDragging = true;
+            startX = e.type.includes('mouse') ? e.pageX : e.touches[0].pageX;
+        }
+        function doDrag(e) {
+            if (!isDragging) return;
+            e.preventDefault();
+            const x = e.type.includes('mouse') ? e.pageX : e.touches[0].pageX;
+            const diff = x - startX;
+            currentPos += diff * 0.5;
+            document.getElementById('img-360').style.transform = `rotateY(${currentPos}deg)`;
+            startX = x;
+        }
+        function stopDrag() {
+            isDragging = false;
+        }
+
+        window.addEventListener('popstate', (event) => {
+            if (event.state && event.state.view) {
+                navigate(event.state.view, event.state.param);
+            } else {
+                navigate('home');
+            }
+        });
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            // Nejprve se pokusíme načíst reálná data, pokud je spuštěn Supabase
+            await fetchDatabaseItems();
+            
+            const hash = window.location.hash.replace('#', '');
+            if (hash) {
+                navigate(hash);
+            } else {
+                navigate('home');
+            }
+        });
+    </script>
+</body>
+</html>
