@@ -136,7 +136,7 @@
         let dataPevnaCena = [];
         window.currentUser = null;
 
-        // Pomocné funkce
+        // --- POMOCNÉ FUNKCE ---
         window.renderCategories = function(view, currentFilter) {
             return `
             <div class="flex gap-2 overflow-x-auto pb-4 mb-4 scrollbar-hide">
@@ -151,63 +151,68 @@
             return { fee: fee, total: price + fee + ESCROW_FEE };
         };
 
-// --- NAČÍTÁNÍ Z DATABÁZE (Odolná verze) ---
+        // --- NAČÍTÁNÍ Z DATABÁZE ---
         window.fetchDatabaseItems = async function() {
             if (!supabaseClient) return;
             try {
-                // Přímé stažení dat bez složitého křížení tabulek (obchází chybu Supabase Cache)
-                const { data: dbAukce, error: err1 } = await supabaseClient.from('aukce').select('*');
-                const { data: dbPevna, error: err2 } = await supabaseClient.from('pevna_cena').select('*');
+                // Stažení dat s propojením profilu
+                const { data: dbAukce, error: err1 } = await supabaseClient.from('aukce').select('*, profiles(first_name, last_name, is_verified, rating)');
+                const { data: dbPevna, error: err2 } = await supabaseClient.from('pevna_cena').select('*, profiles(first_name, last_name, is_verified, rating)');
                 
-                // Pokud Supabase dál blokuje čtení, vyhodí se ti upozornění na obrazovku!
-                if (err1) alert("Supabase blokuje aukce: " + err1.message);
-                if (err2) alert("Supabase blokuje pevnou cenu: " + err2.message);
+                if (err1) console.error("Chyba načítání Aukce:", err1.message);
+                if (err2) console.error("Chyba načítání Pevná cena:", err2.message);
 
-                if (dbAukce && !err1) {
+                const getSellerName = (prof) => {
+                    if (!prof) return 'Ověřený prodejce';
+                    const name = `${prof.first_name || ''} ${prof.last_name || ''}`.trim();
+                    return name || 'Uživatel tržiště';
+                };
+
+                // Bezpečné parsování obrázku z pole
+                const safeImage = (item) => {
+                    if (item.images && item.images.length > 0 && item.images[0]) return item.images[0];
+                    return 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?q=80&w=600&auto=format&fit=crop';
+                };
+
+                if (dbAukce) {
                     dataAukce = dbAukce.map(item => ({
                         id: item.id,
-                        seller_id: item.seller_id, // Zásadní pro zobrazení v profilu
+                        seller_id: item.seller_id,
                         type: 'aukce',
                         title: item.title,
                         price: item.current_price || item.starting_price || 0,
                         category: item.category,
-                        img: item.images && item.images.length > 0 ? item.images[0] : 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?q=80&w=600&auto=format&fit=crop',
+                        img: safeImage(item),
                         has360: item.has_360 || false,
-                        seller: 'Ověřený prodejce', // Zatím vyplněno napevno
-                        verified: true,
-                        rating: 4.9,
+                        seller: getSellerName(item.profiles),
+                        verified: item.profiles ? item.profiles.is_verified : false,
+                        rating: item.profiles ? item.profiles.rating : 0,
                         description: item.description
                     }));
                 }
 
-                if (dbPevna && !err2) {
+                if (dbPevna) {
                     dataPevnaCena = dbPevna.map(item => ({
                         id: item.id,
-                        seller_id: item.seller_id, // Zásadní pro zobrazení v profilu
+                        seller_id: item.seller_id,
                         type: 'pevna_cena',
                         title: item.title,
                         price: item.price || 0,
                         category: item.category,
-                        img: item.images && item.images.length > 0 ? item.images[0] : 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?q=80&w=600&auto=format&fit=crop',
+                        img: safeImage(item),
                         has360: item.has_360 || false,
-                        seller: 'Ověřený prodejce',
-                        verified: true,
-                        rating: 4.9,
+                        seller: getSellerName(item.profiles),
+                        verified: item.profiles ? item.profiles.is_verified : false,
+                        rating: item.profiles ? item.profiles.rating : 0,
                         description: item.description
                     }));
                 }
-                
-                // Jakmile se inzeráty ze Supabase stáhnou, vnutí aplikaci, aby hned překreslila obrazovku!
-                if (window.location.hash.includes('profil')) {
-                    loadProfileData('inzeraty');
-                }
-                
             } catch(e) {
-                console.error("Chyba aplikace při stahování:", e);
+                console.error("Kritická chyba načítání reálných dat:", e);
             }
         };
 
-        // --- AUTH & KYC KONTROLA ---
+        // --- AUTH & KYC ---
         async function checkUserProfileKYC(user) {
             if (!supabaseClient) return;
             try {
@@ -222,7 +227,7 @@
             supabaseClient.auth.onAuthStateChange(async (event, session) => {
                 const btn = document.getElementById('btn-register-top');
                 if (session && session.user) {
-                    window.currentUser = session.user; // Uložíme si uživatele globálně hned po přihlášení
+                    window.currentUser = session.user;
                     if (btn) {
                         btn.innerText = "Můj Profil";
                         btn.setAttribute('onclick', "navigate('profil')"); 
@@ -248,7 +253,6 @@
         window.handleEmailAuth = async function(e) {
             e.preventDefault();
             if (!supabaseClient) return alert("Supabase není nakonfigurován!");
-            
             const email = document.getElementById('email-input').value;
             const password = document.getElementById('password-input').value;
             const action = e.submitter.getAttribute('data-action');
@@ -265,11 +269,7 @@
                 if (error) alert("Chyba přihlášení: " + error.message);
                 else {
                     alert("Úspěšně přihlášen!");
-                    if (data && data.user) {
-                        await checkUserProfileKYC(data.user);
-                    } else {
-                        navigate('home');
-                    }
+                    if (data && data.user) { await checkUserProfileKYC(data.user); } else { navigate('home'); }
                 }
             }
         };
@@ -287,7 +287,7 @@
             
             const { data: { user }, error: userError } = await supabaseClient.auth.getUser();
             if (userError || !user) {
-                alert("Pro uložení KYC musíte být přihlášeni. Přesměrovávám na přihlášení.");
+                alert("Pro uložení KYC musíte být přihlášeni.");
                 navigate('login');
                 return;
             }
@@ -370,17 +370,14 @@
             }, 1500);
         };
 
-// --- 1. OPRAVENÝ NÁHLED OBRÁZKU ---
         window.previewImage = function(input) {
             if (input.files && input.files[0]) {
                 const reader = new FileReader();
                 const container = input.parentElement;
                 reader.onload = function(e) {
-                    // Místo smazání prvku ho jen chytře překryjeme tapetou
                     container.style.backgroundImage = `url(${e.target.result})`;
                     container.style.backgroundSize = 'cover';
                     container.style.backgroundPosition = 'center';
-                    // Skryjeme ikonu a text
                     const svg = container.querySelector('svg');
                     const span = container.querySelector('span');
                     if(svg) svg.style.display = 'none';
@@ -391,8 +388,6 @@
             }
         };
 
-
-        // --- 2. OPRAVENÉ ZAPISOVÁNÍ A NAHRÁVÁNÍ FOTEK DO STORAGE ---
         window.handleAdSubmit = async function(e) {
             e.preventDefault();
             if (!supabaseClient) return alert("Supabase není nakonfigurován!");
@@ -414,7 +409,7 @@
 
                 if (!title || !category || !condition) throw new Error("Vyplňte prosím název, kategorii a stav.");
 
-                // --- NAHRÁVÁNÍ FOTEK DO SUPABASE ---
+                // --- NAHRÁVÁNÍ OBRÁZKŮ DO SUPABASE STORAGE ---
                 const fileInputs = document.querySelectorAll('input[type="file"]');
                 const uploadedImages = [];
                 
@@ -422,7 +417,6 @@
                     if (input.files && input.files[0]) {
                         const file = input.files[0];
                         const fileExt = file.name.split('.').pop();
-                        // Unikátní jméno pro každou fotku
                         const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
                         
                         const { data, error } = await supabaseClient.storage
@@ -430,21 +424,22 @@
                             .upload(fileName, file, { cacheControl: '3600', upsert: false });
                             
                         if (!error && data) {
-                            // Stažení finální veřejné URL adresy
                             const { data: publicUrlData } = supabaseClient.storage.from('inzeraty').getPublicUrl(fileName);
-                            uploadedImages.push(publicUrlData.publicUrl);
+                            if (publicUrlData && publicUrlData.publicUrl) {
+                                uploadedImages.push(publicUrlData.publicUrl);
+                            }
                         } else {
-                            console.error("Chyba fotky:", error);
+                            console.error("Chyba při nahrávání fotky:", error);
                         }
                     }
                 }
 
-                // Pokud zapomněl nahrát fotku, dáme tam fallback z Unsplash
+                // Bezpečnostní Fallback fotka
                 if (uploadedImages.length === 0) {
                     uploadedImages.push('https://images.unsplash.com/photo-1523275335684-37898b6baf30?q=80&w=800&auto=format&fit=crop');
                 }
-                // -----------------------------------
 
+                // --- PŘÍPRAVA DAT ---
                 const adData = {
                     seller_id: user.id,
                     title: title,
@@ -455,8 +450,8 @@
                     weight: parseFloat(document.getElementById('ad-weight').value) || null,
                     dimensions: document.getElementById('ad-dimensions').value || null,
                     shipping_methods: Array.from(document.querySelectorAll('input[name="shipping"]:checked')).map(el => el.value),
-                    images: uploadedImages, // SEM VKLÁDÁME SKUTEČNÉ ODKAZY NA FOTKY
-                    has_360: (uploadedImages.length >= 4), // Pokud nahrál všechny 4 fotky, zapneme 360° prohlížeč
+                    images: uploadedImages,
+                    has_360: (uploadedImages.length >= 4),
                     status: 'aktivní'
                 };
 
@@ -479,29 +474,25 @@
                     adData.price = fixPrice;
                 }
 
+                // Odeslání inzerátu
                 const { error } = await supabaseClient.from(tableName).insert([adData]);
                 if (error) throw new Error(error.message);
 
                 alert("Inzerát a fotografie byly úspěšně nahrány!");
-                
                 await fetchDatabaseItems(); 
-                navigate(isAuction ? 'aukce' : 'pevna-cena');
+                navigate('profil'); // Po nahrání rovnou mrkneme, že je inzerát v profilu
 
             } catch (err) {
                 alert("Chyba při ukládání: " + err.message);
+                console.error("Debug Info:", err);
             } finally {
                 if (btn) { btn.innerText = origText; btn.disabled = false; }
             }
         };
 
-
-        // --- 3. OPRAVA PROFILU (Vynucená synchronizace) ---
+        // --- DASHBOARD A SPRÁVA PROFILU ---
         window.loadProfileData = async function(activeTab = 'inzeraty') {
             if (!supabaseClient) return;
-            
-            // Pojistka: Pokaždé když otevřeš profil, přikážeme webu stáhnout nejnovější inzeráty
-            await fetchDatabaseItems();
-            
             const { data: { user }, error: authErr } = await supabaseClient.auth.getUser();
             if (authErr || !user) { navigate('login'); return; }
             
@@ -572,6 +563,7 @@
                 }
             }
         };
+
         window.renderProfileTabContent = function(tab) {
             if (tab === 'kyc') {
                 return `
@@ -614,13 +606,12 @@
                 return `<h3 class="text-xl font-bold text-gray-800 mb-4 fade-in">Oblíbené položky</h3><p class="text-gray-500 text-center py-8 font-medium fade-in">Seznam sledovaných položek je prázdný. Klikněte na ❤️ u inzerátu, který vás zajímá.</p>`;
             }
             
-            // ZÁLOŽKA AKTIVNÍ INZERÁTY (NAČTENÍ Z DATABÁZE PRO PŘIHLÁŠENÉHO)
+            // ZÁLOŽKA AKTIVNÍ INZERÁTY
             if (tab === 'inzeraty') {
                 if (!window.currentUser) {
                     return `<p class="text-gray-500 py-4 text-center fade-in">⏳ Načítám inzeráty ze serveru...</p>`;
                 }
 
-                // Najdeme všechny inzeráty a aukce, kde je ID prodejce stejné jako ID přihlášeného
                 const myAukce = dataAukce.filter(i => i.seller_id === window.currentUser.id);
                 const myPevna = dataPevnaCena.filter(i => i.seller_id === window.currentUser.id);
                 const myAds = [...myAukce, ...myPevna];
@@ -640,7 +631,7 @@
                         const isAukce = item.type === 'aukce';
                         html += `
                         <div onclick="navigate('${isAukce ? 'aukce-detail' : 'pevna-cena-detail'}/${item.id}')" class="flex items-center gap-4 p-4 border border-gray-100 rounded-2xl hover:shadow-md transition-shadow cursor-pointer fade-in bg-white group">
-                            <div class="w-16 h-16 rounded-xl bg-gray-100 overflow-hidden shrink-0">
+                            <div class="w-16 h-16 rounded-xl bg-gray-100 overflow-hidden shrink-0 flex items-center justify-center">
                                 <img src="${item.img}" class="w-full h-full object-cover group-hover:scale-110 transition-transform">
                             </div>
                             <div class="flex-grow">
@@ -806,6 +797,8 @@
 
             profil: (activeTab = 'inzeraty') => {
                 if (typeof activeTab !== 'string' || !activeTab) activeTab = 'inzeraty';
+                
+                // Aby nedocházelo k zásekům a problikávání, používáme bezpečné načítání dat
                 setTimeout(() => { loadProfileData(activeTab); }, 0);
                 
                 const getTabStyle = (tabName) => tabName === activeTab 
