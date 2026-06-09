@@ -87,7 +87,7 @@
                     Registrovat
                 </button>
                 
-                <button onclick="navigate('login')" class="bg-sky-500 hover:bg-sky-600 text-white font-bold py-2 px-4 md:py-3 md:px-6 rounded-xl md:rounded-2xl transition-all shadow-md flex items-center gap-2 text-sm md:text-base">
+                <button onclick="navigate('novy-inzerat')" class="bg-sky-500 hover:bg-sky-600 text-white font-bold py-2 px-4 md:py-3 md:px-6 rounded-xl md:rounded-2xl transition-all shadow-md flex items-center gap-2 text-sm md:text-base">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
                     <span class="hidden md:inline">Vložit inzerát</span>
                     <span class="md:hidden">Přidat</span>
@@ -240,6 +240,102 @@
                 navigate('login');
                 return;
             }
+
+            // Přepínání políček mezi pevnou cenou a aukcí
+        window.toggleAuctionFields = function(isAuction) {
+            const fixedPrice = document.getElementById('field-fixed-price');
+            const aucPrice = document.getElementById('field-auction-price');
+            const aucDuration = document.getElementById('field-auction-duration');
+            const priceInput = document.getElementById('ad-price');
+            const startingInput = document.getElementById('ad-starting-price');
+
+            if (isAuction) {
+                fixedPrice.classList.add('hidden');
+                fixedPrice.classList.remove('flex');
+                aucPrice.classList.remove('hidden');
+                aucPrice.classList.add('flex');
+                aucDuration.classList.remove('hidden');
+                aucDuration.classList.add('flex');
+                priceInput.removeAttribute('required');
+                startingInput.setAttribute('required', 'true');
+            } else {
+                fixedPrice.classList.remove('hidden');
+                fixedPrice.classList.add('flex');
+                aucPrice.classList.add('hidden');
+                aucPrice.classList.remove('flex');
+                aucDuration.classList.add('hidden');
+                aucDuration.classList.remove('flex');
+                startingInput.removeAttribute('required');
+                priceInput.setAttribute('required', 'true');
+            }
+        };
+
+        // Magická funkce AI asistenta
+        window.generateAIContent = function() {
+            const title = document.getElementById('ad-title').value;
+            const btnText = document.getElementById('ai-btn-text');
+            const descriptionBox = document.getElementById('ad-description');
+            const priceBox = document.getElementById('ad-price');
+            const startingPriceBox = document.getElementById('ad-starting-price');
+
+            if (!title || title.length < 3) {
+                alert("Nejprve prosím napište alespoň název zboží, aby měla AI z čeho vařit.");
+                document.getElementById('ad-title').focus();
+                return;
+            }
+
+            // Simulace načítání API
+            btnText.innerText = "Analyzuji trh a generuji...";
+            
+            setTimeout(() => {
+                // Odpověď simulující výstup od GPT
+                const aiDescription = `Prodávám vynikající položku: ${title}. \n\nTento kousek byl pečlivě zkontrolován a je připraven dělat radost novému majiteli. Ideální příležitost získat prémiovou kvalitu za zlomek původní ceny. Garantuji bezproblémové předání a stav přesně podle fotografií. V případě dotazů mě neváhejte kontaktovat!`;
+                
+                // Generování náhodného odhadu ceny (v reálu ji AI vypočítá)
+                const aiPrice = Math.floor(Math.random() * (15000 - 500 + 1) + 500);
+
+                // Propsání do políček s hezkou animací (zežloutnutí pro zvýraznění úpravy)
+                descriptionBox.value = aiDescription;
+                descriptionBox.classList.add('bg-yellow-50');
+                
+                priceBox.value = aiPrice;
+                priceBox.classList.add('bg-yellow-50');
+                
+                startingPriceBox.value = Math.floor(aiPrice * 0.3); // Aukce začíná na 30% odhadní ceny
+                startingPriceBox.classList.add('bg-yellow-50');
+
+                btnText.innerText = "Hotovo! (Upravte si text)";
+                
+                setTimeout(() => {
+                    descriptionBox.classList.remove('bg-yellow-50');
+                    priceBox.classList.remove('bg-yellow-50');
+                    startingPriceBox.classList.remove('bg-yellow-50');
+                }, 2000);
+
+            }, 1500);
+        };
+
+        // Zpracování odeslání inzerátu
+        window.handleAdSubmit = async function(e) {
+            e.preventDefault();
+            // Zde bude v budoucnu nahrávání fotek do Storage a SQL Insert do Supabase
+            // Nyní uživatele pochválíme a přesměrujeme ho zpět na profil
+            alert("Inzerát byl úspěšně zpracován a zařazen do nabídky tržiště!");
+            navigate('profil');
+        };
+
+        // Jednoduchý vizuální náhled nahrávané fotky
+        window.previewImage = function(input) {
+            if (input.files && input.files[0]) {
+                const reader = new FileReader();
+                const container = input.parentElement;
+                reader.onload = function(e) {
+                    container.innerHTML = `<img src="${e.target.result}" class="w-full h-full object-cover rounded-2xl">`;
+                    container.classList.remove('border-dashed', 'bg-sky-50', 'border-sky-200');
+                }
+                reader.readAsDataURL(input.files[0]);
+            }
+        };
 
             const profileData = {
                 first_name: document.getElementById('kyc-fname').value,
@@ -489,6 +585,157 @@
                         </div>
                     </div>
 
+                </div>
+            `,
+
+            'novy-inzerat': () => `
+                <div class="w-full max-w-4xl mx-auto bg-white/90 backdrop-blur-xl p-8 md:p-10 rounded-[2.5rem] shadow-2xl fade-in border border-white/50 mb-10">
+                    <button onclick="navigate('profil')" class="mb-6 text-sky-500 font-bold hover:text-sky-600 transition-colors flex items-center gap-2">← Zpět na profil</button>
+                    
+                    <div class="mb-8">
+                        <h2 class="text-3xl font-extrabold text-pastel-text">Nový inzerát</h2>
+                        <p class="text-gray-500">Vyplňte detaily nebo nechte AI, ať vám pomůže s textem a cenou.</p>
+                    </div>
+
+                    <form onsubmit="handleAdSubmit(event)" class="flex flex-col gap-8">
+                        
+                        <div class="bg-gray-50 p-6 rounded-3xl border border-gray-100">
+                            <label class="text-sm font-bold text-gray-700 block mb-3">Typ prodeje</label>
+                            <div class="flex gap-4">
+                                <label class="flex-1 cursor-pointer">
+                                    <input type="radio" name="ad-type" value="pevna_cena" class="peer sr-only" checked onchange="toggleAuctionFields(false)">
+                                    <div class="text-center py-4 rounded-2xl border-2 border-transparent peer-checked:border-sky-500 peer-checked:bg-sky-50 peer-checked:text-sky-700 bg-white font-bold transition-all shadow-sm">
+                                        Pevná cena
+                                    </div>
+                                </label>
+                                <label class="flex-1 cursor-pointer">
+                                    <input type="radio" name="ad-type" value="aukce" class="peer sr-only" onchange="toggleAuctionFields(true)">
+                                    <div class="text-center py-4 rounded-2xl border-2 border-transparent peer-checked:border-sky-500 peer-checked:bg-sky-50 peer-checked:text-sky-700 bg-white font-bold transition-all shadow-sm">
+                                        Aukce
+                                    </div>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div>
+                            <h3 class="text-lg font-bold text-gray-800 mb-3 flex items-center gap-2">
+                                <svg class="w-5 h-5 text-sky-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                                Fotografie (360° pohled)
+                            </h3>
+                            <p class="text-xs text-gray-500 mb-4">Pro vytvoření 360° zobrazení vyfoťte předmět postupně ze 4 stran (zepředu, zleva, zezadu, zprava). Náš systém je při nahrávání automaticky zmenší.</p>
+                            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                ${['Zepředu', 'Zleva', 'Zezadu', 'Zprava'].map(side => `
+                                <label class="border-2 border-dashed border-sky-200 bg-sky-50 hover:bg-sky-100 rounded-2xl h-32 flex flex-col items-center justify-center cursor-pointer transition-colors group">
+                                    <input type="file" accept="image/*" class="hidden" onchange="previewImage(this)">
+                                    <svg class="w-8 h-8 text-sky-400 group-hover:scale-110 transition-transform mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                                    <span class="text-xs font-bold text-sky-700">${side}</span>
+                                </label>
+                                `).join('')}
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div class="flex flex-col gap-1 md:col-span-2">
+                                <label class="text-xs font-bold text-gray-500 pl-1">Název zboží</label>
+                                <input type="text" id="ad-title" required placeholder="Např. Zlaté hodinky Omega" class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-sky-400">
+                            </div>
+                            
+                            <div class="flex flex-col gap-1">
+                                <label class="text-xs font-bold text-gray-500 pl-1">Kategorie</label>
+                                <select id="ad-category" required class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-sky-400 bg-white">
+                                    <option value="" disabled selected>Vyberte kategorii</option>
+                                    ${vsechnyKategorie.filter(k => k !== 'Vše').map(k => `<option value="${k}">${k}</option>`).join('')}
+                                </select>
+                            </div>
+
+                            <div class="flex flex-col gap-1">
+                                <label class="text-xs font-bold text-gray-500 pl-1">Stav zboží</label>
+                                <select id="ad-condition" required class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-sky-400 bg-white">
+                                    <option value="" disabled selected>Vyberte stav</option>
+                                    <option value="Nové">Nové (s visačkou/nerozbalené)</option>
+                                    <option value="Rozbalené">Rozbalené (jako nové)</option>
+                                    <option value="Použité">Použité (běžné opotřebení)</option>
+                                    <option value="Poškozené">Poškozené / Na náhradní díly</option>
+                                </select>
+                            </div>
+
+                            <div class="flex flex-col gap-1 md:col-span-2">
+                                <label class="text-xs font-bold text-gray-500 pl-1">Značka (volitelné)</label>
+                                <input type="text" id="ad-brand" placeholder="Např. Apple, Nike, Škoda..." class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-sky-400">
+                            </div>
+                        </div>
+
+                        <div class="bg-gradient-to-r from-purple-50 to-pink-50 p-6 rounded-3xl border border-purple-100 flex flex-col md:flex-row items-center justify-between gap-4">
+                            <div>
+                                <h4 class="font-bold text-purple-800 flex items-center gap-2">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                                    Nechte AI napsat inzerát za vás
+                                </h4>
+                                <p class="text-xs text-purple-600 mt-1">Vyplňte Název a Stav výše, klikněte na tlačítko a umělá inteligence automaticky vytvoří poutavý popis a odhadne tržní cenu.</p>
+                            </div>
+                            <button type="button" onclick="generateAIContent()" class="shrink-0 bg-purple-500 hover:bg-purple-600 text-white font-bold py-3 px-6 rounded-xl transition-all shadow-md text-sm flex items-center gap-2">
+                                <span id="ai-btn-text">Vygenerovat pomocí AI</span>
+                            </button>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div class="flex flex-col gap-1 md:col-span-2">
+                                <label class="text-xs font-bold text-gray-500 pl-1">Popis inzerátu</label>
+                                <textarea id="ad-description" required rows="5" placeholder="Popsat detailně předmět, jeho vady a přednosti..." class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-sky-400"></textarea>
+                            </div>
+
+                            <div id="field-fixed-price" class="flex flex-col gap-1 md:col-span-2">
+                                <label class="text-xs font-bold text-gray-500 pl-1">Cena (Kč)</label>
+                                <input type="number" id="ad-price" placeholder="Např. 1500" class="w-full px-4 py-3 rounded-xl border border-gray-200 text-xl font-bold focus:outline-sky-400 text-sky-600">
+                            </div>
+
+                            <div id="field-auction-price" class="hidden flex-col gap-1">
+                                <label class="text-xs font-bold text-gray-500 pl-1">Vyvolávací cena (Kč)</label>
+                                <input type="number" id="ad-starting-price" placeholder="Např. 1" class="w-full px-4 py-3 rounded-xl border border-gray-200 text-xl font-bold focus:outline-sky-400 text-sky-600">
+                            </div>
+                            <div id="field-auction-duration" class="hidden flex-col gap-1">
+                                <label class="text-xs font-bold text-gray-500 pl-1">Doba trvání aukce</label>
+                                <select id="ad-duration" class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-sky-400 bg-white">
+                                    <option value="7">7 dní</option>
+                                    <option value="10">10 dní</option>
+                                    <option value="14">14 dní</option>
+                                    <option value="20">20 dní</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="border-t border-gray-100 pt-8 mt-2">
+                            <h3 class="text-lg font-bold text-gray-800 mb-4">Přeprava a rozměry</h3>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                                <div class="flex flex-col gap-1">
+                                    <label class="text-xs font-bold text-gray-500 pl-1">Váha (kg)</label>
+                                    <input type="number" step="0.1" id="ad-weight" placeholder="Např. 1.5" class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-sky-400">
+                                </div>
+                                <div class="flex flex-col gap-1">
+                                    <label class="text-xs font-bold text-gray-500 pl-1">Rozměry (cm)</label>
+                                    <input type="text" id="ad-dimensions" placeholder="D x Š x V (např. 30x20x10)" class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-sky-400">
+                                </div>
+                            </div>
+
+                            <label class="text-xs font-bold text-gray-500 pl-1 mb-2 block">Nabízené způsoby dopravy</label>
+                            <div class="flex flex-wrap gap-3">
+                                ${['Zásilkovna', 'PPL', 'Česká pošta', 'Osobní předání'].map(metoda => `
+                                <label class="flex items-center gap-2 bg-gray-50 px-4 py-2 rounded-xl border border-gray-200 cursor-pointer hover:bg-gray-100 transition-colors">
+                                    <input type="checkbox" name="shipping" value="${metoda}" class="w-4 h-4 text-sky-500 rounded focus:ring-sky-400" checked>
+                                    <span class="text-sm font-semibold text-gray-700">${metoda}</span>
+                                </label>
+                                `).join('')}
+                            </div>
+                        </div>
+
+                        <div class="mt-8">
+                            <button type="submit" class="w-full bg-sky-500 hover:bg-sky-600 text-white font-black py-5 rounded-2xl transition-all shadow-lg text-lg uppercase tracking-wider">
+                                Vložit inzerát na tržiště
+                            </button>
+                            <p class="text-center text-xs text-gray-400 mt-3">Vložením inzerátu souhlasíte s VOP tržiště FairTrade.</p>
+                        </div>
+
+                    </form>
                 </div>
             `,
             
