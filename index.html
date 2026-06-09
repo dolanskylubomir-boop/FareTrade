@@ -61,7 +61,6 @@
             transform-style: preserve-3d;
             transition: transform 0.05s linear;
         }
-        /* Skrytí scrollbaru pro horizontální menu kategorií */
         .scrollbar-hide::-webkit-scrollbar { display: none; }
         .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
     </style>
@@ -70,23 +69,19 @@
 
     <header class="w-full py-5 px-6 bg-white/80 backdrop-blur-md shadow-sm z-40 sticky top-0 transition-all">
         <div class="max-w-6xl mx-auto flex justify-between items-center">
-            
             <div class="cursor-pointer flex-shrink-0" onclick="navigate('home')">
                 <h1 class="text-3xl md:text-5xl font-extrabold tracking-tight text-pastel-text">
                     Fair<span class="text-sky-400">Trade</span>
                 </h1>
             </div>
-            
             <nav class="hidden md:flex gap-8 text-gray-600 font-bold text-sm uppercase tracking-wider">
                 <button onclick="navigate('kontakt')" class="hover:text-sky-500 transition-colors">Kontakt</button>
                 <button onclick="navigate('vop')" class="hover:text-sky-500 transition-colors">VOP</button>
             </nav>
-
             <div class="flex items-center gap-3 md:gap-5">
                 <button id="btn-register-top" onclick="navigate('login')" class="hidden sm:block text-gray-600 hover:text-sky-500 font-bold transition-colors">
                     Registrovat
                 </button>
-                
                 <button onclick="navigate('novy-inzerat')" class="bg-sky-500 hover:bg-sky-600 text-white font-bold py-2 px-4 md:py-3 md:px-6 rounded-xl md:rounded-2xl transition-all shadow-md flex items-center gap-2 text-sm md:text-base">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
                     <span class="hidden md:inline">Vložit inzerát</span>
@@ -110,7 +105,6 @@
                     <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                 </button>
             </div>
-            
             <div class="viewer-360-container bg-gray-100" id="viewer-container" onmousedown="startDrag(event)" onmousemove="doDrag(event)" onmouseup="stopDrag()" onmouseleave="stopDrag()" ontouchstart="startDrag(event)" ontouchmove="doDrag(event)" ontouchend="stopDrag()">
                 <div class="absolute z-10 top-4 bg-black/60 text-white px-4 py-2 rounded-full text-sm font-bold pointer-events-none flex items-center gap-2">
                     <svg class="w-4 h-4 animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"></path></svg>
@@ -125,18 +119,15 @@
         // --- SUPABASE KONFIGURACE ---
         const SUPABASE_URL = 'https://mpioazyvtgcpxjrhbflp.supabase.co';
         const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1waW9henl2dGdjcHhqcmhiZmxwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEwMDM1MjksImV4cCI6MjA5NjU3OTUyOX0.pNgPqE1aOrsA2efj5H5FIkNjdcKxo7MVycEjfyEVc4s';
-        
         let supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
         const ESCROW_FEE = 49;
         const vsechnyKategorie = ['Vše', 'Elektronika', 'Šperky', 'Sběratelství', 'Móda', 'Domácnost'];
 
-        // Globální proměnné pro data a přihlášeného uživatele
         let dataAukce = [];
         let dataPevnaCena = [];
         window.currentUser = null;
 
-        // Pomocné funkce
         window.renderCategories = function(view, currentFilter) {
             return `
             <div class="flex gap-2 overflow-x-auto pb-4 mb-4 scrollbar-hide">
@@ -151,63 +142,62 @@
             return { fee: fee, total: price + fee + ESCROW_FEE };
         };
 
-// --- NAČÍTÁNÍ Z DATABÁZE (Odolná verze) ---
+        // --- NAČÍTÁNÍ Z DATABÁZE (Očištěné od nekonečné smyčky) ---
         window.fetchDatabaseItems = async function() {
             if (!supabaseClient) return;
             try {
-                // Přímé stažení dat bez složitého křížení tabulek (obchází chybu Supabase Cache)
                 const { data: dbAukce, error: err1 } = await supabaseClient.from('aukce').select('*');
                 const { data: dbPevna, error: err2 } = await supabaseClient.from('pevna_cena').select('*');
                 
-                // Pokud Supabase dál blokuje čtení, vyhodí se ti upozornění na obrazovku!
-                if (err1) alert("Supabase blokuje aukce: " + err1.message);
-                if (err2) alert("Supabase blokuje pevnou cenu: " + err2.message);
+                if (err1) console.error("Chyba načítání Aukce:", err1.message);
+                if (err2) console.error("Chyba načítání Pevná cena:", err2.message);
 
-                if (dbAukce && !err1) {
+                const safeImage = (item) => {
+                    if (item.images && item.images.length > 0 && item.images[0]) return item.images[0];
+                    return 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?q=80&w=600&auto=format&fit=crop';
+                };
+
+                if (dbAukce) {
                     dataAukce = dbAukce.map(item => ({
                         id: item.id,
-                        seller_id: item.seller_id, // Zásadní pro zobrazení v profilu
+                        seller_id: item.seller_id,
                         type: 'aukce',
                         title: item.title,
                         price: item.current_price || item.starting_price || 0,
                         category: item.category,
-                        img: item.images && item.images.length > 0 ? item.images[0] : 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?q=80&w=600&auto=format&fit=crop',
+                        img: safeImage(item),
                         has360: item.has_360 || false,
-                        seller: 'Ověřený prodejce', // Zatím vyplněno napevno
+                        seller: 'Uživatel tržiště',
                         verified: true,
                         rating: 4.9,
                         description: item.description
                     }));
                 }
 
-                if (dbPevna && !err2) {
+                if (dbPevna) {
                     dataPevnaCena = dbPevna.map(item => ({
                         id: item.id,
-                        seller_id: item.seller_id, // Zásadní pro zobrazení v profilu
+                        seller_id: item.seller_id,
                         type: 'pevna_cena',
                         title: item.title,
                         price: item.price || 0,
                         category: item.category,
-                        img: item.images && item.images.length > 0 ? item.images[0] : 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?q=80&w=600&auto=format&fit=crop',
+                        img: safeImage(item),
                         has360: item.has_360 || false,
-                        seller: 'Ověřený prodejce',
+                        seller: 'Uživatel tržiště',
                         verified: true,
                         rating: 4.9,
                         description: item.description
                     }));
                 }
                 
-                // Jakmile se inzeráty ze Supabase stáhnou, vnutí aplikaci, aby hned překreslila obrazovku!
-                if (window.location.hash.includes('profil')) {
-                    loadProfileData('inzeraty');
-                }
-                
+                // ODSTRANĚNO ZPĚTNÉ VOLÁNÍ loadProfileData() - Toto způsobovalo to zasekávání!
             } catch(e) {
-                console.error("Chyba aplikace při stahování:", e);
+                console.error("Kritická chyba načítání reálných dat:", e);
             }
         };
 
-        // --- AUTH & KYC KONTROLA ---
+        // --- AUTH & KYC ---
         async function checkUserProfileKYC(user) {
             if (!supabaseClient) return;
             try {
@@ -222,7 +212,7 @@
             supabaseClient.auth.onAuthStateChange(async (event, session) => {
                 const btn = document.getElementById('btn-register-top');
                 if (session && session.user) {
-                    window.currentUser = session.user; // Uložíme si uživatele globálně hned po přihlášení
+                    window.currentUser = session.user;
                     if (btn) {
                         btn.innerText = "Můj Profil";
                         btn.setAttribute('onclick', "navigate('profil')"); 
@@ -248,7 +238,6 @@
         window.handleEmailAuth = async function(e) {
             e.preventDefault();
             if (!supabaseClient) return alert("Supabase není nakonfigurován!");
-            
             const email = document.getElementById('email-input').value;
             const password = document.getElementById('password-input').value;
             const action = e.submitter.getAttribute('data-action');
@@ -265,11 +254,7 @@
                 if (error) alert("Chyba přihlášení: " + error.message);
                 else {
                     alert("Úspěšně přihlášen!");
-                    if (data && data.user) {
-                        await checkUserProfileKYC(data.user);
-                    } else {
-                        navigate('home');
-                    }
+                    if (data && data.user) { await checkUserProfileKYC(data.user); } else { navigate('home'); }
                 }
             }
         };
@@ -370,17 +355,14 @@
             }, 1500);
         };
 
-// --- 1. OPRAVENÝ NÁHLED OBRÁZKU ---
         window.previewImage = function(input) {
             if (input.files && input.files[0]) {
                 const reader = new FileReader();
                 const container = input.parentElement;
                 reader.onload = function(e) {
-                    // Místo smazání prvku ho jen chytře překryjeme tapetou
                     container.style.backgroundImage = `url(${e.target.result})`;
                     container.style.backgroundSize = 'cover';
                     container.style.backgroundPosition = 'center';
-                    // Skryjeme ikonu a text
                     const svg = container.querySelector('svg');
                     const span = container.querySelector('span');
                     if(svg) svg.style.display = 'none';
@@ -391,8 +373,6 @@
             }
         };
 
-
-        // --- 2. OPRAVENÉ ZAPISOVÁNÍ A NAHRÁVÁNÍ FOTEK DO STORAGE ---
         window.handleAdSubmit = async function(e) {
             e.preventDefault();
             if (!supabaseClient) return alert("Supabase není nakonfigurován!");
@@ -414,7 +394,7 @@
 
                 if (!title || !category || !condition) throw new Error("Vyplňte prosím název, kategorii a stav.");
 
-                // --- NAHRÁVÁNÍ FOTEK DO SUPABASE ---
+                // --- NAHRÁVÁNÍ OBRÁZKŮ DO SUPABASE STORAGE ---
                 const fileInputs = document.querySelectorAll('input[type="file"]');
                 const uploadedImages = [];
                 
@@ -422,7 +402,6 @@
                     if (input.files && input.files[0]) {
                         const file = input.files[0];
                         const fileExt = file.name.split('.').pop();
-                        // Unikátní jméno pro každou fotku
                         const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
                         
                         const { data, error } = await supabaseClient.storage
@@ -430,20 +409,20 @@
                             .upload(fileName, file, { cacheControl: '3600', upsert: false });
                             
                         if (!error && data) {
-                            // Stažení finální veřejné URL adresy
                             const { data: publicUrlData } = supabaseClient.storage.from('inzeraty').getPublicUrl(fileName);
-                            uploadedImages.push(publicUrlData.publicUrl);
+                            if (publicUrlData && publicUrlData.publicUrl) {
+                                uploadedImages.push(publicUrlData.publicUrl);
+                            }
                         } else {
-                            console.error("Chyba fotky:", error);
+                            console.error("Chyba při nahrávání fotky:", error);
                         }
                     }
                 }
 
-                // Pokud zapomněl nahrát fotku, dáme tam fallback z Unsplash
+                // Pokud zapomene nebo se pokazí upload, dáme fallback
                 if (uploadedImages.length === 0) {
                     uploadedImages.push('https://images.unsplash.com/photo-1523275335684-37898b6baf30?q=80&w=800&auto=format&fit=crop');
                 }
-                // -----------------------------------
 
                 const adData = {
                     seller_id: user.id,
@@ -455,8 +434,8 @@
                     weight: parseFloat(document.getElementById('ad-weight').value) || null,
                     dimensions: document.getElementById('ad-dimensions').value || null,
                     shipping_methods: Array.from(document.querySelectorAll('input[name="shipping"]:checked')).map(el => el.value),
-                    images: uploadedImages, // SEM VKLÁDÁME SKUTEČNÉ ODKAZY NA FOTKY
-                    has_360: (uploadedImages.length >= 4), // Pokud nahrál všechny 4 fotky, zapneme 360° prohlížeč
+                    images: uploadedImages,
+                    has_360: (uploadedImages.length >= 4),
                     status: 'aktivní'
                 };
 
@@ -483,29 +462,26 @@
                 if (error) throw new Error(error.message);
 
                 alert("Inzerát a fotografie byly úspěšně nahrány!");
-                
-                await fetchDatabaseItems(); 
-                navigate(isAuction ? 'aukce' : 'pevna-cena');
+                navigate('profil');
 
             } catch (err) {
                 alert("Chyba při ukládání: " + err.message);
+                console.error("Debug Info:", err);
             } finally {
                 if (btn) { btn.innerText = origText; btn.disabled = false; }
             }
         };
 
-
-        // --- 3. OPRAVA PROFILU (Vynucená synchronizace) ---
+        // --- DASHBOARD A SPRÁVA PROFILU ---
         window.loadProfileData = async function(activeTab = 'inzeraty') {
             if (!supabaseClient) return;
-            
-            // Pojistka: Pokaždé když otevřeš profil, přikážeme webu stáhnout nejnovější inzeráty
-            await fetchDatabaseItems();
-            
             const { data: { user }, error: authErr } = await supabaseClient.auth.getUser();
             if (authErr || !user) { navigate('login'); return; }
             
             window.currentUser = user; 
+
+            // Stáhneme data nejprve
+            await fetchDatabaseItems();
 
             const tabContainer = document.getElementById('profile-tab-content');
             if (tabContainer) {
@@ -572,6 +548,7 @@
                 }
             }
         };
+
         window.renderProfileTabContent = function(tab) {
             if (tab === 'kyc') {
                 return `
@@ -614,13 +591,12 @@
                 return `<h3 class="text-xl font-bold text-gray-800 mb-4 fade-in">Oblíbené položky</h3><p class="text-gray-500 text-center py-8 font-medium fade-in">Seznam sledovaných položek je prázdný. Klikněte na ❤️ u inzerátu, který vás zajímá.</p>`;
             }
             
-            // ZÁLOŽKA AKTIVNÍ INZERÁTY (NAČTENÍ Z DATABÁZE PRO PŘIHLÁŠENÉHO)
+            // ZÁLOŽKA AKTIVNÍ INZERÁTY
             if (tab === 'inzeraty') {
                 if (!window.currentUser) {
                     return `<p class="text-gray-500 py-4 text-center fade-in">⏳ Načítám inzeráty ze serveru...</p>`;
                 }
 
-                // Najdeme všechny inzeráty a aukce, kde je ID prodejce stejné jako ID přihlášeného
                 const myAukce = dataAukce.filter(i => i.seller_id === window.currentUser.id);
                 const myPevna = dataPevnaCena.filter(i => i.seller_id === window.currentUser.id);
                 const myAds = [...myAukce, ...myPevna];
@@ -640,8 +616,8 @@
                         const isAukce = item.type === 'aukce';
                         html += `
                         <div onclick="navigate('${isAukce ? 'aukce-detail' : 'pevna-cena-detail'}/${item.id}')" class="flex items-center gap-4 p-4 border border-gray-100 rounded-2xl hover:shadow-md transition-shadow cursor-pointer fade-in bg-white group">
-                            <div class="w-16 h-16 rounded-xl bg-gray-100 overflow-hidden shrink-0">
-                                <img src="${item.img}" class="w-full h-full object-cover group-hover:scale-110 transition-transform">
+                            <div class="w-16 h-16 rounded-xl bg-gray-100 overflow-hidden shrink-0 flex items-center justify-center">
+                                <img src="${item.img}" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1523275335684-37898b6baf30?q=80&w=800&auto=format&fit=crop';" class="w-full h-full object-cover group-hover:scale-110 transition-transform">
                             </div>
                             <div class="flex-grow">
                                 <div class="text-xs ${isAukce ? 'text-sky-500' : 'text-pink-500'} font-bold mb-0.5 uppercase">${isAukce ? 'Aukce' : 'Pevná cena'}</div>
@@ -1045,7 +1021,7 @@
                         ${filteredData.map(item => `
                             <div onclick="navigate('aukce-detail/${item.id}')" class="bg-white rounded-2xl p-4 shadow-sm hover:shadow-lg border border-gray-100 flex flex-col group relative cursor-pointer transition-shadow">
                                 <div class="relative overflow-hidden rounded-xl mb-4 h-48 bg-gray-50">
-                                    <img src="${item.img}?q=80&w=400&auto=format&fit=crop" class="object-cover w-full h-full group-hover:scale-105 transition-transform duration-500">
+                                    <img src="${item.img}" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1523275335684-37898b6baf30?q=80&w=800&auto=format&fit=crop';" class="object-cover w-full h-full group-hover:scale-105 transition-transform duration-500">
                                 </div>
                                 <div class="text-xs font-bold text-sky-500 mb-1">${item.category}</div>
                                 <h3 class="text-lg font-bold text-gray-800 line-clamp-2 leading-tight h-12">${item.title}</h3>
@@ -1072,11 +1048,11 @@
                     
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-10">
                         <div class="bg-white rounded-3xl p-4 md:p-6 flex flex-col items-center justify-center border border-gray-100 relative shadow-inner overflow-hidden group">
-                            <img src="${item.img}?q=80&w=800&auto=format&fit=crop" class="rounded-xl object-cover w-full h-[300px] md:h-[450px]">
+                            <img src="${item.img}" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1523275335684-37898b6baf30?q=80&w=800&auto=format&fit=crop';" class="rounded-xl object-cover w-full h-[300px] md:h-[450px]">
                             
                             ${item.has360 ? `
                             <div class="absolute bottom-6 flex gap-2 z-10">
-                                <button onclick="open360('${item.img}?q=80&w=1200&auto=format&fit=crop')" class="bg-white/95 backdrop-blur-md text-gray-800 px-6 py-3 rounded-full shadow-lg font-bold text-sm flex items-center gap-3 hover:bg-white hover:scale-105 transition-all">
+                                <button onclick="open360('${item.img}')" class="bg-white/95 backdrop-blur-md text-gray-800 px-6 py-3 rounded-full shadow-lg font-bold text-sm flex items-center gap-3 hover:bg-white hover:scale-105 transition-all">
                                     <svg class="w-5 h-5 text-sky-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
                                     Spustit 360° Pohled
                                 </button>
@@ -1152,7 +1128,7 @@
                         ${filteredData.map(item => `
                             <div onclick="navigate('pevna-cena-detail/${item.id}')" class="bg-white rounded-2xl p-4 shadow-sm hover:shadow-lg border border-gray-100 flex flex-col group cursor-pointer transition-shadow">
                                 <div class="overflow-hidden rounded-xl mb-4 h-48 bg-gray-50">
-                                    <img src="${item.img}?q=80&w=400&auto=format&fit=crop" class="object-cover w-full h-full group-hover:scale-105 transition-transform duration-500">
+                                    <img src="${item.img}" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1523275335684-37898b6baf30?q=80&w=800&auto=format&fit=crop';" class="object-cover w-full h-full group-hover:scale-105 transition-transform duration-500">
                                 </div>
                                 <div class="text-xs font-bold text-pink-500 mb-1">${item.category}</div>
                                 <h3 class="text-lg font-bold text-gray-800 line-clamp-2 leading-tight h-12">${item.title}</h3>
@@ -1179,7 +1155,7 @@
                     
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-10">
                         <div class="bg-white rounded-3xl p-4 md:p-6 flex flex-col items-center justify-center border border-gray-100 shadow-inner group">
-                            <img src="${item.img}?q=80&w=800&auto=format&fit=crop" class="rounded-xl object-cover w-full h-[300px] md:h-[450px]">
+                            <img src="${item.img}" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1523275335684-37898b6baf30?q=80&w=800&auto=format&fit=crop';" class="rounded-xl object-cover w-full h-[300px] md:h-[450px]">
                         </div>
                         <div class="flex flex-col">
                             <div class="flex gap-2 mb-4">
