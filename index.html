@@ -135,68 +135,11 @@
         // --- LOKÁLNÍ DATA (Fallback) ---
         let dataAukce = [
             { id: 1, title: 'Prémiové hodinky Rolex', price: 45000, category: 'Šperky', img: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30', has360: true, seller: 'Jan Novák', verified: true, rating: 4.9, description: 'Prodám luxusní sběratelské hodinky z pozůstalosti. Plně funkční automatický strojek, safírové sklíčko bez škrábnutí. K hodinkám je originální certifikát pravosti a dřevěná krabička. Poštovné: 150 Kč (Cenné psaní Česká pošta).' },
-            { id: 2, title: 'Sběratelská mince 1. Republika', price: 1200, category: 'Sběratelství', img: 'https://images.unsplash.com/photo-1621416894569-0f39ed31d247', has360: false, seller: 'Petr Sběratel', verified: true, rating: 4.7, description: 'Vzácná ražba z limitované edice z roku 1928. Mince nebyla nikdy čištěna chemickou cestou a má nádhernou původní patina. Ideální investice. Poštovné: 79 Kč (Zásilkovna).' },
-            { id: 3, title: 'Starožitný fotoaparát Leica', price: 3400, category: 'Elektronika', img: 'https://images.unsplash.com/photo-1516035069371-29a1b244cc32', has360: false, seller: 'Vintage Foto', verified: false, rating: 5.0, description: 'Plně funkční dálkoměrný fotoaparát ze 60. let. Objektiv je čistý, bez plísně a prachu. Časy závěrky běží přesně. Přidám k němu i dobovou koženou brašnu. Poštovné: 119 Kč (PPL).' },
-            { id: 4, title: 'Zlatý prsten se safírem', price: 8900, category: 'Šperky', img: 'https://images.unsplash.com/photo-1611591437281-460bfbe1220a', has360: true, seller: 'Klenoty M&M', verified: true, rating: 4.8, description: 'Zásnubní 14k zlatý prsten s velkým přírodním safírem a drobnými diamanty po stranách. Velikost 52, možnost mírné úpravy u zlatníka. Nenošený. Poštovné: ZDARMA (Kurýr po ČR).' },
-            { id: 5, title: 'Dron DJI Mini 2', price: 6500, category: 'Elektronika', img: 'https://images.unsplash.com/photo-1507582020474-9a35b7d455d9', has360: true, seller: 'Pavel Dvořák', verified: true, rating: 4.6, description: 'Skvělý kompaktní dron pro začátečníky. Nikdy nehavarovaný. Součástí je Fly More Combo, takže dostanete 3 baterie, brašnu a náhradní vrtule. Poštovné: 99 Kč (Balíkovna).' },
-            { id: 6, title: 'Herní notebook ASUS ROG', price: 15500, category: 'Elektronika', img: 'https://images.unsplash.com/photo-1496181133206-80ce9b88a853', has360: false, seller: 'GamerZone', verified: true, rating: 4.9, description: 'Výkonný herní stroj s grafikou RTX 3060 a 16GB RAM. Notebook byl používán primárně s externím monitorem, takže klávesnice je jako nová. Nově přepastován. Poštovné: 130 Kč (DPD).' },
-            { id: 7, title: 'Stříbrný náhrdelník s opálem', price: 850, category: 'Šperky', img: 'https://images.unsplash.com/photo-1599643478524-fb66f7f6f1c7', has360: false, seller: 'Lucie Černá', verified: false, rating: 4.5, description: 'Nádherný jemný řetízek ze stříbra 925 s australským modrým opálem. Vhodný jako dárek, dodám v dárkové krabičce s mašlí. Poštovné: 65 Kč (Doporučené psaní).' },
-            { id: 8, title: 'Pánský oblek na míru', price: 2100, category: 'Móda', img: 'https://images.unsplash.com/photo-1593030761757-71fae45fa0e7', has360: true, seller: 'Elegance Styl', verified: true, rating: 4.7, description: 'Tmavě modrý pánský oblek, nošený pouze dvakrát na svatbě. Materiál 100% vlna. Velikost odpovídá 52 (vhodné pro postavu cca 180 cm). Vyčištěný v čistírně. Poštovné: 89 Kč (Zásilkovna).' },
-            { id: 9, title: 'Sada stříbrných příborů', price: 3000, category: 'Domácnost', img: 'https://images.unsplash.com/photo-1582283084337-3fd9a2fa07b4', has360: false, seller: 'Babiččina půda', verified: true, rating: 5.0, description: 'Kompletní sada pro 6 osob. Puncováno, masivní stříbro. Příbory osázeny do luxusní kazety. Vyžadují lehké přeleštění. Poštovné: 150 Kč.' },
-            { id: 10, title: 'Komiks Rychlé Šípy (1. vydání)', price: 4200, category: 'Sběratelství', img: 'https://images.unsplash.com/photo-1612036782180-6f0b6cd846fe', has360: false, seller: 'Knihomol.cz', verified: true, rating: 4.8, description: 'Originální první sešitové vydání z roku 1969. Obálka mírně opotřebená úměrně věku, ale vnitřní stránky naprosto v pořádku, nepotrhané. Poštovné: 89 Kč (Cenné psaní).' },
-            { id: 11, title: 'Kožená bunda Křivák', price: 1800, category: 'Móda', img: 'https://images.unsplash.com/photo-1551028719-00167b16eac5', has360: true, seller: 'RockRider', verified: false, rating: 4.6, description: 'Pravá hovězí kůže, velmi těžká a odolná. Bunda má krásnou patinu, všechny zipy jsou funkční a nezadrhávají se. Velikost L. Poštovné: 119 Kč (PPL).' },
-            { id: 12, title: 'Gramofon Tesla NZC', price: 2500, category: 'Elektronika', img: 'https://images.unsplash.com/photo-1588667636181-4351659a7fdf', has360: false, seller: 'Retro Audio', verified: true, rating: 4.9, description: 'Legendární československý gramofon s vlastním zesilovačem. Prošel kompletním servisem, je osazen novou jehlou Ortofon. Hraje čistě a bez kolísání otáček. Poštovné: Pouze osobní převzetí v Praze.' },
-            { id: 13, title: 'Designové křeslo Halabala', price: 12000, category: 'Domácnost', img: 'https://images.unsplash.com/photo-1598300042247-d088f8ab3a91', has360: true, seller: 'Nábytek 20. století', verified: true, rating: 5.0, description: 'Ikonické křeslo H-269 po kompletní a velmi nákladné renovaci. Dřevo vyleštěno šelakovou politúrou, nové pružiny a moderní odolná látka. Top stav. Poštovné: 450 Kč (TopTrans).' },
-            { id: 14, title: 'Zlatý dukát František Josef I.', price: 10500, category: 'Sběratelství', img: 'https://images.unsplash.com/photo-1631521741525-4676451a2e8c', has360: false, seller: 'Mince a Medaile', verified: true, rating: 4.9, description: 'Ražba z roku 1915, novoražba. Nejoblíbenější investiční mince v našem regionu. Stav UNC (bez poškození, ryzí zlato). Poštovné: 150 Kč (Cenné pojištěné psaní).' },
-            { id: 15, title: 'Dámské lodičky Christian Louboutin', price: 6500, category: 'Móda', img: 'https://images.unsplash.com/photo-1543163521-1bf539c55dd2', has360: true, seller: 'Markéta V.', verified: false, rating: 4.4, description: 'Klasické černé lodičky s ikonickou červenou podrážkou. Měla jsem je na sobě jen jednou v divadle, nesedí mi velikost. Originální krabice + dustbag. Velikost 38. Poštovné: ZDARMA.' },
-            { id: 16, title: 'Kávovar DeLonghi Magnifica', price: 3800, category: 'Domácnost', img: 'https://images.unsplash.com/photo-1511882150382-421056c89033', has360: false, seller: 'Kávový mág', verified: true, rating: 4.7, description: 'Plně automatický kávovar na zrnkovou kávu s napěňovací tryskou. Pravidelně odvápňován, pije se z něj káva denně. Měníme za pákový přístroj. Poštovné: 130 Kč (PPL).' },
-            { id: 17, title: 'Chytré hodinky Apple Watch S7', price: 5200, category: 'Elektronika', img: 'https://images.unsplash.com/photo-1434493789847-2f02b9d28234', has360: true, seller: 'Apple Lover', verified: true, rating: 4.8, description: 'Verze 45mm, barva Midnight. Na displeji jsou jemné vlásečnicové škrábance od běžného nošení. Kondice baterie 86%. Poštovné: 89 Kč (Zásilkovna).' },
-            { id: 18, title: 'Perlový náhrdelník pravé perly', price: 4100, category: 'Šperky', img: 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908', has360: false, seller: 'Šperky Anna', verified: true, rating: 5.0, description: 'Náhrdelník z pravých říčních perel nejvyšší kvality (AAA). Perly jsou ručně vázané na hedvábné niti se zapínáním z bílého zlata. Délka 45 cm. Poštovné: 100 Kč.' },
-            { id: 19, title: 'Sběratelská Barbie 1990', price: 1500, category: 'Sběratelství', img: 'https://images.unsplash.com/photo-1563124505-87bd38466e35', has360: true, seller: 'Retro Hračky', verified: false, rating: 4.5, description: 'Nerozbalená Barbie z edice Holiday z roku 1990. Krabice má na jednom rohu mírné odřeniny, ale panenka a příslušenství jsou nedotčené sluncem a prachem. Poštovné: 99 Kč.' },
-            { id: 20, title: 'Ručně tkaný vlněný koberec', price: 7000, category: 'Domácnost', img: 'https://images.unsplash.com/photo-1600166898405-da9535204843', has360: false, seller: 'Interiér Design', verified: true, rating: 4.9, description: 'Pravý orientální koberec dovezený z Turecka. Rozměry 200x140 cm. Je profesionálně vyčištěný, nemá žádné skvrny ani vyšlapaná místa. Krásné syté barvy. Poštovné: 300 Kč.' },
-            { id: 21, title: 'Dámská zimní péřová bunda', price: 2400, category: 'Móda', img: 'https://images.unsplash.com/photo-1545083036-b179ca022a16', has360: true, seller: 'Jana T.', verified: false, rating: 4.3, description: 'Dlouhý zimní kabát, výplň tvoří opravdové peří. Extrémně teplá, ideální na hory nebo do velkých mrazů. Má odepínací kožíšek na kapuci. Velikost M. Poštovné: 89 Kč (Zásilkovna).' },
-            { id: 22, title: 'Bezdrátová sluchátka Sony ANC', price: 3100, category: 'Elektronika', img: 'https://images.unsplash.com/photo-1618366712010-f4ae9c647dcb', has360: false, seller: 'Hudební svět', verified: true, rating: 4.8, description: 'Špičková sluchátka Sony WH-1000XM4 s aktivním potlačením hluku. Sluchátka jsou stará rok, hrají bezvadně, náušníky nejsou popraskané. Včetně pevného obalu. Poštovné: ZDARMA.' },
-            { id: 23, title: 'Zlatý řetízek typu Pancer', price: 6800, category: 'Šperky', img: 'https://images.unsplash.com/photo-1596944924616-7b38e7cfac36', has360: true, seller: 'Zlatnictví U Orloje', verified: true, rating: 5.0, description: 'Pevný a velmi odolný zlatý řetízek, vzor Pancer. Váha 4.5g, 14 karátů (585/1000). Vhodný i na každodenní nošení, nepřehrne se. Délka 50 cm. Poštovné: 120 Kč (Cenné psaní).' },
-            { id: 24, title: 'Starožitné kapesní hodinky', price: 5500, category: 'Sběratelství', img: 'https://images.unsplash.com/photo-1501166222995-ff4371b87b7a', has360: false, seller: 'Čas a Historie', verified: true, rating: 4.7, description: 'Stříbrné dvouplášťové kapesní hodinky značky Omega z roku 1910. Ciferník je porcelánový, mírně naprasklý u číslice 3. Strojek byl promazán hodinářem. Poštovné: 90 Kč.' },
-            { id: 25, title: 'Litinový hrnec Staub 24cm', price: 3900, category: 'Domácnost', img: 'https://images.unsplash.com/photo-1584992236310-6edddc08acff', has360: true, seller: 'Šéfkuchař.cz', verified: true, rating: 4.9, description: 'Legendární francouzský litinový hrnec s poklicí a smaltovaným vnitřkem. Skvělý na pomalé pečení masa nebo pečení chleba. Barva třešňově červená. Váží 5 kg. Poštovné: 150 Kč.' },
-            { id: 26, title: 'Kožená kabelka Guess', price: 1600, category: 'Móda', img: 'https://images.unsplash.com/photo-1584916201218-f4242ceb4809', has360: false, seller: 'Fashion Bazar', verified: false, rating: 4.6, description: 'Originální černá kabelka. Nošená jen příležitostně, uši nejsou oloupané a vnitřní látka je naprosto čistá. Ke kabelce přidám dlouhý nastavitelný popruh. Poštovné: 89 Kč (Zásilkovna).' },
-            { id: 27, title: 'Zrcadlovka Canon EOS 80D', price: 11000, category: 'Elektronika', img: 'https://images.unsplash.com/photo-1516035069371-29a1b244cc32', has360: true, seller: 'Karel M.', verified: true, rating: 4.8, description: 'Prodávám spolehlivé tělo Canon. Nafoceno pouze 15 000 závěrek. Skvělé pro začínající i pokročilé fotografy. Součástí prodeje je originální baterie, nabíječka a popruh. Poštovné: 150 Kč.' },
-            { id: 28, title: 'Brož s českými granáty', price: 3200, category: 'Šperky', img: 'https://images.unsplash.com/photo-1596825205568-dbe38c353b3b', has360: false, seller: 'Rodinné klenoty', verified: true, rating: 5.0, description: 'Nádherná tombaková brož osázená pravými českými granáty, pocházející z období první republiky. Kamínky nechybí žádné, zapínání na zadní straně je plně funkční. Poštovné: 80 Kč.' },
-            { id: 29, title: 'Originální podpis Václava Havla', price: 4000, category: 'Sběratelství', img: 'https://images.unsplash.com/photo-1583089892943-e02e5ee6f50b', has360: false, seller: 'Petr Sběratel', verified: true, rating: 4.7, description: 'Autogram Václava Havla z roku 1992, podepsáno na kvalitní fotografii z Hradu. Fotografie je zarámovaná pod antireflexním sklem. Ručím za pravost vrácením peněz. Poštovné: 120 Kč.' },
-            { id: 30, title: 'Robotický vysavač Roborock', price: 4800, category: 'Domácnost', img: 'https://images.unsplash.com/photo-1589923158776-cb4485d99fd6', has360: true, seller: 'SmartHome CZ', verified: true, rating: 4.5, description: 'Chytrý vysavač s funkcí mopování. Připojuje se k aplikaci přes Wi-Fi a tvoří přesnou mapu místnosti pomocí laseru. Baterie vyměněna před měsícem za originální novou. Poštovné: 130 Kč.' }
-        ];
+            { id: 2, title: 'Sběratelská mince 1. Republika', price: 1200, category: 'Sběratelství', img: 'https://images.unsplash.com/photo-1621416894569-0f39ed31d247', has360: false, seller: 'Petr Sběratel', verified: true, rating: 4.7, description: 'Vzácná ražba z limitované edice z roku 1928. Mince nebyla nikdy čištěna chemickou cestou a má nádhernou původní patina. Ideální investice. Poštovné: 79 Kč (Zásilkovna).' }        ];
 
         let dataPevnaCena = [
             { id: 1, title: 'Limitovaná edice tenisek Air Jordan', price: 2990, category: 'Móda', img: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff', seller: 'SneakerHead', verified: true, rating: 4.6, description: 'Zcela nenošené tenisky z vyprodané sběratelské kolekce. Box je v perfektním stavu bez otlaků. Velikost 43 (délka stélky 27.5 cm). Prodávám, protože nesedí velikost. Poštovné: 99 Kč (Zásilkovna).' },
-            { id: 2, title: 'Herní konzole PlayStation 5', price: 8500, category: 'Elektronika', img: 'https://images.unsplash.com/photo-1486401899868-0e435ed85128', seller: 'GamerZone', verified: true, rating: 4.9, description: 'Verze s Blu-Ray mechanikou. Konzole byla kupována před rokem a půl, je plně funkční a nikdy se nepřehřívala. Přidávám jeden bílý DualSense ovladač a kompletní kabeláž. Poštovné: 150 Kč (PPL).' },
-            { id: 3, title: 'Designová industriální lampa', price: 1500, category: 'Domácnost', img: 'https://images.unsplash.com/photo-1507473885765-e6ed057f782c', seller: 'HomeDeco', verified: false, rating: 4.5, description: 'Masivní kovová stolní lampa s nastavitelným ramenem. Ideální na pracovní stůl, dodá interiéru krásný loftový nádech. Včetně designové žárovky s viditelným vláknem. Poštovné: 120 Kč.' },
-            { id: 4, title: 'Pravá kožená brašna na notebook', price: 3200, category: 'Móda', img: 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62', seller: 'Michal H.', verified: true, rating: 5.0, description: 'Ručně šitá taška z italské hověziny od lokálního brašnáře. Vleze se do ní 15.6 palcový notebook, dokumenty a příslušenství. Taška stárnutím získá nádhernou patinu. Poštovné: ZDARMA.' },
-            { id: 5, title: 'Stříbrný náramek Pandora', price: 1100, category: 'Šperky', img: 'https://images.unsplash.com/photo-1611591437281-460bfbe1220a', seller: 'Klenotnice', verified: true, rating: 4.8, description: 'Základní hadovitý náramek ze stříbra, velikost 19 cm. Zapínání pevně drží. Bez korálků, k náramku dodám certifikát i taštičku z obchodu. Skvělý dárek. Poštovné: 70 Kč (Doporučeně).' },
-            { id: 6, title: 'Model letadla Spitfire 1:48', price: 850, category: 'Sběratelství', img: 'https://images.unsplash.com/photo-1582236528770-4e31e514931a', seller: 'Hobby Modely', verified: true, rating: 4.9, description: 'Detailně zpracovaný kovový model letadla z 2. světové války od značky Corgi. Sloužilo jako výstavní kousek ve vitríně, zcela bez poškození, lak jako novel. Poštovné: 89 Kč (Zásilkovna).' },
-            { id: 7, title: 'Tablet iPad Air (64GB)', price: 9500, category: 'Elektronika', img: 'https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0', seller: 'AppleStore B', verified: true, rating: 4.7, description: 'Tablet je odhlášený z iCloud a vymazaný. Displej byl celou dobu chráněn fólií, takže je absolutně čistý. Přidám smart cover obal v černé barvě. Poštovné: 100 Kč (Kurýr).' },
-            { id: 8, title: 'Sada profesionálních nožů', price: 4500, category: 'Domácnost', img: 'https://images.unsplash.com/photo-1585238204648-936ce9d2d0c2', seller: 'Vaříme doma', verified: true, rating: 4.8, description: 'Sada japonských nožů z damascénské oceli s dřevěným blokem. Nože jsou extrémně ostré a nebyly nikdy broušeny na strojní brusce. Úžasný pomocník do kuchyně. Poštovné: 150 Kč.' },
-            { id: 9, title: 'Zimní vlněná šála vzor káro', price: 450, category: 'Móda', img: 'https://images.unsplash.com/photo-1520006403909-838d6b92c22e', seller: 'Veronika P.', verified: false, rating: 4.4, description: 'Velmi teplá a měkká šála s příměsí kašmíru. Rozměry 180x50 cm, dostatečně velká i na omotání krku natřikrát. Kousavost je nulová, příjemná na dotek. Poštovné: 65 Kč (Balíkovna).' },
-            { id: 10, title: 'Kravatová spona z bílého zlata', price: 5200, category: 'Šperky', img: 'https://images.unsplash.com/photo-1599643478524-fb66f7f6f1c7', seller: 'Pánský styl', verified: true, rating: 5.0, description: 'Minimalistická úzká spona na kravatu, 14 karátové bílé zlato. Elegantní doplněk pro gentlemany, perfektně drží i na užších kravatách. Váha 3.2g. Poštovné: 100 Kč.' },
-            { id: 11, title: 'Sběratelská karta Pokémon Charizard', price: 15000, category: 'Sběratelství', img: 'https://images.unsplash.com/photo-1613771404784-3a5686aa2be3', seller: 'PokéFan', verified: true, rating: 4.8, description: 'Gradovaná karta (PSA 8) z edice Base Set. Holografický efekt je nepoškozený, rohy karty jsou ostré. Skvělá příležitost pro vážné sběratele a investory. Poštovné: 200 Kč (Osobní odběr / Cenné psaní).' },
-            { id: 12, title: 'Mechanická klávesnice Keychron', price: 2100, category: 'Elektronika', img: 'https://images.unsplash.com/photo-1595225476474-87563907a212', seller: 'IT Market', verified: true, rating: 4.9, description: 'Bezdrátová klávesnice s hnědými spínači (Gateron Brown). Vhodná na psaní i hraní. Plně funkční, klávesy nejsou ošoupané, baterie drží přes 3 týdny. Poštovné: 89 Kč (Zásilkovna).' },
-            { id: 13, title: 'Stolní mixér Nutribullet', price: 1200, category: 'Domácnost', img: 'https://images.unsplash.com/photo-1585242944686-2187640ff424', seller: 'Zdravý život', verified: false, rating: 4.6, description: 'Kompaktní mixér na smoothie. Používaný jedno léto, nože jsou stále velmi ostré. V balení je jedna velká a jedna malá nádoba s cestovním víčkem. Poštovné: 99 Kč (Balíkovna).' },
-            { id: 14, title: 'Ray-Ban sluneční brýle Aviator', price: 1800, category: 'Móda', img: 'https://images.unsplash.com/photo-1511499767150-a48a237f0083', seller: 'Optika Plus', verified: true, rating: 4.8, description: 'Klasické pilotky, zlatý rámeček a zelená skla (G-15). Skla nejsou poškrábaná. Součástí je původní kožené pouzdro a čisticí hadřík. Velikost M (58mm). Poštovné: 79 Kč.' },
-            { id: 15, title: 'Dětské náušnice berušky', price: 850, category: 'Šperky', img: 'https://images.unsplash.com/photo-1611591437281-460bfbe1220a', seller: 'Zlatnictví M.', verified: true, rating: 4.9, description: 'Dětské náušničky s dětskou pojistkou (brizurou), materiál žluté zlato. Dekorováno barevným smaltem do tvaru berušky. Vhodné pro holčičky od půl roku. Poštovné: 80 Kč (Doporučeně).' },
-            { id: 16, title: 'Staré elektronkové rádio', price: 3500, category: 'Sběratelství', img: 'https://images.unsplash.com/photo-1588667636181-4351659a7fdf', seller: 'Staré časy', verified: true, rating: 4.5, description: 'Rádio Tesla z 50. let v nádherné dřevěné bedně. Rádio hraje, magické oko svítí, ale vzhledem ke stáří prodávám spíše jako stylovou dekoraci bez záruky. Poštovné: Pouze osobní odběr.' },
-            { id: 17, title: 'Powerbanka Anker 20000mAh', price: 900, category: 'Elektronika', img: 'https://images.unsplash.com/photo-1609081219090-a6d81d3085bf', seller: 'GadgetZone', verified: true, rating: 4.7, description: 'Velmi kvalitní powerbanka, bez problémů nabije dnešní telefon 4x až 5x. Podpora rychlonabíjení (USB-C PD 20W). Bez kosmetických vad. Poštovné: 89 Kč (Zásilkovna).' },
-            { id: 18, title: 'Anatomický paměťový polštář', price: 650, category: 'Domácnost', img: 'https://images.unsplash.com/photo-1505693314120-0d443867891c', seller: 'Spěte zdravě', verified: true, rating: 4.6, description: 'Polštář z líné pěny pro podporu krční páteře. Měla jsem ho pouze vyzkoušený 3 noci, nesedí mi výška. Povlak je vypraný v antibakteriálním pracím gelu. Poštovné: 79 Kč.' },
-            { id: 19, title: 'Pánská kožená peněženka', price: 890, category: 'Móda', img: 'https://images.unsplash.com/photo-1627123424574-724758594e93', seller: 'Kožené výrobky', verified: true, rating: 4.9, description: 'Klasická černá peněženka orientovaná na šířku. Obsahuje kapsu na drobné, dvě přihrádky na bankovky and 8 slotů na karty. Kůže je hladká a měkká. Poštovné: 65 Kč (Doporučené psaní).' },
-            { id: 20, title: 'Visací náušnice s brilianty', price: 22000, category: 'Šperky', img: 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908', seller: 'Klenotník Jiří', verified: true, rating: 5.0, description: 'Luxusní náušnice ze 14k bílého zlata osazené brilianty (celkem 0.5 ct). Zapínání na dámskou patentu. Prodávám včetně znaleckého posudku od certifikovaného gemologa. Poštovné: ZDARMA.' },
-            { id: 21, title: 'Vinylová deska Pink Floyd', price: 1100, category: 'Sběratelství', img: 'https://images.unsplash.com/photo-1461360228753-45c1dc8e258a', seller: 'Music Shop', verified: true, rating: 4.8, description: 'Album The Dark Side of the Moon, originální britské vydání z 80. let. Obal v kategorii VG+, samotná deska hraje nádherně bez lupanců, umytá v pračce desek. Poštovné: 100 Kč (PPL).' },
-            { id: 22, title: 'Monitor Dell UltraSharp 27"', price: 4500, category: 'Elektronika', img: 'https://images.unsplash.com/photo-1527443224154-c4a3942d3acf', seller: 'IT Bazar', verified: true, rating: 4.7, description: 'Profesionální IPS panel s vynikajícím podáním barev (99% sRGB). Pivot podstavec umožňuje otočení na výšku. Bez vadných pixelů, připojení přes HDMI nebo DisplayPort. Poštovné: 160 Kč.' },
-            { id: 23, title: 'Ultrazvukový zvlhčovač vzduchu', price: 1300, category: 'Domácnost', img: 'https://images.unsplash.com/photo-1585242944686-2187640ff424', seller: 'Zdravý vzduch', verified: false, rating: 4.4, description: 'Zvlhčovač s velkou 5L nádrží, vydrží běžet celou noc. Tichý chod, dá se do něj přidat i pár kapek esenciálního oleje. Obsahuje demineralizační filtr proti bílému prachu. Poštovné: 99 Kč (Balíkovna).' },
-            { id: 24, title: 'Značkové sportovní legíny', price: 650, category: 'Móda', img: 'https://images.unsplash.com/photo-1506629082955-511b1aa562c8', seller: 'FitnessGirl', verified: false, rating: 4.6, description: 'Pevné formující legíny s vysokým pasem, neprůhledný materiál. Velikost S. Koupené v outletu, ale jsou mi těsné. Úplně nové, ještě s visačkou. Poštovné: 79 Kč (Zásilkovna).' },
-            { id: 25, title: 'Snubní prsteny stříbro/zirkony', price: 1400, category: 'Šperky', img: 'https://images.unsplash.com/photo-1605100804763-247f67963c9e', seller: 'Šperky K.', verified: true, rating: 4.7, description: 'Sada dvou snubních nebo partnerských prstenů ze stříbra (rhodiované). Dámský je osazen řadou drobných zirkonů. Velikosti 54 a 62. Nové, nepoužité. Poštovné: 80 Kč.' },
-            { id: 26, title: 'Sbírka starých pohlednic (Praha)', price: 900, category: 'Sběratelství', img: 'https://images.unsplash.com/photo-1583089892943-e02e5ee6f50b', seller: 'Sběratelský klub', verified: true, rating: 4.9, description: 'Konvolut 45 kusů starých místopisných pohlednic Prahy z období 1900–1930. Obsahuje i litografie. Krásný stav bez fleků, rohy převážně ostré. Poštovné: 89 Kč (Zásilkovna).' },
-            { id: 27, title: 'Elektronická čtečka Kindle', price: 2200, category: 'Elektronika', img: 'https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0', seller: 'Knihomol', verified: false, rating: 4.8, description: 'Čtečka Paperwhite s podsvíceným displejem. Čte se z ní jako z papíru i na přímém slunci. Verze bez reklam. Součástí je tvrdý otevírací obal, který čtečku chrání. Poštovné: 79 Kč.' },
-            { id: 28, title: 'Zrcadlo v dřevěném rámu', price: 1800, category: 'Domácnost', img: 'https://images.unsplash.com/photo-1505693314120-0d443867891c', seller: 'Dřevodesign', verified: true, rating: 5.0, description: 'Velké nástěnné zrcadlo (120x60 cm) zasazené v masivním dubovém rámu ošetřeném přírodním olejem. Ruční práce, bytelné úchyty na zavěšení. Poštovné: Pouze osobní předání.' },
-            { id: 29, title: 'Pletený svetr z ovčí vlny', price: 1100, category: 'Móda', img: 'https://images.unsplash.com/photo-1545083036-b179ca022a16', seller: 'Anna S.', verified: true, rating: 4.7, description: 'Tradiční norský svetr ručně pletený ze 100% ovčí vlny. Skvěle hřeje, nepropustí vlhkost. Velikost udaná L, ale spíše odpovídá volnějšímu M. Párkrát vzatý. Poštovné: 89 Kč (Zásilkovna).' },
-            { id: 30, title: 'Sběratelská modulation soška', price: 2900, category: 'Sběratelství', img: 'https://images.unsplash.com/photo-1612036782180-6f0b6cd846fe', seller: 'Comic Store', verified: true, rating: 4.8, description: 'Detailně ručně malovaná soška Batmana od Iron Studios v měřítku 1/10. Vystavovaná v bezprašné vitríně mimo sluneční světlo. Původní krabice je součástí. Poštovné: 119 Kč (PPL).' }
+            { id: 2, title: 'Herní konzole PlayStation 5', price: 8500, category: 'Elektronika', img: 'https://images.unsplash.com/photo-1486401899868-0e435ed85128', seller: 'GamerZone', verified: true, rating: 4.9, description: 'Verze s Blu-Ray mechanikou. Konzole byla kupována před rokem a půl, je plně funkční a nikdy se nepřehřívala. Přidávám jeden bílý DualSense ovladač a kompletní kabeláž. Poštovné: 150 Kč (PPL).' }
         ];
 
         // --- DATABÁZOVÁ FUNKCIONALITA SUPABASE ---
@@ -234,12 +177,19 @@
             supabaseClient.auth.onAuthStateChange(async (event, session) => {
                 const btn = document.getElementById('btn-register-top');
                 if (session && session.user) {
-                    if (btn) btn.innerText = "Můj Profil";
+                    if (btn) {
+                        btn.innerText = "Můj Profil";
+                        // PŘIDÁNO: Přesměrování na profil po kliknutí
+                        btn.setAttribute('onclick', "navigate('profil')"); 
+                    }
                     if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
                         await checkUserProfileKYC(session.user);
                     }
                 } else {
-                    if (btn) btn.innerText = "Registrovat";
+                    if (btn) {
+                        btn.innerText = "Registrovat";
+                        btn.setAttribute('onclick', "navigate('login')");
+                    }
                 }
             });
         }
@@ -455,6 +405,90 @@
                             </button>
                         </div>
                     </form>
+                </div>
+            `,
+
+            profil: () => `
+                <div class="w-full max-w-5xl mx-auto fade-in">
+                    
+                    <div class="bg-white/90 backdrop-blur-xl p-8 rounded-[2rem] shadow-xl border border-white/50 mb-8 flex flex-col md:flex-row items-center md:items-start gap-6 relative overflow-hidden">
+                        <div class="absolute top-0 right-0 w-32 h-32 bg-sky-100 rounded-bl-full -z-10 opacity-50"></div>
+                        
+                        <div class="w-24 h-24 rounded-full bg-gradient-to-tr from-sky-400 to-sky-200 flex items-center justify-center text-white font-bold text-4xl shadow-lg shrink-0">
+                            VD </div>
+                        
+                        <div class="flex-grow text-center md:text-left">
+                            <div class="flex flex-col md:flex-row md:items-center gap-2 md:gap-4 mb-2">
+                                <h2 class="text-3xl font-extrabold text-pastel-text">Vladislav Dolanský</h2>
+                                <span class="inline-flex items-center gap-1 bg-green-50 text-green-700 text-xs px-3 py-1 rounded-full font-bold uppercase tracking-wide border border-green-200 w-max mx-auto md:mx-0">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                    Ověřený účet
+                                </span>
+                            </div>
+                            <p class="text-gray-500 mb-4">lubomir.dolansky@edc-cr.cz</p>
+                            
+                            <div class="flex items-center justify-center md:justify-start text-yellow-500 font-bold gap-1 bg-yellow-50 w-max px-4 py-2 rounded-xl border border-yellow-100 mx-auto md:mx-0">
+                                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path></svg>
+                                4.9 / 5 <span class="text-gray-400 text-xs font-normal ml-1">(12 hodnocení)</span>
+                            </div>
+                        </div>
+                        
+                        <div class="mt-4 md:mt-0">
+                            <button onclick="supabaseClient.auth.signOut().then(() => navigate('home'))" class="text-gray-400 hover:text-red-500 font-bold text-sm transition-colors flex items-center gap-2 bg-gray-50 hover:bg-red-50 px-4 py-2 rounded-xl">
+                                Odhlásit se
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+                        <div class="bg-white/90 backdrop-blur-xl p-6 rounded-[1.5rem] shadow-sm border border-gray-100 flex flex-col">
+                            <span class="text-gray-400 text-xs font-bold uppercase tracking-wider mb-2">Moje výdělky</span>
+                            <span class="text-3xl font-black text-gray-800">42 500 <span class="text-xl text-gray-400 font-bold">Kč</span></span>
+                        </div>
+                        <div class="bg-white/90 backdrop-blur-xl p-6 rounded-[1.5rem] shadow-sm border border-gray-100 flex flex-col">
+                            <span class="text-gray-400 text-xs font-bold uppercase tracking-wider mb-2">Aktivní nabídky</span>
+                            <span class="text-3xl font-black text-sky-500">3</span>
+                        </div>
+                        <div class="bg-white/90 backdrop-blur-xl p-6 rounded-[1.5rem] shadow-sm border border-gray-100 flex flex-col">
+                            <span class="text-gray-400 text-xs font-bold uppercase tracking-wider mb-2">Úspěšné prodeje</span>
+                            <span class="text-3xl font-black text-green-500">8</span>
+                        </div>
+                    </div>
+
+                    <div class="bg-white/90 backdrop-blur-xl rounded-[2rem] shadow-xl border border-white/50 overflow-hidden">
+                        <div class="flex border-b border-gray-100 overflow-x-auto scrollbar-hide">
+                            <button class="px-8 py-5 font-bold text-sky-500 border-b-2 border-sky-500 whitespace-nowrap bg-sky-50/50">Aktivní inzeráty</button>
+                            <button class="px-8 py-5 font-bold text-gray-500 hover:text-gray-800 transition-colors whitespace-nowrap">Historie transakcí</button>
+                            <button class="px-8 py-5 font-bold text-gray-500 hover:text-gray-800 transition-colors whitespace-nowrap">Osobní údaje (KYC)</button>
+                            <button class="px-8 py-5 font-bold text-gray-500 hover:text-gray-800 transition-colors whitespace-nowrap">Oblíbené ❤️</button>
+                        </div>
+                        
+                        <div class="p-8">
+                            <div class="flex items-center justify-between mb-6">
+                                <h3 class="text-xl font-bold text-gray-800">Moje aktivní nabídky</h3>
+                                <button class="bg-sky-100 text-sky-600 hover:bg-sky-200 font-bold py-2 px-4 rounded-xl text-sm transition-colors">+ Nový inzerát</button>
+                            </div>
+                            
+                            <div class="flex items-center gap-4 p-4 border border-gray-100 rounded-2xl hover:shadow-md transition-shadow cursor-pointer mb-3">
+                                <div class="w-16 h-16 rounded-xl bg-gray-100 overflow-hidden shrink-0">
+                                    <img src="https://images.unsplash.com/photo-1507582020474-9a35b7d455d9?q=80&w=150&auto=format&fit=crop" class="w-full h-full object-cover">
+                                </div>
+                                <div class="flex-grow">
+                                    <div class="text-xs text-sky-500 font-bold mb-0.5">AUKCE (Končí za 2 dny)</div>
+                                    <h4 class="font-bold text-gray-800">Dron DJI Mini 2</h4>
+                                </div>
+                                <div class="text-right">
+                                    <div class="text-xs text-gray-400 uppercase font-semibold">Aktuální cena</div>
+                                    <div class="font-bold text-lg text-gray-800">6 500 Kč</div>
+                                </div>
+                                <div class="pl-4">
+                                    <button class="text-gray-400 hover:text-sky-500 p-2"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg></button>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+
                 </div>
             `,
             
