@@ -377,22 +377,21 @@
             }
         };
 
-        // Funkce pro dynamické načtení reálného profilu z databáze
-        window.loadProfileData = async function() {
+// Funkce pro dynamické načtení reálného profilu z databáze a jeho záložek
+        window.loadProfileData = async function(activeTab = 'inzeraty') {
             if (!supabaseClient) return;
             
-            // 1. Zjistíme, kdo je aktuálně přihlášený (získáme jeho auth ID a e-mail)
+            // 1. Zjistíme přihlášeného uživatele
             const { data: { user } } = await supabaseClient.auth.getUser();
             if (!user) {
                 navigate('login');
                 return;
             }
             
-            // Doplníme reálný e-mail z registrace
             const emailEl = document.getElementById('profile-email');
             if(emailEl) emailEl.innerText = user.email;
 
-            // 2. Sáhneme do tabulky profiles pro zbytek údajů (jméno, výdělek, ověření)
+            // 2. Stáhneme data z tabulky profiles
             const { data, error } = await supabaseClient
                 .from('profiles')
                 .select('*')
@@ -400,27 +399,128 @@
                 .single();
 
             if (data && !error) {
-                // Poskládáme skutečné jméno
+                // Horní panel vizitky
                 const fullName = (data.first_name || '') + ' ' + (data.last_name || '');
                 const nameEl = document.getElementById('profile-name');
                 if(nameEl) nameEl.innerText = fullName.trim() || 'Nepojmenovaný uživatel';
                 
-                // Vygenerujeme reálné iniciály do kolečka (např. Jan Novák = JN)
                 const initials = (data.first_name ? data.first_name[0] : '') + (data.last_name ? data.last_name[0] : '');
                 const initEl = document.getElementById('profile-initials');
                 if(initEl) initEl.innerText = initials.toUpperCase() || '👤';
 
-                // Doplníme reálný výdělek
                 const earnedEl = document.getElementById('profile-earned');
                 if(earnedEl) earnedEl.innerHTML = `${data.total_earned || 0} <span class="text-xl text-gray-400 font-bold">Kč</span>`;
                 
-                // Pokud jsi ho v Supabase ověřil (is_verified = true), rozsvítíme fajfku
                 if(data.is_verified) {
                      const badgeEl = document.getElementById('profile-verified-badge');
                      if(badgeEl) badgeEl.classList.remove('hidden');
                      if(badgeEl) badgeEl.classList.add('inline-flex');
                 }
+
+                // POKUD JSME NA ZÁLOŽCE KYC, VYPLNÍME OSOBNÍ ÚDAJE Z DATABÁZE
+                if (activeTab === 'kyc') {
+                    const kycName = document.getElementById('kyc-display-name');
+                    const kycDate = document.getElementById('kyc-display-date');
+                    const kycAddress = document.getElementById('kyc-display-address');
+                    const kycBank = document.getElementById('kyc-display-bank');
+                    const kycBadge = document.getElementById('kyc-status-badge');
+
+                    if(kycName) kycName.innerText = fullName.trim() || 'Nezadáno';
+                    
+                    // Bezpečný převod data z RRRR-MM-DD na český formát DD.MM.RRRR bez chyb časových pásem
+                    if(kycDate && data.birth_date) {
+                        const parts = data.birth_date.split('-');
+                        kycDate.innerText = parts.length === 3 ? `${parts[2]}.${parts[1]}.${parts[0]}` : data.birth_date;
+                    } else if (kycDate) {
+                        kycDate.innerText = 'Nezadáno';
+                    }
+
+                    // Složení adresy z rozdělených políček
+                    if(kycAddress) {
+                        if (data.street || data.city) {
+                            const coStr = data.orientation_number ? `/${data.orientation_number}` : '';
+                            kycAddress.innerText = `${data.street || ''} ${data.building_number || ''}${coStr}, ${data.zip_code || ''} ${data.city || ''}`;
+                        } else {
+                            kycAddress.innerText = 'Nezadáno';
+                        }
+                    }
+
+                    if(kycBank) kycBank.innerText = data.bank_account || 'Nezadáno';
+
+                    // Nastavení barevného odznaku podle stavu schválení
+                    if(kycBadge) {
+                        if (data.kyc_status === 'submitted') {
+                            kycBadge.innerText = 'Čeká na schválení';
+                            kycBadge.className = 'bg-amber-100 text-amber-800 text-xs px-3 py-1 rounded-full font-bold uppercase border border-amber-200';
+                        } else if (data.kyc_status === 'approved' || data.is_verified) {
+                            kycBadge.innerText = 'Schváleno / Ověřeno';
+                            kycBadge.className = 'bg-green-100 text-green-800 text-xs px-3 py-1 rounded-full font-bold uppercase border border-green-200';
+                        } else {
+                            kycBadge.innerText = 'Neověřeno';
+                            kycBadge.className = 'bg-red-100 text-red-800 text-xs px-3 py-1 rounded-full font-bold uppercase border border-red-200';
+                        }
+                    }
+                }
             }
+        };
+
+        // Pomocná funkce pro přepínání obsahu podzáložek na profilu
+        window.renderProfileTabContent = function(tab) {
+            if (tab === 'kyc') {
+                return `
+                    <div class="flex items-center justify-between mb-6 fade-in">
+                        <h3 class="text-xl font-bold text-gray-800">Moje osobní a KYC údaje</h3>
+                        <span id="kyc-status-badge" class="bg-gray-100 text-gray-600 text-xs px-3 py-1 rounded-full font-bold uppercase tracking-wider">Načítám status...</span>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 bg-gray-50/50 p-6 rounded-3xl border border-gray-100 mb-4 fade-in">
+                        <div>
+                            <p class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Jméno a příjmení</p>
+                            <p id="kyc-display-name" class="font-bold text-gray-800 text-lg">⏳ Načítám...</p>
+                        </div>
+                        <div>
+                            <p class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Datum narození</p>
+                            <p id="kyc-display-date" class="font-bold text-gray-800 text-lg">⏳ Načítám...</p>
+                        </div>
+                        <div class="sm:col-span-2 border-t border-gray-100 pt-4">
+                            <p class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Trvalé bydliště</p>
+                            <p id="kyc-display-address" class="font-bold text-gray-800 text-lg">⏳ Načítám...</p>
+                        </div>
+                        <div class="sm:col-span-2 border-t border-gray-100 pt-4">
+                            <p class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Bankovní účet (pro zasílání peněz z prodejů)</p>
+                            <p id="kyc-display-bank" class="font-bold text-gray-800 text-lg text-sky-600">⏳ Načítám...</p>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-6 p-4 bg-sky-50 text-sky-700 rounded-2xl text-xs border border-sky-100 flex gap-2 fade-in">
+                        <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        <span>Tyto identifikační údaje jsou bezpečně šifrovány. Slouží výhradně pro potřeby interního schválení a pro přímé nízkonákladové validace převodů prodejcům. Ostatní uživatelé na tržišti je nikdy neuvidí.</span>
+                    </div>
+                `;
+            }
+            
+            if (tab === 'transakce') {
+                return `
+                    <h3 class="text-xl font-bold text-gray-800 mb-4 fade-in">Historie transakcí</h3>
+                    <p class="text-gray-500 text-center py-8 fade-in">Zatím jste neuskutečnili žádné nákupy ani prodeje.</p>
+                `;
+            }
+            
+            if (tab === 'oblibene') {
+                return `
+                    <h3 class="text-xl font-bold text-gray-800 mb-4 fade-in">Oblíbené položky</h3>
+                    <p class="text-gray-500 text-center py-8 font-medium fade-in">Seznam sledovaných položek je prázdný. Klikněte na ❤️ u inzerátu, který vás zajímá.</p>
+                `;
+            }
+            
+            // Výchozí: aktivní inzeráty (tab === 'inzeraty')
+            return `
+                <div class="flex items-center justify-between mb-6 fade-in">
+                    <h3 class="text-xl font-bold text-gray-800">Moje aktivní nabídky</h3>
+                    <button onclick="navigate('novy-inzerat')" class="bg-sky-100 text-sky-600 hover:bg-sky-200 font-bold py-2 px-4 rounded-xl text-sm transition-colors">+ Nový inzerát</button>
+                </div>
+                <p class="text-gray-500 py-4 text-center fade-in">Zatím zde nemáte žádné aktivní inzeráty. Zkuste nějaký přidat!</p>
+            `;
         };
 
         // --- ŠABLONY STRÁNEK ---
@@ -564,30 +664,38 @@
                 </div>
             `,
 
-            profil: () => {
-                // Ihned po vykreslení kostry zavoláme stažení reálných dat ze Supabase
-                setTimeout(loadProfileData, 0);
+            profil: (activeTab = 'inzeraty') => {
+                // Vyčistíme případné staré parametry a pojistíme bezpečné načtení dat
+                if (typeof activeTab !== 'string' || !activeTab) activeTab = 'inzeraty';
                 
+                // Spustíme asynchronní načtení dat ze Supabase
+                setTimeout(() => { loadProfileData(activeTab); }, 0);
+                
+                // Pomocná funkce pro aktivní/neaktivní styl záložky
+                const getTabStyle = (tabName) => tabName === activeTab 
+                    ? 'px-8 py-5 font-bold text-sky-500 border-b-2 border-sky-500 bg-sky-50/50 whitespace-nowrap outline-none' 
+                    : 'px-8 py-5 font-bold text-gray-500 hover:text-gray-800 transition-colors whitespace-nowrap outline-none';
+
                 return `
                 <div class="w-full max-w-5xl mx-auto fade-in">
                     
                     <div class="bg-white/90 backdrop-blur-xl p-8 rounded-[2rem] shadow-xl border border-white/50 mb-8 flex flex-col md:flex-row items-center md:items-start gap-6 relative overflow-hidden">
                         <div class="absolute top-0 right-0 w-32 h-32 bg-sky-100 rounded-bl-full -z-10 opacity-50"></div>
                         
-                        <div id="profile-initials" class="w-24 h-24 rounded-full bg-gradient-to-tr from-sky-400 to-sky-200 flex items-center justify-center text-white font-bold text-4xl shadow-lg shrink-0">
+                        <div id="profile-initials" class="w-24 h-24 rounded-full bg-gradient-to-tr from-sky-400 to-sky-200 flex items-center justify-center text-white font-bold text-4xl shadow-lg shrink-0 select-none">
                             ⏳
                         </div>
                         
                         <div class="flex-grow text-center md:text-left">
                             <div class="flex flex-col md:flex-row md:items-center gap-2 md:gap-4 mb-2">
-                                <h2 id="profile-name" class="text-3xl font-extrabold text-pastel-text">Načítám jméno...</h2>
+                                <h2 id="profile-name" class="text-3xl font-extrabold text-pastel-text">Načítám...</h2>
                                 
-                                <span id="profile-verified-badge" class="hidden items-center gap-1 bg-green-50 text-green-700 text-xs px-3 py-1 rounded-full font-bold uppercase tracking-wide border border-green-200 w-max mx-auto md:mx-0">
+                                <span id="profile-verified-badge" class="hidden items-center gap-1 bg-green-50 text-green-700 text-xs px-3 py-1 rounded-full font-bold uppercase tracking-wide border border-green-200 w-max mx-auto md:mx-0 animate-pulse">
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                                     Ověřený účet
                                 </span>
                             </div>
-                            <p id="profile-email" class="text-gray-500 mb-4">Načítám e-mail...</p>
+                            <p id="profile-email" class="text-gray-500 mb-4">...</p>
                             
                             <div class="flex items-center justify-center md:justify-start text-yellow-500 font-bold gap-1 bg-yellow-50 w-max px-4 py-2 rounded-xl border border-yellow-100 mx-auto md:mx-0">
                                 <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path></svg>
@@ -619,19 +727,14 @@
 
                     <div class="bg-white/90 backdrop-blur-xl rounded-[2rem] shadow-xl border border-white/50 overflow-hidden">
                         <div class="flex border-b border-gray-100 overflow-x-auto scrollbar-hide">
-                            <button class="px-8 py-5 font-bold text-sky-500 border-b-2 border-sky-500 whitespace-nowrap bg-sky-50/50">Aktivní inzeráty</button>
-                            <button class="px-8 py-5 font-bold text-gray-500 hover:text-gray-800 transition-colors whitespace-nowrap">Historie transakcí</button>
-                            <button onclick="navigate('kyc')" class="px-8 py-5 font-bold text-gray-500 hover:text-gray-800 transition-colors whitespace-nowrap">Osobní údaje (KYC)</button>
-                            <button class="px-8 py-5 font-bold text-gray-500 hover:text-gray-800 transition-colors whitespace-nowrap">Oblíbené ❤️</button>
+                            <button onclick="navigate('profil/inzeraty')" class="${getTabStyle('inzeraty')}">Aktivní inzeráty</button>
+                            <button onclick="navigate('profil/transakce')" class="${getTabStyle('transakce')}">Historie transakcí</button>
+                            <button onclick="navigate('profil/kyc')" class="${getTabStyle('kyc')}">Osobní údaje (KYC)</button>
+                            <button onclick="navigate('profil/oblibene')" class="${getTabStyle('oblibene')}">Oblíbené ❤️</button>
                         </div>
                         
                         <div class="p-8">
-                            <div class="flex items-center justify-between mb-6">
-                                <h3 class="text-xl font-bold text-gray-800">Moje aktivní nabídky</h3>
-                                <button onclick="navigate('novy-inzerat')" class="bg-sky-100 text-sky-600 hover:bg-sky-200 font-bold py-2 px-4 rounded-xl text-sm transition-colors">+ Nový inzerát</button>
-                            </div>
-                            
-                            <p class="text-gray-500 py-4 text-center">Zatím zde nemáte žádné aktivní inzeráty. Zkuste nějaký přidat!</p>
+                            ${renderProfileTabContent(activeTab)}
                         </div>
                     </div>
 
