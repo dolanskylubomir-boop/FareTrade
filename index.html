@@ -125,14 +125,14 @@
         // --- SUPABASE KONFIGURACE ---
         const SUPABASE_URL = 'https://mpioazyvtgcpxjrhbflp.supabase.co';
         const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1waW9henl2dGdjcHhqcmhiZmxwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEwMDM1MjksImV4cCI6MjA5NjU3OTUyOX0.pNgPqE1aOrsA2efj5H5FIkNjdcKxo7MVycEjfyEVc4s';
-
-        // Přímá inicializace bez zbytečných podmínek
+        
+        // Přímá inicializace klienta
         let supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
         const ESCROW_FEE = 49;
         const vsechnyKategorie = ['Vše', 'Elektronika', 'Šperky', 'Sběratelství', 'Móda', 'Domácnost'];
 
-        // --- LOKÁLNÍ DATA (Mock s 30 unikátními inzeráty sloužící jako okamžitý fallback) ---
+        // --- LOKÁLNÍ DATA (Fallback) ---
         let dataAukce = [
             { id: 1, title: 'Prémiové hodinky Rolex', price: 45000, category: 'Šperky', img: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30', has360: true, seller: 'Jan Novák', verified: true, rating: 4.9, description: 'Prodám luxusní sběratelské hodinky z pozůstalosti. Plně funkční automatický strojek, safírové sklíčko bez škrábnutí. K hodinkám je originální certifikát pravosti a dřevěná krabička. Poštovné: 150 Kč (Cenné psaní Česká pošta).' },
             { id: 2, title: 'Sběratelská mince 1. Republika', price: 1200, category: 'Sběratelství', img: 'https://images.unsplash.com/photo-1621416894569-0f39ed31d247', has360: false, seller: 'Petr Sběratel', verified: true, rating: 4.7, description: 'Vzácná ražba z limitované edice z roku 1928. Mince nebyla nikdy čištěna chemickou cestou a má nádhernou původní patina. Ideální investice. Poštovné: 79 Kč (Zásilkovna).' },
@@ -143,7 +143,7 @@
             { id: 7, title: 'Stříbrný náhrdelník s opálem', price: 850, category: 'Šperky', img: 'https://images.unsplash.com/photo-1599643478524-fb66f7f6f1c7', has360: false, seller: 'Lucie Černá', verified: false, rating: 4.5, description: 'Nádherný jemný řetízek ze stříbra 925 s australským modrým opálem. Vhodný jako dárek, dodám v dárkové krabičce s mašlí. Poštovné: 65 Kč (Doporučené psaní).' },
             { id: 8, title: 'Pánský oblek na míru', price: 2100, category: 'Móda', img: 'https://images.unsplash.com/photo-1593030761757-71fae45fa0e7', has360: true, seller: 'Elegance Styl', verified: true, rating: 4.7, description: 'Tmavě modrý pánský oblek, nošený pouze dvakrát na svatbě. Materiál 100% vlna. Velikost odpovídá 52 (vhodné pro postavu cca 180 cm). Vyčištěný v čistírně. Poštovné: 89 Kč (Zásilkovna).' },
             { id: 9, title: 'Sada stříbrných příborů', price: 3000, category: 'Domácnost', img: 'https://images.unsplash.com/photo-1582283084337-3fd9a2fa07b4', has360: false, seller: 'Babiččina půda', verified: true, rating: 5.0, description: 'Kompletní sada pro 6 osob. Puncováno, masivní stříbro. Příbory osázeny do luxusní kazety. Vyžadují lehké přeleštění. Poštovné: 150 Kč.' },
-            { id: 10, title: 'Komiks Rychlé Šípy (1. vydání)', price: 4200, category: 'Sběratelství', img: 'https://images.unsplash.com/photo-1612036782180-6f0b6cd846fe', has360: false, seller: 'Knihomol.cz', verified: true, rating: 4.8, description: 'Originální první sešitové vydání z roku 1969. Obálka mírně opotřebená úměrně věku, ale vnitřní stránky naprosto v pořádku, nepotrhané. Poštovné: 89 Kč (Cenné psaní).' },
+            { id: 10, title: 'Komiks Rychlé Šípy (1. vydání)', price: 4200, category: 'Sběratelství', img: 'https://images.unsplash.com/photo-1612036782180-6f0b6cd846fe', has360: false, seller: 'Knihomol.cz', verified: true, rating: 4.8, description: 'Originální první sešitové vydání z roku 1969. Obálka mírně opotřebená úměrně věku, ale vnitřní stránky naprosto v opacity, nepotrhané. Poštovné: 89 Kč (Cenné psaní).' },
             { id: 11, title: 'Kožená bunda Křivák', price: 1800, category: 'Móda', img: 'https://images.unsplash.com/photo-1551028719-00167b16eac5', has360: true, seller: 'RockRider', verified: false, rating: 4.6, description: 'Pravá hovězí kůže, velmi těžká a odolná. Bunda má krásnou patinu, všechny zipy jsou funkční a nezadrhávají se. Velikost L. Poštovné: 119 Kč (PPL).' },
             { id: 12, title: 'Gramofon Tesla NZC', price: 2500, category: 'Elektronika', img: 'https://images.unsplash.com/photo-1588667636181-4351659a7fdf', has360: false, seller: 'Retro Audio', verified: true, rating: 4.9, description: 'Legendární československý gramofon s vlastním zesilovačem. Prošel kompletním servisem, je osazen novou jehlou Ortofon. Hraje čistě a bez kolísání otáček. Poštovné: Pouze osobní převzetí v Praze.' },
             { id: 13, title: 'Designové křeslo Halabala', price: 12000, category: 'Domácnost', img: 'https://images.unsplash.com/photo-1598300042247-d088f8ab3a91', has360: true, seller: 'Nábytek 20. století', verified: true, rating: 5.0, description: 'Ikonické křeslo H-269 po kompletní a velmi nákladné renovaci. Dřevo vyleštěno šelakovou politúrou, nové pružiny a moderní odolná látka. Top stav. Poštovné: 450 Kč (TopTrans).' },
@@ -172,7 +172,7 @@
             { id: 3, title: 'Designová industriální lampa', price: 1500, category: 'Domácnost', img: 'https://images.unsplash.com/photo-1507473885765-e6ed057f782c', seller: 'HomeDeco', verified: false, rating: 4.5, description: 'Masivní kovová stolní lampa s nastavitelným ramenem. Ideální na pracovní stůl, dodá interiéru krásný loftový nádech. Včetně designové žárovky s viditelným vláknem. Poštovné: 120 Kč.' },
             { id: 4, title: 'Pravá kožená brašna na notebook', price: 3200, category: 'Móda', img: 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62', seller: 'Michal H.', verified: true, rating: 5.0, description: 'Ručně šitá taška z italské hověziny od lokálního brašnáře. Vleze se do ní 15.6 palcový notebook, dokumenty a příslušenství. Taška stárnutím získá nádhernou patinu. Poštovné: ZDARMA.' },
             { id: 5, title: 'Stříbrný náramek Pandora', price: 1100, category: 'Šperky', img: 'https://images.unsplash.com/photo-1611591437281-460bfbe1220a', seller: 'Klenotnice', verified: true, rating: 4.8, description: 'Základní hadovitý náramek ze stříbra, velikost 19 cm. Zapínání pevně drží. Bez korálků, k náramku dodám certifikát i taštičku z obchodu. Skvělý dárek. Poštovné: 70 Kč (Doporučeně).' },
-            { id: 6, title: 'Model letadla Spitfire 1:48', price: 850, category: 'Sběratelství', img: 'https://images.unsplash.com/photo-1582236528770-4e31e514931a', seller: 'Hobby Modely', verified: true, rating: 4.9, description: 'Detailně zpracovaný kovový model letadla z 2. světové války od značky Corgi. Sloužilo jako výstavní kousek ve vitríně, zcela bez poškození, lak jako nový. Poštovné: 89 Kč (Zásilkovna).' },
+            { id: 6, title: 'Model letadla Spitfire 1:48', price: 850, category: 'Sběratelství', img: 'https://images.unsplash.com/photo-1582236528770-4e31e514931a', seller: 'Hobby Modely', verified: true, rating: 4.9, description: 'Detailně zpracovaný kovový model letadla z 2. světové války od značky Corgi. Sloužilo jako výstavní kousek ve vitríně, zcela bez poškození, lak jako novel. Poštovné: 89 Kč (Zásilkovna).' },
             { id: 7, title: 'Tablet iPad Air (64GB)', price: 9500, category: 'Elektronika', img: 'https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0', seller: 'AppleStore B', verified: true, rating: 4.7, description: 'Tablet je odhlášený z iCloud a vymazaný. Displej byl celou dobu chráněn fólií, takže je absolutně čistý. Přidám smart cover obal v černé barvě. Poštovné: 100 Kč (Kurýr).' },
             { id: 8, title: 'Sada profesionálních nožů', price: 4500, category: 'Domácnost', img: 'https://images.unsplash.com/photo-1585238204648-936ce9d2d0c2', seller: 'Vaříme doma', verified: true, rating: 4.8, description: 'Sada japonských nožů z damascénské oceli s dřevěným blokem. Nože jsou extrémně ostré a nebyly nikdy broušeny na strojní brusce. Úžasný pomocník do kuchyně. Poštovné: 150 Kč.' },
             { id: 9, title: 'Zimní vlněná šála vzor káro', price: 450, category: 'Móda', img: 'https://images.unsplash.com/photo-1520006403909-838d6b92c22e', seller: 'Veronika P.', verified: false, rating: 4.4, description: 'Velmi teplá a měkká šála s příměsí kašmíru. Rozměry 180x50 cm, dostatečně velká i na omotání krku natřikrát. Kousavost je nulová, příjemná na dotek. Poštovné: 65 Kč (Balíkovna).' },
@@ -181,7 +181,7 @@
             { id: 12, title: 'Mechanická klávesnice Keychron', price: 2100, category: 'Elektronika', img: 'https://images.unsplash.com/photo-1595225476474-87563907a212', seller: 'IT Market', verified: true, rating: 4.9, description: 'Bezdrátová klávesnice s hnědými spínači (Gateron Brown). Vhodná na psaní i hraní. Plně funkční, klávesy nejsou ošoupané, baterie drží přes 3 týdny. Poštovné: 89 Kč (Zásilkovna).' },
             { id: 13, title: 'Stolní mixér Nutribullet', price: 1200, category: 'Domácnost', img: 'https://images.unsplash.com/photo-1585242944686-2187640ff424', seller: 'Zdravý život', verified: false, rating: 4.6, description: 'Kompaktní mixér na smoothie. Používaný jedno léto, nože jsou stále velmi ostré. V balení je jedna velká a jedna malá nádoba s cestovním víčkem. Poštovné: 99 Kč (Balíkovna).' },
             { id: 14, title: 'Ray-Ban sluneční brýle Aviator', price: 1800, category: 'Móda', img: 'https://images.unsplash.com/photo-1511499767150-a48a237f0083', seller: 'Optika Plus', verified: true, rating: 4.8, description: 'Klasické pilotky, zlatý rámeček a zelená skla (G-15). Skla nejsou poškrábaná. Součástí je původní kožené pouzdro a čisticí hadřík. Velikost M (58mm). Poštovné: 79 Kč.' },
-            { id: 15, title: 'Dětské náušnice berušky', price: 850, category: 'Šperky', img: 'https://images.unsplash.com/photo-1611591437281-460bfbe1220a', seller: 'Zlatnictví M.', verified: true, rating: 4.9, description: 'Dětské náušničky s dětskou pojistkou (brizurou), materiál žluté zlato. Dekorováno barevným smaltem do tvaru berušky. Vhodné pro holčičky od půl roku. Poštovné: 80 Kč (Doporučeně).' },
+            { id: 15, title: 'Dětské náušnice berušky', price: 850, category: 'Šperky', img: 'https://images.unsplash.com/photo-1611591437281-460bfbe1220a', seller: 'Zlatnictví M.', verified: true, rating: 4.9, description: 'Dětské náušničky s dětskou pojistkou (brizurou), materiál žluté zlato. Dekorováno barevným smaltem do tvaru berušky. Vhodné pro holčičky od půl roku. Poštovné: 80 Kč.' },
             { id: 16, title: 'Staré elektronkové rádio', price: 3500, category: 'Sběratelství', img: 'https://images.unsplash.com/photo-1588667636181-4351659a7fdf', seller: 'Staré časy', verified: true, rating: 4.5, description: 'Rádio Tesla z 50. let v nádherné dřevěné bedně. Rádio hraje, magické oko svítí, ale vzhledem ke stáří prodávám spíše jako stylovou dekoraci bez záruky. Poštovné: Pouze osobní odběr.' },
             { id: 17, title: 'Powerbanka Anker 20000mAh', price: 900, category: 'Elektronika', img: 'https://images.unsplash.com/photo-1609081219090-a6d81d3085bf', seller: 'GadgetZone', verified: true, rating: 4.7, description: 'Velmi kvalitní powerbanka, bez problémů nabije dnešní telefon 4x až 5x. Podpora rychlonabíjení (USB-C PD 20W). Bez kosmetických vad. Poštovné: 89 Kč (Zásilkovna).' },
             { id: 18, title: 'Anatomický paměťový polštář', price: 650, category: 'Domácnost', img: 'https://images.unsplash.com/photo-1505693314120-0d443867891c', seller: 'Spěte zdravě', verified: true, rating: 4.6, description: 'Polštář z líné pěny pro podporu krční páteře. Měla jsem ho pouze vyzkoušený 3 noci, nesedí mi výška. Povlak je vypraný v antibakteriálním pracím gelu. Poštovné: 79 Kč.' },
@@ -214,12 +214,36 @@
             }
         }
 
+        // Pomocná funkce pro kontrolu stavu KYC uživatele ihned po přihlášení/registraci
+        async function checkUserProfileKYC(user) {
+            if (!supabaseClient) return;
+            try {
+                const { data, error } = await supabaseClient
+                    .from('profiles')
+                    .select('kyc_status')
+                    .eq('id', user.id)
+                    .single();
+                
+                // Pokud uživatel ještě profil nevyplnil, okamžitě ho hodíme na KYC formulář
+                if (!error && data && data.kyc_status === 'unverified') {
+                    navigate('kyc');
+                }
+            } catch (e) {
+                console.error("Chyba při kontrole KYC profilu:", e);
+            }
+        }
+
         // Sledování stavu přihlášení uživatele
         if (supabaseClient) {
-            supabaseClient.auth.onAuthStateChange((event, session) => {
+            supabaseClient.auth.onAuthStateChange(async (event, session) => {
                 const btn = document.getElementById('btn-register-top');
                 if (session && session.user) {
                     if (btn) btn.innerText = "Můj Profil";
+                    
+                    // IHNED po úspěšné registraci nebo přihlášení zkontrolujeme KYC
+                    if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
+                        await checkUserProfileKYC(session.user);
+                    }
                 } else {
                     if (btn) btn.innerText = "Registrovat";
                 }
@@ -229,7 +253,7 @@
         // Funkce pro autentizaci přes poskytovatele
         window.loginWithProvider = async function(providerName) {
             if (!supabaseClient) {
-                alert("Supabase není nakonfigurován! Vyplň SUPABASE_URL a SUPABASE_ANON_KEY v kódu.");
+                alert("Supabase není nakonfigurován!");
                 return;
             }
             await supabaseClient.auth.signInWithOAuth({ provider: providerName });
@@ -245,29 +269,43 @@
             const action = e.submitter.getAttribute('data-action');
 
             if (action === 'signup') {
-                const { error } = await supabaseClient.auth.signUp({ email, password });
+                const { data, error } = await supabaseClient.auth.signUp({ email, password });
                 if (error) alert("Chyba registrace: " + error.message);
-                else alert("Registrační e-mail byl odeslán! Zkontrolujte si schránku.");
+                else {
+                    alert("Registrace úspěšná!");
+                    // Pokud máte v Supabase vypnuté potvrzování e-mailů, uživatel je rovnou přihlášen
+                    if (data && data.user) {
+                        await checkUserProfileKYC(data.user);
+                    }
+                }
             } else {
-                const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+                const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
                 if (error) alert("Chyba přihlášení: " + error.message);
                 else {
                     alert("Úspěšně přihlášen!");
-                    navigate('home');
+                    if (data && data.user) {
+                        await checkUserProfileKYC(data.user);
+                    } else {
+                        navigate('home');
+                    }
                 }
             }
         };
 
-        // Odeslání KYC dat formuláře do tabulky profiles
+        // Odeslání KYC dat formuláře do tabulky profiles - OPRAVENO PRO PŘÍMÝ ZÁPIS K ÚČTU
         window.handleKYCSubmit = async function(e) {
             e.preventDefault();
             if (!supabaseClient) return alert("Supabase není nakonfigurován!");
             
-            const { data: { user } } = await supabaseClient.auth.getUser();
-            if (!user) return alert("Pro uložení KYC musíte být přihlášeni.");
+            // Bezpečné ověření aktuálně přihlášeného uživatele z relace
+            const { data: { user }, error: userError } = await supabaseClient.auth.getUser();
+            if (userError || !user) {
+                alert("Pro uložení KYC musíte být přihlášeni. Přesměrovávám na přihlášení.");
+                navigate('login');
+                return;
+            }
 
             const profileData = {
-                id: user.id,
                 first_name: document.getElementById('kyc-fname').value,
                 last_name: document.getElementById('kyc-lname').value,
                 birth_year: parseInt(document.getElementById('kyc-year').value),
@@ -276,10 +314,16 @@
                 kyc_status: 'submitted'
             };
 
-            const { error } = await supabaseClient.from('profiles').upsert(profileData);
-            if (error) alert("Chyba ukládání: " + error.message);
-            else {
-                alert("KYC údaje byly bezpečně odeslány ke kontrole!");
+            // Aktualizace řádku v tabulce 'profiles', který odpovídá ID přihlášeného uživatele
+            const { error } = await supabaseClient
+                .from('profiles')
+                .update(profileData)
+                .eq('id', user.id);
+
+            if (error) {
+                alert("Chyba ukládání do databáze: " + error.message);
+            } else {
+                alert("Ověření totožnosti úspěšně uloženo k Vašemu účtu a odesláno ke kontrole!");
                 navigate('home');
             }
         };
@@ -337,7 +381,7 @@
 
                     <div class="flex flex-col gap-4">
                         <button onclick="loginWithProvider('google')" class="w-full flex items-center justify-center gap-3 bg-white border border-gray-200 text-gray-700 font-bold py-3.5 px-6 rounded-2xl hover:bg-gray-50 hover:shadow-md transition-all">
-                            <svg class="w-6 h-6" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+                            <svg class="w-6 h-6" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
                             Pokračovat přes Google
                         </button>
 
@@ -364,13 +408,12 @@
                 </div>
             `,
 
-            // Zbrusu nový formulář pro KYC verifikaci v designu aplikace
             kyc: () => `
                 <div class="w-full max-w-xl mx-auto bg-white/90 backdrop-blur-xl p-8 md:p-10 rounded-[2.5rem] shadow-2xl fade-in border border-white/50">
                     <div class="text-center mb-8">
                         <span class="inline-block bg-sky-100 text-sky-800 text-xs px-3 py-1 rounded-full font-bold uppercase tracking-wide mb-3">Zabezpečení trhu</span>
                         <h2 class="text-3xl font-extrabold text-pastel-text">Ověření totožnosti (KYC)</h2>
-                        <p class="text-gray-500 text-sm mt-1">Vyplňte prosím pravdivé identifikační údaje pro schválení účtu EDC.</p>
+                        <p class="text-gray-500 text-sm mt-1">Vyplňte prosím pravdivé identifikační údaje pro schválení účtu v systému.</p>
                     </div>
                     <form onsubmit="handleKYCSubmit(event)" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div class="flex flex-col gap-1">
@@ -629,19 +672,16 @@
             document.getElementById('bid-menu-' + id).classList.toggle('hidden');
         };
 
-        // Real-time aktualizace ceny s přímým zápisem do Supabase DB
         window.placeBid = async function(id, amount) {
             const pEl = document.getElementById('price-' + id);
             const tEl = document.getElementById('total-' + id);
             
             let val = parseInt(pEl.getAttribute('data-price')) + amount;
             
-            // Lokální okamžitá vizuální změna
             pEl.setAttribute('data-price', val);
             pEl.innerText = val.toLocaleString('cs-CZ') + ' Kč';
             tEl.innerText = getPriceInfo(val).total.toLocaleString('cs-CZ') + ' Kč';
             
-            // Zápis příhozu do Supabase
             if (supabaseClient) {
                 const { error } = await supabaseClient
                     .from('aukce')
@@ -700,7 +740,6 @@
         });
 
         document.addEventListener('DOMContentLoaded', async () => {
-            // Nejprve se pokusíme načíst reálná data, pokud je spuštěn Supabase
             await fetchDatabaseItems();
             
             const hash = window.location.hash.replace('#', '');
