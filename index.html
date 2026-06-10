@@ -269,7 +269,7 @@
             try {
                 const { data: dbAukce, error: err1 } = await supabaseClient.from('aukce').select('*').eq('status', 'aktivní');
                 const { data: dbPevna, error: err2 } = await supabaseClient.from('pevna_cena').select('*').eq('status', 'aktivní');
-                const { data: dbProfiles, error: err3 } = await supabaseClient.from('profiles').select('id, first_name, last_name, display_name, is_verified, rating');
+                const { data: dbProfiles, error: err3 } = await supabaseClient.from('profiles').select('id, first_name, last_name, display_name, is_verified, rating, avatar_url');
                 const { data: dbBids, error: errBids } = await supabaseClient.from('bids').select('auction_id, bidder_id, amount');
                 const { data: dbTx, error: errTx } = await supabaseClient.from('transactions').select('*');
                 
@@ -799,9 +799,22 @@
                 const nameEl = document.getElementById('profile-name');
                 if(nameEl) nameEl.innerText = displayName; 
                 
-                const initials = (data.display_name ? data.display_name[0] : (data.first_name ? data.first_name[0] : ''));
+                const initials = (data.display_name ? data.display_name[0] : (data.first_name ? data.first_name[0] : '?')).toUpperCase();
                 const initEl = document.getElementById('profile-initials');
-                if(initEl) initEl.innerText = initials.toUpperCase() || '👤';
+                if (initEl) {
+                    if (data.avatar_url) {
+                        initEl.innerHTML = '';
+                        const img = document.createElement('img');
+                        img.src = data.avatar_url;
+                        img.alt = 'Avatar';
+                        img.className = 'w-full h-full object-cover rounded-full';
+                        img.onerror = () => { initEl.innerHTML = ''; initEl.innerText = initials; };
+                        initEl.classList.add('overflow-hidden', 'p-0');
+                        initEl.appendChild(img);
+                    } else {
+                        initEl.innerText = initials;
+                    }
+                }
 
                 const ratingEl = document.getElementById('profile-rating');
                 if(ratingEl) ratingEl.innerText = (data.rating || 0).toFixed(1);
@@ -1907,6 +1920,9 @@
             const sellerPevna = dataPevnaCena.filter(i => i.seller_id === sellerId);
             const allItems = [...sellerAukce, ...sellerPevna];
             const sellerName = allItems.length > 0 ? allItems[0].seller : 'Prodejce';
+            const sellerProfile = (typeof profilesMap !== 'undefined' && profilesMap) ? profilesMap[sellerId] : null;
+            const sellerAvatar = sellerProfile && sellerProfile.avatar_url ? sellerProfile.avatar_url : null;
+            const sellerInitial = sellerName.charAt(0).toUpperCase();
             const total = allItems.length;
 
             const renderCard = (item) => {
@@ -1937,7 +1953,9 @@
             <div class="w-full bg-white/90 backdrop-blur-xl p-6 md:p-10 rounded-[2rem] shadow-xl fade-in min-h-[500px] border border-white/50">
                 <button onclick="history.back()" class="mb-6 text-sky-500 font-bold hover:text-sky-600 transition-colors flex items-center gap-2 text-lg">← Zpět</button>
                 <div class="flex items-center gap-4 mb-8">
-                    <div class="w-14 h-14 rounded-full bg-gradient-to-tr from-sky-400 to-sky-200 flex items-center justify-center text-white font-bold text-2xl shrink-0">${sellerName.charAt(0).toUpperCase()}</div>
+                    <div class="w-14 h-14 rounded-full bg-gradient-to-tr from-sky-400 to-sky-200 flex items-center justify-center text-white font-bold text-2xl shrink-0 overflow-hidden">
+                        ${sellerAvatar ? '<img src="' + sellerAvatar + '" class="w-full h-full object-cover">' : sellerInitial}
+                    </div>
                     <div>
                         <h2 class="text-2xl md:text-3xl font-extrabold text-pastel-text">${sellerName}</h2>
                         <p class="text-gray-400 text-sm">${total} aktivní${total === 1 ? '' : total >= 2 && total <= 4 ? '' : 'ch'} inzerát${total === 1 ? '' : total >= 2 && total <= 4 ? 'y' : 'ů'}</p>
