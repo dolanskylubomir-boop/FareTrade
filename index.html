@@ -2022,6 +2022,26 @@
                     handleRealtimeTransactionUpdate(payload.new, 'UPDATE');
                 })
                 .subscribe();
+
+            // 4. Kanál pro profily — live aktualizace total_earned a total_spent v dlaždicích
+            if (window.currentUser) {
+                supabaseClient.channel('realtime_profile_stats')
+                    .on('postgres_changes', {
+                        event: 'UPDATE',
+                        schema: 'public',
+                        table: 'profiles',
+                        filter: `id=eq.${window.currentUser.id}`
+                    }, (payload) => {
+                        const d = payload.new;
+                        const earnedEl = document.getElementById('profile-earned');
+                        const spentEl  = document.getElementById('profile-spent');
+                        if (earnedEl && d.total_earned !== undefined)
+                            earnedEl.innerHTML = `${Number(d.total_earned).toLocaleString('cs-CZ')} <span class="text-sm text-gray-400 font-bold">Kč</span>`;
+                        if (spentEl && d.total_spent !== undefined)
+                            spentEl.innerHTML = `${Number(d.total_spent).toLocaleString('cs-CZ')} <span class="text-sm text-gray-400 font-bold">Kč</span>`;
+                    })
+                    .subscribe();
+            }
         };
 
         // --- OPRAVA PŘÍHOZU ---
