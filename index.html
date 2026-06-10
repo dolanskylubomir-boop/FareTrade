@@ -273,12 +273,17 @@
             }
         };
 
-        // --- AUTH & KYC ---
-        async function checkUserProfileKYC(user) {
+// --- AUTH & KYC ---
+        async function checkUserProfileKYC(user, redirectIfVerified = false) {
             if (!supabaseClient) return;
             try {
                 const { data, error } = await supabaseClient.from('profiles').select('kyc_status').eq('id', user.id).single();
-                if (!error && data && data.kyc_status === 'unverified') navigate('kyc');
+                if (!error && data && data.kyc_status === 'unverified') {
+                    navigate('kyc');
+                } else if (redirectIfVerified) {
+                    // Pokud je účet v pořádku, pošleme ho rovnou do profilu
+                    navigate('profil');
+                }
             } catch (e) {
                 console.error("Chyba kontroly KYC:", e);
             }
@@ -294,7 +299,9 @@
                         btn.setAttribute('onclick', "navigate('profil')"); 
                     }
                     if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
-                        await checkUserProfileKYC(session.user);
+                        // Pokud se přihlašuje přes Google/FB a je na stránce 'login', přesměrujeme ho do profilu
+                        const isLoginScreen = window.location.hash.includes('login');
+                        await checkUserProfileKYC(session.user, isLoginScreen);
                     }
                 } else {
                     window.currentUser = null;
@@ -323,14 +330,15 @@
                 if (error) alert("Chyba registrace: " + error.message);
                 else {
                     alert("Registrace úspěšná!");
-                    if (data && data.user) await checkUserProfileKYC(data.user);
+                    if (data && data.user) await checkUserProfileKYC(data.user, true);
                 }
             } else {
                 const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
                 if (error) alert("Chyba přihlášení: " + error.message);
                 else {
                     alert("Úspěšně přihlášen!");
-                    if (data && data.user) { await checkUserProfileKYC(data.user); } else { navigate('home'); }
+                    // Po úspěšném přihlášení e-mailem vynutíme skok do profilu
+                    if (data && data.user) { await checkUserProfileKYC(data.user, true); } else { navigate('home'); }
                 }
             }
         };
@@ -371,7 +379,8 @@
             if (error) alert("Chyba ukládání do databáze: " + error.message);
             else {
                 alert("Údaje uloženy k Vašemu účtu a odeslány ke kontrole!");
-                navigate('home');
+                // Po vyplnění KYC ho pošleme rovnou do profilu, ne na domovskou obrazovku
+                navigate('profil');
             }
         };
 
