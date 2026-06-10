@@ -484,32 +484,75 @@
             e.preventDefault();
             if (!supabaseClient) return alert("Supabase není nakonfigurován!");
             
-            const { data: { user }, error: userError } = await supabaseClient.auth.getUser();
-            if (userError || !user) {
-                alert("Pro uložení KYC musíte být přihlášeni.");
-                navigate('login');
-                return;
-            }
+            const btn = e.target.querySelector('button[type="submit"]');
+            const origText = btn ? btn.innerText : 'Odeslat';
+            if (btn) { btn.innerText = "Nahrávám foto a ukládám..."; btn.disabled = true; }
 
-            const profileData = {
-                display_name: document.getElementById('kyc-dname').value, 
-                first_name: document.getElementById('kyc-fname').value,
-                last_name: document.getElementById('kyc-lname').value,
-                birth_date: document.getElementById('kyc-date').value,
-                street: document.getElementById('kyc-street').value,
-                building_number: document.getElementById('kyc-cp').value,
-                orientation_number: document.getElementById('kyc-co').value,
-                city: document.getElementById('kyc-city').value,
-                zip_code: document.getElementById('kyc-zip').value,
-                bank_account: document.getElementById('kyc-bank').value,
-                kyc_status: 'submitted'
-            };
+            try {
+                const { data: { user }, error: userError } = await supabaseClient.auth.getUser();
+                if (userError || !user) {
+                    alert("Pro uložení KYC musíte být přihlášeni.");
+                    navigate('login');
+                    return;
+                }
 
-            const { error } = await supabaseClient.from('profiles').update(profileData).eq('id', user.id);
-            if (error) alert("Chyba ukládání do databáze: " + error.message);
-            else {
+                // Nahrávání profilového obrázku (avatar_url)
+                let avatarUrl = null;
+                const avatarInput = document.getElementById('kyc-avatar');
+                if (avatarInput && avatarInput.files && avatarInput.files[0]) {
+                    const file = avatarInput.files[0];
+                    const fileExt = file.name.split('.').pop();
+                    const fileName = `avatar-${user.id}-${Date.now()}.${fileExt}`;
+                    
+                    // Zkusíme nahrát do 'avatary', případně do záložního 'inzeraty'
+                    const { data: storageData, error: storageError } = await supabaseClient.storage
+                        .from('avatary')
+                        .upload(fileName, file, { cacheControl: '3600', upsert: true });
+                        
+                    if (storageError) {
+                        // Fallback do existujícího bucketu inzeraty, pokud by 'avatary' nebyl vytvořen
+                        const { data: fallbackData, error: fallbackError } = await supabaseClient.storage
+                            .from('inzeraty')
+                            .upload(fileName, file, { cacheControl: '3600', upsert: true });
+                            
+                        if (!fallbackError && fallbackData) {
+                            const { data: publicUrlData } = supabaseClient.storage.from('inzeraty').getPublicUrl(fileName);
+                            if (publicUrlData && publicUrlData.publicUrl) avatarUrl = publicUrlData.publicUrl;
+                        }
+                    } else if (storageData) {
+                        const { data: publicUrlData } = supabaseClient.storage.from('avatary').getPublicUrl(fileName);
+                        if (publicUrlData && publicUrlData.publicUrl) avatarUrl = publicUrlData.publicUrl;
+                    }
+                }
+
+                const profileData = {
+                    display_name: document.getElementById('kyc-dname').value, 
+                    first_name: document.getElementById('kyc-fname').value,
+                    last_name: document.getElementById('kyc-lname').value,
+                    birth_date: document.getElementById('kyc-date').value,
+                    street: document.getElementById('kyc-street').value,
+                    building_number: document.getElementById('kyc-cp').value,
+                    orientation_number: document.getElementById('kyc-co').value,
+                    city: document.getElementById('kyc-city').value,
+                    zip_code: document.getElementById('kyc-zip').value,
+                    bank_account: document.getElementById('kyc-bank').value,
+                    kyc_status: 'submitted'
+                };
+
+                // Pokud byla nahrána nová fotka, přidáme ji do updatu
+                if (avatarUrl) {
+                    profileData.avatar_url = avatarUrl;
+                }
+
+                const { error } = await supabaseClient.from('profiles').update(profileData).eq('id', user.id);
+                if (error) throw new Error(error.message);
+                
                 alert("Údaje uloženy k Vašemu účtu a odeslány ke kontrole!");
                 navigate('profil');
+            } catch (err) {
+                alert("Chyba ukládání: " + err.message);
+            } finally {
+                if (btn) { btn.innerText = origText; btn.disabled = false; }
             }
         };
 
@@ -1253,6 +1296,15 @@
                         <p class="text-gray-500 text-sm mt-1">Vyplňte prosím pravdivé identifikační údaje pro schválení účtu v systému.</p>
                     </div>
                     <form onsubmit="handleKYCSubmit(event)" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+
+                        <div class="sm:col-span-2 flex flex-col items-center mb-4">
+                            <label class="text-xs font-bold text-gray-500 mb-2">Profilová fotografie</label>
+                            <label class="w-24 h-24 rounded-full border-2 border-dashed border-sky-300 bg-sky-50/50 hover:bg-sky-100/50 flex flex-col items-center justify-center cursor-pointer transition-colors overflow-hidden group relative bg-cover bg-center">
+                                <input type="file" id="kyc-avatar" accept="image/*" class="hidden" onchange="previewImage(this)">
+                                <svg class="w-6 h-6 text-sky-400 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                                <span class="text-[10px] font-bold text-sky-700 mt-1">Vybrat foto</span>
+                            </label>
+                        </div>
                         
                         <div class="flex flex-col gap-1 sm:col-span-2 mb-2">
                             <label class="text-xs font-bold text-gray-500 pl-1">Zobrazované jméno (Přezdívka / Název firmy)</label>
@@ -1601,8 +1653,11 @@
                 if (!item) return `<div class="w-full bg-white/90 backdrop-blur-xl p-10 rounded-[2rem] shadow-xl fade-in min-h-[500px] border border-white/50"><button onclick="navigate('aukce')" class="text-sky-500 font-bold">← Zpět na seznam</button><p class="mt-10">${!window.dataLoaded ? '⏳ Načítám data...' : 'Aukce nenalezena.'}</p></div>`;
                 const prices = getPriceInfo(item.price);
                 const isOwner = window.currentUser && window.currentUser.id === item.seller_id;
-                
                 const isHighestBidder = window.currentUser && window.currentUser.id === item.last_bidder_id;
+                
+                // Dynamické určení cíle a textu pro tlačítko zpět
+                const backTarget = isOwner ? 'profil' : 'aukce';
+                const backText = isOwner ? 'Zpět na profil' : 'Zpět na seznam';
                 
                 return `
                 <div class="w-full bg-white/90 backdrop-blur-xl p-6 md:p-10 rounded-[2rem] shadow-xl fade-in min-h-[500px] border border-white/50 relative">
@@ -1758,6 +1813,10 @@
                 if (!item) return `<div class="w-full bg-white/90 backdrop-blur-xl p-10 rounded-[2rem] shadow-xl fade-in min-h-[500px] border border-white/50"><button onclick="navigate('pevna-cena')" class="text-pink-500 font-bold">← Zpět na katalog</button><p class="mt-10">${!window.dataLoaded ? '⏳ Načítám data...' : 'Položka nenalezena.'}</p></div>`;
                 const prices = getPriceInfo(item.price);
                 const isOwner = window.currentUser && window.currentUser.id === item.seller_id;
+
+                // Dynamické určení cíle a textu pro tlačítko zpět
+                const backTarget = isOwner ? 'profil' : 'pevna-cena';
+                const backText = isOwner ? 'Zpět na profil' : 'Zpět na katalog';
 
                 return `
                 <div class="w-full bg-white/90 backdrop-blur-xl p-6 md:p-10 rounded-[2rem] shadow-xl fade-in min-h-[500px] border border-white/50">
