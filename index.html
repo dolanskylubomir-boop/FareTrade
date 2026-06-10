@@ -796,12 +796,22 @@
                 const fullName = (data.first_name || '') + ' ' + (data.last_name || '');
                 const displayName = data.display_name || fullName.trim() || 'Nepojmenovaný uživatel';
                 
-                const nameEl = document.getElementById('profile-name');
-                if(nameEl) nameEl.innerText = displayName; 
-                
-                const initials = (data.display_name ? data.display_name[0] : (data.first_name ? data.first_name[0] : ''));
+                const initials = (data.display_name ? data.display_name[0] : (data.first_name ? data.first_name[0] : '?')).toUpperCase();
                 const initEl = document.getElementById('profile-initials');
-                if(initEl) initEl.innerText = initials.toUpperCase() || '👤';
+                if (initEl) {
+                    if (data.avatar_url) {
+                        initEl.innerHTML = '';
+                        const img = document.createElement('img');
+                        img.src = data.avatar_url;
+                        img.alt = 'Avatar';
+                        img.className = 'w-full h-full object-cover rounded-full';
+                        img.onerror = () => { initEl.innerHTML = ''; initEl.innerText = initials; };
+                        initEl.classList.add('overflow-hidden', 'p-0');
+                        initEl.appendChild(img);
+                    } else {
+                        initEl.innerText = initials;
+                    }
+                }
 
                 const ratingEl = document.getElementById('profile-rating');
                 if(ratingEl) ratingEl.innerText = (data.rating || 0).toFixed(1);
