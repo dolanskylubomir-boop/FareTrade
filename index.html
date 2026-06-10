@@ -214,7 +214,6 @@
         window.fetchDatabaseItems = async function() {
             if (!supabaseClient) return;
             try {
-                // Skrýváme všechny inzeráty, které mají status zrušeno
                 const { data: dbAukce, error: err1 } = await supabaseClient.from('aukce').select('*').neq('status', 'zruseno');
                 const { data: dbPevna, error: err2 } = await supabaseClient.from('pevna_cena').select('*').neq('status', 'zruseno');
                 const { data: dbProfiles, error: err3 } = await supabaseClient.from('profiles').select('id, first_name, last_name, display_name, is_verified, rating');
