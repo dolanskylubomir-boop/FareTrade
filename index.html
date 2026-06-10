@@ -129,9 +129,10 @@
 
         let dataAukce = [];
         let dataPevnaCena = [];
-        let dataTransakce = []; // Uložiště pro data transakcí
+        let dataTransakce = []; 
         window.currentUser = null;
         window.auctionParticipants = {};
+        window.dataLoaded = false; // PŘIDÁNO: Sledování stavu stažení z DB
 
         window.renderCategories = function(view, currentFilter) {
             return `
@@ -147,11 +148,9 @@
             return { fee: fee, total: price + fee + ESCROW_FEE };
         };
 
-        // --- OBLÍBENÉ (Supabase DB) ---
-        // In-memory cache oblíbených pro aktuální session (Set ID položek)
+        // --- OBLÍBENÉ ---
         window._favCache = new Set();
 
-        // Načte oblíbené z DB a naplní cache — volá se po přihlášení
         window.loadFavoritesFromDB = async function() {
             if (!supabaseClient || !window.currentUser) return;
             const { data, error } = await supabaseClient
@@ -161,7 +160,6 @@
             if (!error && data) {
                 window._favCache = new Set(data.map(r => r.item_id));
             }
-            // Aktualizuj všechna srdce na stránce podle nové cache
             document.querySelectorAll('.fav-btn[data-id]').forEach(btn => {
                 const isFav = window._favCache.has(btn.getAttribute('data-id'));
                 btn.classList.toggle('text-red-500', isFav);
@@ -177,7 +175,6 @@
             e.stopPropagation();
             const isFav = window._favCache.has(id);
 
-            // Optimistická aktualizace UI okamžitě
             if (isFav) {
                 window._favCache.delete(id);
             } else {
@@ -194,14 +191,12 @@
             }
 
             if (isFav) {
-                // Odebrat z DB
                 await supabaseClient
                     .from('favorites')
                     .delete()
                     .eq('user_id', window.currentUser.id)
                     .eq('item_id', id);
             } else {
-                // Přidat do DB
                 const allItems = [...dataAukce, ...dataPevnaCena];
                 const item = allItems.find(i => i.id === id);
                 await supabaseClient.from('favorites').upsert([{
@@ -215,7 +210,6 @@
             }
         };
 
-        // Načte oblíbené pro záložku profilu — vrátí pole objektů
         window.loadFavoritesForTab = async function() {
             if (!supabaseClient || !window.currentUser) return [];
             const { data, error } = await supabaseClient
@@ -226,7 +220,7 @@
             return error ? [] : (data || []);
         };
 
-        // --- SPRÁVA INZERÁTŮ (Smazání a Prodloužení) ---
+        // --- SPRÁVA INZERÁTŮ ---
         window.deleteAd = async function(type, id) {
             if(!confirm("Opravdu chcete tento inzerát smazat? Trvale se přestane zobrazovat všem uživatelům na tržišti.")) return;
             
@@ -243,7 +237,7 @@
         };
 
         window.extendAd = async function(type, id) {
-            if(!confirm("Prodloužení inzerátu o dalších 10 dnů je zpoplatněno částkou 5 Kč.\n\nPozději zde bude napojena platební brána pro ověření.\nPřejete si inzerát prodloužit nyní?")) return;
+            if(!confirm("Prodloužení inzerátu o dalších 10 dnů je zpoplatněno částkou 5 Kč.\nPřejete si inzerát prodloužit nyní?")) return;
             
             const tableName = type === 'aukce' ? 'aukce' : 'pevna_cena';
             const items = type === 'aukce' ? dataAukce : dataPevnaCena;
@@ -273,16 +267,15 @@
         window.fetchDatabaseItems = async function() {
             if (!supabaseClient) return;
             try {
-                const { data: dbAukce, error: err1 } = await supabaseClient.from('aukce').select('*').neq('status', 'zruseno');
-                const { data: dbPevna, error: err2 } = await supabaseClient.from('pevna_cena').select('*').neq('status', 'zruseno');
+                const { data: dbAukce, error: err1 } = await supabaseClient.from('aukce').select('*').eq('status', 'aktivní');
+                const { data: dbPevna, error: err2 } = await supabaseClient.from('pevna_cena').select('*').eq('status', 'aktivní');
                 const { data: dbProfiles, error: err3 } = await supabaseClient.from('profiles').select('id, first_name, last_name, display_name, is_verified, rating');
                 const { data: dbBids, error: errBids } = await supabaseClient.from('bids').select('auction_id, bidder_id, amount');
                 const { data: dbTx, error: errTx } = await supabaseClient.from('transactions').select('*');
                 
                 if (err1) console.error("Chyba Aukce:", err1.message);
                 if (err2) console.error("Chyba Pevná cena:", err2.message);
-                if (errBids) console.error("Chyba Bids:", errBids.message);
-                if (dbTx) dataTransakce = dbTx; // Pokud tabulka existuje a projde
+                if (dbTx) dataTransakce = dbTx; 
 
                 const profilesMap = {};
                 if (dbProfiles) {
@@ -397,8 +390,12 @@
                         };
                     });
                 }
+                
+                window.dataLoaded = true; // Značka pro UI, že stahování skončilo
+                
             } catch(e) {
                 console.error("Kritická chyba načítání reálných dat:", e);
+                window.dataLoaded = true; 
             }
         };
 
@@ -711,7 +708,6 @@
             const emailEl = document.getElementById('profile-email');
             if(emailEl) emailEl.innerText = user.email;
 
-            // Transakce — výpočty přímo z DB (jen completed)
             if (supabaseClient) {
                 const { data: dbTxStats } = await supabaseClient
                     .from('transactions')
@@ -739,7 +735,6 @@
                 const purchaseCountEl = document.getElementById('profile-purchase-count');
                 if (purchaseCountEl) purchaseCountEl.innerText = purchaseCount;
 
-                // Synchronizuj do profiles tabulky (total_earned + total_spent)
                 await supabaseClient.from('profiles').update({
                     total_earned: totalEarned,
                     total_spent:  totalSpent
@@ -847,8 +842,6 @@
             }
             
             if (tab === 'transakce') {
-                // Transakce se načítají asynchronně přes loadTransakceTab() níže
-                // Tato funkce vrátí pouze skeleton s ID kontejneru; data doplní async loader
                 setTimeout(() => loadTransakceTab(), 0);
                 return `
                     <div class="flex items-center justify-between mb-6 fade-in">
@@ -861,7 +854,6 @@
                 `;
             }
 
-            // Placeholder pro kompilaci — skutečný render provede loadTransakceTab
             if (tab === '_transakce_render') {
                 const allTx = window._txData || [];
                 const mySales = allTx.filter(tx => tx.seller_id === window.currentUser.id).sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
@@ -898,7 +890,6 @@
                             <div class="font-bold text-lg text-gray-800 mb-1.5">${tx.price.toLocaleString('cs-CZ')} Kč</div>
                             ${getStatusBadge(tx.status, isSeller)}
                             
-                            <!-- Testovací ovladače (pro otestování logiky překlápění stavu bez Backendu) -->
                             <div class="mt-2 flex gap-1 justify-end opacity-20 hover:opacity-100 transition-opacity">
                                 <button onclick="updateTxStatus('${tx.id}', 'paid')" class="text-[9px] bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded uppercase font-bold">Platba</button>
                                 <button onclick="updateTxStatus('${tx.id}', 'completed')" class="text-[9px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded uppercase font-bold">Hotovo</button>
@@ -919,11 +910,8 @@
 
                 return html;
             }
-
-            if (tab === 'transakce_UNUSED_SENTINEL') { return ''; }
             
             if (tab === 'oblibene') {
-                // Async načtení z DB
                 setTimeout(async () => {
                     const container = document.getElementById('oblibene-content');
                     if (!container) return;
@@ -936,7 +924,6 @@
                     favs.forEach(item => {
                         const isAukce = item.item_type === 'aukce';
                         const detailView = isAukce ? 'aukce-detail' : 'pevna-cena-detail';
-                        // Pokus o live cenu z dataAukce/dataPevnaCena
                         const liveItem = [...dataAukce, ...dataPevnaCena].find(i => i.id === item.item_id);
                         const price = liveItem ? liveItem.price : item.item_price;
                         html += `
@@ -974,12 +961,10 @@
                     return `<p class="text-gray-500 py-4 text-center fade-in">⏳ Načítám inzeráty ze serveru...</p>`;
                 }
 
-                // Moje prodávané položky
                 const myAukce = dataAukce.filter(i => i.seller_id === window.currentUser.id);
                 const myPevna = dataPevnaCena.filter(i => i.seller_id === window.currentUser.id);
                 const myAds = [...myAukce, ...myPevna];
 
-                // NOVÉ: Filtrování aukcí podle historie zúčastněných uživatelů místo absolutně posledního bidu
                 const localBids = JSON.parse(localStorage.getItem('ft_local_bids') || '{}');
                 const myBids = dataAukce.filter(i => {
                     const hasBidInDb = window.auctionParticipants && window.auctionParticipants[i.id] && window.auctionParticipants[i.id].has(window.currentUser.id);
@@ -1124,23 +1109,27 @@
                     created_at: new Date().toISOString()
                 };
 
-                // Uložení do DB — hlavní zdroj pravdy; realtime kanál doručí notifikaci i prodejci
                 if (supabaseClient) {
                     const { error: txError } = await supabaseClient.from('transactions').insert([newTx]);
                     if (txError) {
                         showToast("Chyba při vytváření objednávky: " + txError.message, "warning");
                         return;
                     }
+
+                    await supabaseClient
+                        .from('pevna_cena')
+                        .update({ status: 'prodáno' })
+                        .eq('id', item.id);
+
+                    dataPevnaCena = dataPevnaCena.filter(i => i.id !== item.id);
                 }
 
-                // Okamžitá lokální odezva pro kupujícího (realtime kanál se postará o ostatní profily)
                 handleRealtimeTransactionUpdate(newTx, 'INSERT');
+                showToast(`Položka "${item.title}" byla zakoupena!`, 'success');
                 navigate('profil/transakce');
             }
         };
 
-        // --- ZMĚNA STATUSU TRANSAKCE ---
-        // Vždy přes DB → Supabase Realtime kanál doručí změnu všem zúčastněným profilům automaticky
         window.updateTxStatus = async function(id, newStatus) {
             if (!supabaseClient) return;
             const { error } = await supabaseClient
@@ -1149,8 +1138,25 @@
                 .eq('id', id);
             if (error) {
                 showToast("Chyba aktualizace statusu: " + error.message, "warning");
+                return;
             }
-            // Realtime kanál 'realtime_transactions' zajistí refresh UI a push notifikaci pro oba účastníky
+
+            if (newStatus === 'completed') {
+                const { data: txData } = await supabaseClient
+                    .from('transactions')
+                    .select('item_id')
+                    .eq('id', id)
+                    .single();
+
+                if (txData && txData.item_id) {
+                    await supabaseClient
+                        .from('pevna_cena')
+                        .update({ status: 'archivováno' })
+                        .eq('id', txData.item_id);
+                    dataPevnaCena = dataPevnaCena.filter(i => i.id !== txData.item_id);
+                }
+                showToast("Transakce dokončena a inzerát archivován.", "success");
+            }
         };
 
         // --- ŠABLONY STRÁNEK ---
@@ -1551,7 +1557,7 @@
                     
                     ${renderCategories('aukce', kategorieFilter)}
                     
-                    ${filteredData.length === 0 ? '<p class="text-gray-500 py-10 text-center">V této kategorii zatím nejsou žádné aukce. Vložte první!</p>' : ''}
+                    ${!window.dataLoaded ? '<p class="text-gray-500 py-10 text-center font-bold animate-pulse">⏳ Načítám položky ze serveru...</p>' : (filteredData.length === 0 ? '<p class="text-gray-500 py-10 text-center">V této kategorii zatím nejsou žádné aukce. Vložte první!</p>' : '')}
                     
                     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                         ${filteredData.map(item => `
@@ -1582,11 +1588,10 @@
 
             'aukce-detail': (id) => {
                 const item = dataAukce.find(i => i.id == id);
-                if (!item) return `<div class="w-full bg-white/90 backdrop-blur-xl p-10 rounded-[2rem] shadow-xl fade-in min-h-[500px] border border-white/50"><button onclick="navigate('aukce')" class="text-sky-500 font-bold">← Zpět na seznam</button><p class="mt-10">Aukce nenalezena.</p></div>`;
+                if (!item) return `<div class="w-full bg-white/90 backdrop-blur-xl p-10 rounded-[2rem] shadow-xl fade-in min-h-[500px] border border-white/50"><button onclick="navigate('aukce')" class="text-sky-500 font-bold">← Zpět na seznam</button><p class="mt-10">${!window.dataLoaded ? '⏳ Načítám data...' : 'Aukce nenalezena.'}</p></div>`;
                 const prices = getPriceInfo(item.price);
                 const isOwner = window.currentUser && window.currentUser.id === item.seller_id;
                 
-                // Kontrola zdali aktuální uživatel drží nejvyšší nabídku
                 const isHighestBidder = window.currentUser && window.currentUser.id === item.last_bidder_id;
                 
                 return `
@@ -1692,7 +1697,7 @@
                     
                     ${renderCategories('pevna-cena', kategorieFilter)}
                     
-                    ${filteredData.length === 0 ? '<p class="text-gray-500 py-10 text-center">V této kategorii zatím není žádné zboží k okamžitému nákupu. Vložte první!</p>' : ''}
+                    ${!window.dataLoaded ? '<p class="text-gray-500 py-10 text-center font-bold animate-pulse">⏳ Načítám položky ze serveru...</p>' : (filteredData.length === 0 ? '<p class="text-gray-500 py-10 text-center">V této kategorii zatím není žádné zboží k okamžitému nákupu. Vložte první!</p>' : '')}
                     
                     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                         ${filteredData.map(item => `
@@ -1723,7 +1728,7 @@
             
             'pevna-cena-detail': (id) => {
                 const item = dataPevnaCena.find(i => i.id == id);
-                if (!item) return `<div class="w-full bg-white/90 backdrop-blur-xl p-10 rounded-[2rem] shadow-xl fade-in min-h-[500px] border border-white/50"><button onclick="navigate('pevna-cena')" class="text-pink-500 font-bold">← Zpět na katalog</button><p class="mt-10">Položka nenalezena.</p></div>`;
+                if (!item) return `<div class="w-full bg-white/90 backdrop-blur-xl p-10 rounded-[2rem] shadow-xl fade-in min-h-[500px] border border-white/50"><button onclick="navigate('pevna-cena')" class="text-pink-500 font-bold">← Zpět na katalog</button><p class="mt-10">${!window.dataLoaded ? '⏳ Načítám data...' : 'Položka nenalezena.'}</p></div>`;
                 const prices = getPriceInfo(item.price);
                 const isOwner = window.currentUser && window.currentUser.id === item.seller_id;
 
@@ -1838,7 +1843,7 @@
                         <p class="text-gray-400 text-sm">${total} aktivní${total === 1 ? '' : total >= 2 && total <= 4 ? '' : 'ch'} inzerát${total === 1 ? '' : total >= 2 && total <= 4 ? 'y' : 'ů'}</p>
                     </div>
                 </div>
-                ${total === 0 ? '<p class="text-gray-500 py-10 text-center">Tento prodejce nemá žádné aktivní inzeráty.</p>' : ''}
+                ${!window.dataLoaded ? '<p class="text-gray-500 py-10 text-center font-bold animate-pulse">⏳ Načítám položky ze serveru...</p>' : (total === 0 ? '<p class="text-gray-500 py-10 text-center">Tento prodejce nemá žádné aktivní inzeráty.</p>' : '')}
                 ${sellerAukce.length > 0 ? `
                     <h3 class="text-lg font-bold text-gray-700 mb-4 flex items-center gap-2">
                         <span class="inline-block bg-sky-100 text-sky-700 text-xs px-3 py-1 rounded-full font-bold uppercase">Aukce (${sellerAukce.length})</span>
@@ -1871,7 +1876,6 @@
                 return;
             }
 
-            // Uložíme do okna pro případný re-render z handleRealtimeTransactionUpdate
             window._txData = dbTx || [];
 
             const html = renderProfileTabContent('_transakce_render');
@@ -1953,7 +1957,6 @@
                 auction.price = newPrice;
                 auction.last_bidder_id = newBidder;
 
-                // Vyhodnocení notifikací pro aktuálního uživatele
                 if (window.currentUser && newBidder !== window.currentUser.id) {
                     if (auction.seller_id === window.currentUser.id) {
                         showToast(`Nový příhoz ${newPrice.toLocaleString('cs-CZ')} Kč na vaši aukci "${auction.title}"!`, 'success');
@@ -1962,7 +1965,6 @@
                     }
                 }
 
-                // Bezdotyková aktualizace cen v UI (na Detailu i v Dlaždicích)
                 const priceEl = document.getElementById('price-' + id);
                 const totalEl = document.getElementById('total-' + id);
                 const listPriceEl = document.getElementById('list-price-' + id);
@@ -1981,11 +1983,9 @@
                     setTimeout(() => listPriceEl.classList.remove('text-green-500', 'scale-105'), 500);
                 }
 
-                // Tichý refresh profilu (pokud ho má zrovna otevřený někdo jiný) pro načtení jména zájemce
                 if (window.location.hash.includes('profil')) {
                     loadProfileData('inzeraty');
                 } else if (window.location.hash.includes('aukce-detail/' + id)) {
-                    // Počkáme na odeznění animace a tiše překreslíme detaily kvůli tlačítkům a bannerům
                     setTimeout(() => navigate('aukce-detail', id), 2000);
                 }
             }
@@ -2017,7 +2017,6 @@
             const isSeller = tx.seller_id === window.currentUser.id;
             if (!isBuyer && !isSeller) return;
 
-            // Aktualizuj lokální cache (přepíše nebo přidá záznam)
             let localTx = JSON.parse(localStorage.getItem('ft_local_transactions') || '[]');
             const idx = localTx.findIndex(t => t.id === tx.id);
             if (idx >= 0) {
@@ -2027,7 +2026,6 @@
             }
             localStorage.setItem('ft_local_transactions', JSON.stringify(localTx));
 
-            // Sestav notifikační zprávu
             const statusLabels = {
                 created:   isSeller ? `📦 Nová objednávka: "${tx.item_title}"` : `✅ Objednávka vytvořena: "${tx.item_title}"`,
                 paid:      isSeller ? `💰 Platba přijata za "${tx.item_title}"` : `✅ Platba potvrzena pro "${tx.item_title}"`,
@@ -2041,10 +2039,8 @@
             showToast(msg, toastType);
             sendBrowserNotification('FairTrade', msg, tx.item_image || null);
 
-            // Tichý refresh záložky transakce přes DB (pokud je zrovna otevřena)
             const txContainer = document.getElementById('transakce-content');
             if (txContainer) {
-                // Záložka transakce je otevřena — live refresh přes DB
                 if (window._txData) {
                     const idx = window._txData.findIndex(t => t.id === tx.id);
                     if (idx >= 0) window._txData[idx] = { ...window._txData[idx], ...tx };
@@ -2061,16 +2057,13 @@
         window.setupRealtime = function() {
             if (!supabaseClient) return;
 
-            // Požádat o povolení browser notifikací při spuštění realtime
             requestPushPermission();
 
-            // 1. Kanál pro změny přímo v tabulce aukce
             supabaseClient.channel('realtime_aukce')
                 .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'aukce' }, (payload) => {
                     handleRealtimeAuctionUpdate(payload.new);
                 }).subscribe();
 
-            // 2. Kanál pro nové příhozy v tabulce bids
             supabaseClient.channel('realtime_bids')
                 .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'bids' }, (payload) => {
                     handleRealtimeAuctionUpdate({
@@ -2080,7 +2073,21 @@
                     });
                 }).subscribe();
 
-            // 3. Kanál pro transakce — INSERT i UPDATE, pro všechny profily v reálném čase
+            supabaseClient.channel('realtime_pevna_cena')
+                .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'pevna_cena' }, (payload) => {
+                    const updated = payload.new;
+                    if (updated.status === 'prodáno' || updated.status === 'archivováno' || updated.status === 'zruseno') {
+                        dataPevnaCena = dataPevnaCena.filter(i => i.id !== updated.id);
+                        if (window.location.hash.includes('pevna-cena') && !window.location.hash.includes('detail')) {
+                            navigate('pevna-cena');
+                        }
+                        if (window.location.hash.includes('pevna-cena-detail/' + updated.id)) {
+                            showToast("Tato položka byla právě zakoupena jiným uživatelem.", "warning");
+                            setTimeout(() => navigate('pevna-cena'), 2000);
+                        }
+                    }
+                }).subscribe();
+
             supabaseClient.channel('realtime_transactions')
                 .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'transactions' }, (payload) => {
                     handleRealtimeTransactionUpdate(payload.new, 'INSERT');
@@ -2090,7 +2097,6 @@
                 })
                 .subscribe();
 
-            // 4. Kanál pro profily — live aktualizace total_earned a total_spent v dlaždicích
             if (window.currentUser) {
                 supabaseClient.channel('realtime_profile_stats')
                     .on('postgres_changes', {
@@ -2124,7 +2130,6 @@
             let currentPrice = parseInt(pEl.getAttribute('data-price'));
             let val = currentPrice + amount;
             
-            // 1. BEZPEČNÝ ZÁPIS DO DATABÁZE - Musí projít předtím, než změníme UI
             if (supabaseClient) {
                 const { error: bidError } = await supabaseClient.from('bids').insert([{
                     auction_id: id,
@@ -2135,17 +2140,15 @@
                 if (bidError) {
                     console.error("Chyba při ukládání do tabulky bids:", bidError);
                     showToast("Chyba DB: Příhoz se nepodařilo uložit! " + bidError.message, "warning");
-                    return; // Zastavíme provádění, pokud DB odmítne zápis!
+                    return; 
                 }
 
-                // Zkusit update aukce, nezastavujeme na chybě kvůli bezpečnosti DB (řeší se případně přes Bids kanál)
                 supabaseClient.from('aukce').update({ 
                     current_price: val,
                     last_bidder_id: window.currentUser.id 
                 }).eq('id', id).then();
             }
             
-            // 2. LOKÁLNÍ CACHE PRO ZABEZPEČENÍ OCHRANY RLS
             let localBids = JSON.parse(localStorage.getItem('ft_local_bids') || '{}');
             localBids[id] = { price: val, last_bidder_id: window.currentUser.id };
             localStorage.setItem('ft_local_bids', JSON.stringify(localBids));
@@ -2153,7 +2156,6 @@
             showToast("Váš příhoz " + val.toLocaleString('cs-CZ') + " Kč byl úspěšně přijat!", "success");
             toggleBidMenu(id);
             
-            // 3. OKAMŽITÁ ZMĚNA (Simulovaný průchod Realtime fce pro náš vlastní displej)
             handleRealtimeAuctionUpdate({
                 id: id,
                 current_price: val,
@@ -2203,12 +2205,23 @@
             else navigate('home');
         });
 
-        document.addEventListener('DOMContentLoaded', async () => {
-            await fetchDatabaseItems();
-            setupRealtime();
+        // --- INICIALIZACE - OPRAVENO ABY NEBLOKOVALA ---
+        document.addEventListener('DOMContentLoaded', () => {
+            // 1. Okamžitě vykreslit UI (domovské dlaždice) bez čekání na DB
             const hash = window.location.hash.replace('#', '');
             if (hash) navigate(hash);
             else navigate('home');
+
+            // 2. Teprve nyní na pozadí vytáhnout data z databáze
+            fetchDatabaseItems().then(() => {
+                const currentHash = window.location.hash.replace('#', '');
+                // Po načtení automaticky překreslíme ty stránky, které data potřebují (Aukce, Pevná cena, atd.)
+                if (currentHash && currentHash !== 'home' && currentHash !== 'login' && currentHash !== 'kontakt' && currentHash !== 'vop' && currentHash !== 'novy-inzerat' && currentHash !== 'kyc') {
+                    navigate(currentHash);
+                }
+            });
+            
+            setupRealtime();
         });
     </script>
 </body>
