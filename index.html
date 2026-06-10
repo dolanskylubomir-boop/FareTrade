@@ -1251,9 +1251,13 @@
                         </div>
 
                         <div class="flex flex-col">
-                            <div class="flex gap-2 mb-4">
-                                <span class="inline-block bg-sky-100 text-sky-800 text-sm px-4 py-1.5 rounded-full font-bold uppercase tracking-wide w-max">Aukce</span>
-                                <span class="inline-block bg-gray-100 text-gray-600 text-sm px-4 py-1.5 rounded-full font-bold tracking-wide w-max">${item.category}</span>
+                            <div class="flex flex-wrap gap-2 mb-4 items-center">
+                                <span class="inline-block bg-sky-100 text-sky-800 text-sm px-4 py-1.5 rounded-full font-bold uppercase tracking-wide">Aukce</span>
+                                <span class="inline-block bg-gray-100 text-gray-600 text-sm px-4 py-1.5 rounded-full font-bold tracking-wide">${item.category}</span>
+                                <button onclick="navigate('seller-inzeraty', '${item.seller_id}')" class="inline-flex items-center gap-1.5 bg-white border border-gray-200 hover:border-sky-400 hover:text-sky-600 text-gray-500 text-sm px-4 py-1.5 rounded-full font-bold transition-colors">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
+                                    Další inzeráty prodejce
+                                </button>
                             </div>
                             <h2 class="text-3xl md:text-5xl font-extrabold mb-4 text-pastel-text">${item.title}</h2>
                             
@@ -1368,9 +1372,13 @@
                             <img src="${item.img}" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1523275335684-37898b6baf30?q=80&w=800&auto=format&fit=crop';" class="rounded-xl object-cover w-full h-[300px] md:h-[450px]">
                         </div>
                         <div class="flex flex-col">
-                            <div class="flex gap-2 mb-4">
-                                <span class="inline-block bg-pink-100 text-pink-800 text-sm px-4 py-1.5 rounded-full font-bold uppercase tracking-wide w-max">Kup teď</span>
-                                <span class="inline-block bg-gray-100 text-gray-600 text-sm px-4 py-1.5 rounded-full font-bold tracking-wide w-max">${item.category}</span>
+                            <div class="flex flex-wrap gap-2 mb-4 items-center">
+                                <span class="inline-block bg-pink-100 text-pink-800 text-sm px-4 py-1.5 rounded-full font-bold uppercase tracking-wide">Kup teď</span>
+                                <span class="inline-block bg-gray-100 text-gray-600 text-sm px-4 py-1.5 rounded-full font-bold tracking-wide">${item.category}</span>
+                                <button onclick="navigate('seller-inzeraty', '${item.seller_id}')" class="inline-flex items-center gap-1.5 bg-white border border-gray-200 hover:border-pink-400 hover:text-pink-600 text-gray-500 text-sm px-4 py-1.5 rounded-full font-bold transition-colors">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
+                                    Další inzeráty prodejce
+                                </button>
                             </div>
                             <h2 class="text-3xl md:text-5xl font-extrabold mb-4 text-pastel-text">${item.title}</h2>
                             
@@ -1422,6 +1430,64 @@
                 </div>
                 `;
             }
+        };
+
+        // --- INZERÁTY PRODEJCE ---
+        views['seller-inzeraty'] = (sellerId) => {
+            const sellerAukce = dataAukce.filter(i => i.seller_id === sellerId);
+            const sellerPevna = dataPevnaCena.filter(i => i.seller_id === sellerId);
+            const allItems = [...sellerAukce, ...sellerPevna];
+            const sellerName = allItems.length > 0 ? allItems[0].seller : 'Prodejce';
+            const total = allItems.length;
+
+            const renderCard = (item) => {
+                const isAukce = item.type === 'aukce';
+                const detailView = isAukce ? 'aukce-detail' : 'pevna-cena-detail';
+                const accentColor = isAukce ? 'sky' : 'pink';
+                return `
+                <div onclick="navigate('${detailView}/${item.id}')" class="bg-white rounded-2xl p-4 shadow-sm hover:shadow-lg border border-gray-100 flex flex-col group relative cursor-pointer transition-shadow">
+                    <div class="relative overflow-hidden rounded-xl mb-4 h-48 bg-gray-50">
+                        <img src="${item.img}" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1523275335684-37898b6baf30?q=80&w=800&auto=format&fit=crop';" class="object-cover w-full h-full group-hover:scale-105 transition-transform duration-500">
+                        <div class="absolute bottom-2 left-2 bg-black/60 text-white text-xs font-bold px-2 py-1 rounded-lg backdrop-blur-sm leading-tight">
+                            <div class="text-white/70 font-normal text-[10px]">Konečná cena pro kupujícího</div>
+                            ${getPriceInfo(item.price).total.toLocaleString('cs-CZ')} Kč
+                        </div>
+                        <button onclick="toggleFavorite(event, '${item.id}', '${item.type}')" data-id="${item.id}" class="fav-btn absolute top-2 right-2 w-8 h-8 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center hover:bg-black/60 transition-colors ${isFavorite(item.id) ? 'text-red-500' : 'text-white'}" aria-label="Přidat do oblíbených">
+                            <svg class="w-4 h-4" fill="${isFavorite(item.id) ? 'currentColor' : 'none'}" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path></svg>
+                        </button>
+                    </div>
+                    <div class="text-xs font-bold text-${accentColor}-500 mb-1 uppercase">${isAukce ? 'Aukce' : 'Pevná cena'} · ${item.category}</div>
+                    <h3 class="text-base font-bold text-gray-800 line-clamp-2 leading-tight flex-grow">${item.title}</h3>
+                    <div class="mt-3 pt-3 border-t border-gray-50">
+                        <div class="text-2xl font-black text-${accentColor}-500">${item.price.toLocaleString('cs-CZ')} Kč</div>
+                    </div>
+                </div>`;
+            };
+
+            return `
+            <div class="w-full bg-white/90 backdrop-blur-xl p-6 md:p-10 rounded-[2rem] shadow-xl fade-in min-h-[500px] border border-white/50">
+                <button onclick="history.back()" class="mb-6 text-sky-500 font-bold hover:text-sky-600 transition-colors flex items-center gap-2 text-lg">← Zpět</button>
+                <div class="flex items-center gap-4 mb-8">
+                    <div class="w-14 h-14 rounded-full bg-gradient-to-tr from-sky-400 to-sky-200 flex items-center justify-center text-white font-bold text-2xl shrink-0">${sellerName.charAt(0).toUpperCase()}</div>
+                    <div>
+                        <h2 class="text-2xl md:text-3xl font-extrabold text-pastel-text">${sellerName}</h2>
+                        <p class="text-gray-400 text-sm">${total} aktivní${total === 1 ? '' : total >= 2 && total <= 4 ? '' : 'ch'} inzerát${total === 1 ? '' : total >= 2 && total <= 4 ? 'y' : 'ů'}</p>
+                    </div>
+                </div>
+                ${total === 0 ? '<p class="text-gray-500 py-10 text-center">Tento prodejce nemá žádné aktivní inzeráty.</p>' : ''}
+                ${sellerAukce.length > 0 ? `
+                    <h3 class="text-lg font-bold text-gray-700 mb-4 flex items-center gap-2">
+                        <span class="inline-block bg-sky-100 text-sky-700 text-xs px-3 py-1 rounded-full font-bold uppercase">Aukce (${sellerAukce.length})</span>
+                    </h3>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">${sellerAukce.map(renderCard).join('')}</div>
+                ` : ''}
+                ${sellerPevna.length > 0 ? `
+                    <h3 class="text-lg font-bold text-gray-700 mb-4 flex items-center gap-2">
+                        <span class="inline-block bg-pink-100 text-pink-700 text-xs px-3 py-1 rounded-full font-bold uppercase">Pevná cena (${sellerPevna.length})</span>
+                    </h3>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">${sellerPevna.map(renderCard).join('')}</div>
+                ` : ''}
+            </div>`;
         };
 
         // --- NAVIGACE A ROUTING (SPA) ---
