@@ -18,7 +18,1773 @@
                             text: '#334155'
                         }
                     }
+                }<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>FairTrade Tržiště</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        pastel: {
+                            blue: '#E0F2FE',
+                            pink: '#FCE7F3',
+                            bg: '#FDF8F3',
+                            text: '#334155'
+                        }
+                    }
                 }
+            }
+        }
+    </script>
+    <style>
+        .fade-in { animation: fadeIn 0.2s ease-in; }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(5px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .bg-animated {
+            background: linear-gradient(-45deg, #FDF8F3, #FCE7F3, #E0F2FE, #F3E8FF);
+            background-size: 400% 400%;
+            animation: gradientBG 15s ease infinite;
+        }
+        @keyframes gradientBG {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        
+        .viewer-360-container {
+            width: 100%;
+            height: 400px;
+            overflow: hidden;
+            position: relative;
+            cursor: grab;
+            perspective: 1000px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .viewer-360-container:active {
+            cursor: grabbing;
+        }
+        .viewer-360-img {
+            max-height: 100%;
+            max-width: 100%;
+            object-fit: contain;
+            pointer-events: none;
+            transform-style: preserve-3d;
+            transition: transform 0.05s linear;
+        }
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+</head>
+<body class="bg-animated text-pastel-text font-sans min-h-screen flex flex-col selection:bg-sky-200">
+
+    <header class="w-full py-5 px-6 bg-white/80 backdrop-blur-md shadow-sm z-40 sticky top-0 transition-all">
+        <div class="max-w-6xl mx-auto flex justify-between items-center">
+            <div class="cursor-pointer flex-shrink-0" onclick="navigate('home')">
+                <h1 class="text-3xl md:text-5xl font-extrabold tracking-tight text-pastel-text">
+                    Fair<span class="text-sky-400">Trade</span>
+                </h1>
+            </div>
+            <nav class="hidden md:flex gap-8 text-gray-600 font-bold text-sm uppercase tracking-wider">
+                <button onclick="navigate('kontakt')" class="hover:text-sky-500 transition-colors">Kontakt</button>
+                <button onclick="navigate('vop')" class="hover:text-sky-500 transition-colors">VOP</button>
+            </nav>
+            <div class="flex items-center gap-3 md:gap-5">
+                <button id="btn-register-top" onclick="navigate('login')" class="hidden sm:block text-gray-600 hover:text-sky-500 font-bold transition-colors">
+                    Registrovat
+                </button>
+                <button onclick="navigate('novy-inzerat')" class="bg-sky-500 hover:bg-sky-600 text-white font-bold py-2 px-4 md:py-3 md:px-6 rounded-xl md:rounded-2xl transition-all shadow-md flex items-center gap-2 text-sm md:text-base">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                    <span class="hidden md:inline">Vložit inzerát</span>
+                    <span class="md:hidden">Přidat</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main id="app" class="flex-grow w-full max-w-6xl mx-auto p-6 md:p-8 flex flex-col justify-center relative">
+    </main>
+
+    <div id="modal-360" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl w-full max-w-3xl overflow-hidden shadow-2xl">
+            <div class="p-4 flex justify-between items-center border-b border-gray-100">
+                <h3 class="font-bold text-xl flex items-center gap-2">
+                    <svg class="w-6 h-6 text-sky-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                    Interaktivní 360° prohlídka
+                </h3>
+                <button onclick="close360()" class="text-gray-400 hover:text-red-500 transition-colors p-2">
+                    <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+            <div class="viewer-360-container bg-gray-100" id="viewer-container" onmousedown="startDrag(event)" onmousemove="doDrag(event)" onmouseup="stopDrag()" onmouseleave="stopDrag()" ontouchstart="startDrag(event)" ontouchmove="doDrag(event)" ontouchend="stopDrag()">
+                <div class="absolute z-10 top-4 bg-black/60 text-white px-4 py-2 rounded-full text-sm font-bold pointer-events-none flex items-center gap-2">
+                    <svg class="w-4 h-4 animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"></path></svg>
+                    Tážením myší otáčejte
+                </div>
+                <img id="img-360" src="" class="viewer-360-img">
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- SUPABASE KONFIGURACE ---
+        const SUPABASE_URL = 'https://mpioazyvtgcpxjrhbflp.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1waW9henl2dGdjcHhqcmhiZmxwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEwMDM1MjksImV4cCI6MjA5NjU3OTUyOX0.pNgPqE1aOrsA2efj5H5FIkNjdcKxo7MVycEjfyEVc4s';
+        let supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        const ESCROW_FEE = 49;
+        const vsechnyKategorie = ['Vše', 'Elektronika', 'Šperky', 'Sběratelství', 'Móda', 'Domácnost'];
+
+        let dataAukce = [];
+        let dataPevnaCena = [];
+        window.currentUser = null;
+
+        window.renderCategories = function(view, currentFilter) {
+            return `
+            <div class="flex gap-2 overflow-x-auto pb-4 mb-4 scrollbar-hide">
+                ${vsechnyKategorie.map(kat => `
+                    <button onclick="navigate('${view}', '${kat}')" class="whitespace-nowrap px-5 py-2 rounded-full font-bold text-sm transition-all ${currentFilter === kat ? (view==='aukce' ? 'bg-sky-500 text-white shadow-md' : 'bg-pink-500 text-white shadow-md') : 'bg-white text-gray-500 border border-gray-200 hover:bg-gray-50'}">${kat}</button>
+                `).join('')}
+            </div>`;
+        };
+
+        window.getPriceInfo = function(price) {
+            const fee = Math.round(price * 0.05);
+            return { fee: fee, total: price + fee + ESCROW_FEE };
+        };
+
+        // --- OBLÍBENÉ ---
+        window.getFavorites = function() {
+            try { return JSON.parse(localStorage.getItem('ft_favorites') || '[]'); } catch(e) { return []; }
+        };
+        window.saveFavorites = function(favs) {
+            localStorage.setItem('ft_favorites', JSON.stringify(favs));
+        };
+        window.isFavorite = function(id) {
+            return getFavorites().some(f => f.id === id);
+        };
+        window.toggleFavorite = function(e, id, type) {
+            e.stopPropagation();
+            const favs = getFavorites();
+            const idx = favs.findIndex(f => f.id === id);
+            if (idx >= 0) {
+                favs.splice(idx, 1);
+            } else {
+                const allItems = [...dataAukce, ...dataPevnaCena];
+                const item = allItems.find(i => i.id === id);
+                if (item) favs.push({ id: item.id, type: item.type, title: item.title, img: item.img, price: item.price });
+            }
+            saveFavorites(favs);
+            // Aktualizuj všechna viditelná srdíčka pro tento inzerát
+            document.querySelectorAll(`.fav-btn[data-id="${id}"]`).forEach(btn => {
+                const isFav = favs.some(f => f.id === id);
+                btn.classList.toggle('text-red-500', isFav);
+                btn.classList.toggle('text-white', !isFav);
+            });
+        };
+
+        // --- SPRÁVA INZERÁTŮ (Smazání a Prodloužení) ---
+        window.deleteAd = async function(type, id) {
+            if(!confirm("Opravdu chcete tento inzerát smazat? Trvale se přestane zobrazovat všem uživatelům na tržišti.")) return;
+            
+            const tableName = type === 'aukce' ? 'aukce' : 'pevna_cena';
+            // Změna statutu na zruseno
+            const { error } = await supabaseClient.from(tableName).update({ status: 'zruseno' }).eq('id', id);
+            
+            if(error) {
+                alert("Chyba při mazání: " + error.message);
+            } else {
+                alert("Inzerát byl úspěšně smazán a stažen z veřejné nabídky.");
+                await fetchDatabaseItems(); 
+                navigate('profil');
+            }
+        };
+
+        window.extendAd = async function(type, id) {
+            if(!confirm("Prodloužení inzerátu o dalších 10 dnů je zpoplatněno částkou 5 Kč.\n\nPozději zde bude napojena platební brána pro ověření.\nPřejete si inzerát prodloužit nyní?")) return;
+            
+            const tableName = type === 'aukce' ? 'aukce' : 'pevna_cena';
+            const items = type === 'aukce' ? dataAukce : dataPevnaCena;
+            const item = items.find(i => i.id === id);
+            
+            if(!item || !item.endTime) {
+                alert("Chyba: Nepodařilo se zjistit aktuální konec inzerátu.");
+                return;
+            }
+            
+            // Výpočet nového data (+ 10 dní)
+            const currentEnd = new Date(item.endTime);
+            currentEnd.setDate(currentEnd.getDate() + 10);
+            const updateData = type === 'aukce' ? { end_time: currentEnd.toISOString() } : { expires_at: currentEnd.toISOString() };
+
+            const { error } = await supabaseClient.from(tableName).update(updateData).eq('id', id);
+            
+            if(error) {
+                alert("Chyba při prodlužování: " + error.message);
+            } else {
+                alert("Platnost inzerátu byla úspěšně prodloužena o 10 dnů!");
+                await fetchDatabaseItems();
+                navigate(type === 'aukce' ? 'aukce-detail' : 'pevna-cena-detail', id);
+            }
+        };
+
+        // --- NAČÍTÁNÍ Z DATABÁZE ---
+        window.fetchDatabaseItems = async function() {
+            if (!supabaseClient) return;
+            try {
+                // Skrýváme všechny inzeráty, které mají status zrušeno
+                const { data: dbAukce, error: err1 } = await supabaseClient.from('aukce').select('*').neq('status', 'zruseno');
+                const { data: dbPevna, error: err2 } = await supabaseClient.from('pevna_cena').select('*').neq('status', 'zruseno');
+                const { data: dbProfiles, error: err3 } = await supabaseClient.from('profiles').select('id, first_name, last_name, display_name, is_verified, rating');
+                
+                if (err1) console.error("Chyba Aukce:", err1.message);
+                if (err2) console.error("Chyba Pevná cena:", err2.message);
+
+                const profilesMap = {};
+                if (dbProfiles) {
+                    dbProfiles.forEach(p => { profilesMap[p.id] = p; });
+                }
+
+                const safeImage = (item) => {
+                    if (item.images && item.images.length > 0 && item.images[0]) return item.images[0];
+                    return 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?q=80&w=600&auto=format&fit=crop';
+                };
+
+                const getSellerInfo = (sellerId) => {
+                    const prof = profilesMap[sellerId];
+                    if (!prof) return { name: 'Neznámý prodejce', verified: false, rating: 0 };
+                    
+                    let finalName = '';
+                    if (prof.display_name && prof.display_name.trim() !== '') {
+                        finalName = prof.display_name;
+                    } else {
+                        finalName = `${prof.first_name || ''} ${prof.last_name || ''}`.trim();
+                    }
+                    
+                    return {
+                        name: finalName || 'Uživatel tržiště',
+                        verified: prof.is_verified || false,
+                        rating: prof.rating || 0
+                    };
+                };
+
+                if (dbAukce) {
+                    dataAukce = dbAukce.map(item => {
+                        const seller = getSellerInfo(item.seller_id);
+                        return {
+                            id: item.id,
+                            seller_id: item.seller_id,
+                            last_bidder_id: item.last_bidder_id || null,
+                            type: 'aukce',
+                            title: item.title,
+                            price: item.current_price || item.starting_price || 0,
+                            category: item.category,
+                            img: safeImage(item),
+                            has360: item.has_360 || false,
+                            seller: seller.name,
+                            verified: seller.verified,
+                            rating: seller.rating,
+                            description: item.description,
+                            endTime: item.end_time 
+                        };
+                    });
+                }
+
+                if (dbPevna) {
+                    dataPevnaCena = dbPevna.map(item => {
+                        const seller = getSellerInfo(item.seller_id);
+                        return {
+                            id: item.id,
+                            seller_id: item.seller_id,
+                            type: 'pevna_cena',
+                            title: item.title,
+                            price: item.price || 0,
+                            category: item.category,
+                            img: safeImage(item),
+                            has360: item.has_360 || false,
+                            seller: seller.name,
+                            verified: seller.verified,
+                            rating: seller.rating,
+                            description: item.description,
+                            endTime: item.expires_at 
+                        };
+                    });
+                }
+            } catch(e) {
+                console.error("Kritická chyba načítání reálných dat:", e);
+            }
+        };
+
+// --- AUTH & KYC ---
+        async function checkUserProfileKYC(user, redirectIfVerified = false) {
+            if (!supabaseClient) return;
+            try {
+                const { data, error } = await supabaseClient.from('profiles').select('kyc_status').eq('id', user.id).single();
+                if (!error && data && data.kyc_status === 'unverified') {
+                    navigate('kyc');
+                } else if (redirectIfVerified) {
+                    // Pokud je účet v pořádku, pošleme ho rovnou do profilu
+                    navigate('profil');
+                }
+            } catch (e) {
+                console.error("Chyba kontroly KYC:", e);
+            }
+        }
+
+        if (supabaseClient) {
+            supabaseClient.auth.onAuthStateChange(async (event, session) => {
+                const btn = document.getElementById('btn-register-top');
+                if (session && session.user) {
+                    window.currentUser = session.user;
+                    if (btn) {
+                        btn.innerText = "Můj Profil";
+                        btn.setAttribute('onclick', "navigate('profil')"); 
+                    }
+                    if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
+                        // Pokud se přihlašuje přes Google/FB a je na stránce 'login', přesměrujeme ho do profilu
+                        const isLoginScreen = window.location.hash.includes('login');
+                        await checkUserProfileKYC(session.user, isLoginScreen);
+                    }
+                } else {
+                    window.currentUser = null;
+                    if (btn) {
+                        btn.innerText = "Registrovat";
+                        btn.setAttribute('onclick', "navigate('login')");
+                    }
+                }
+            });
+        }
+
+        window.loginWithProvider = async function(providerName) {
+            if (!supabaseClient) return alert("Supabase není nakonfigurován!");
+            await supabaseClient.auth.signInWithOAuth({ provider: providerName });
+        };
+
+        window.handleEmailAuth = async function(e) {
+            e.preventDefault();
+            if (!supabaseClient) return alert("Supabase není nakonfigurován!");
+            const email = document.getElementById('email-input').value;
+            const password = document.getElementById('password-input').value;
+            const action = e.submitter.getAttribute('data-action');
+
+            if (action === 'signup') {
+                const { data, error } = await supabaseClient.auth.signUp({ email, password });
+                if (error) alert("Chyba registrace: " + error.message);
+                else {
+                    alert("Registrace úspěšná!");
+                    if (data && data.user) await checkUserProfileKYC(data.user, true);
+                }
+            } else {
+                const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+                if (error) alert("Chyba přihlášení: " + error.message);
+                else {
+                    alert("Úspěšně přihlášen!");
+                    // Po úspěšném přihlášení e-mailem vynutíme skok do profilu
+                    if (data && data.user) { await checkUserProfileKYC(data.user, true); } else { navigate('home'); }
+                }
+            }
+        };
+
+        window.handleLogout = async function() {
+            if (!supabaseClient) return;
+            const { error } = await supabaseClient.auth.signOut();
+            if (error) alert("Chyba při odhlašování: " + error.message);
+            else { alert("Byli jste úspěšně odhlášeni."); navigate('home'); }
+        };
+
+        window.handleKYCSubmit = async function(e) {
+            e.preventDefault();
+            if (!supabaseClient) return alert("Supabase není nakonfigurován!");
+            
+            const { data: { user }, error: userError } = await supabaseClient.auth.getUser();
+            if (userError || !user) {
+                alert("Pro uložení KYC musíte být přihlášeni.");
+                navigate('login');
+                return;
+            }
+
+            const profileData = {
+                display_name: document.getElementById('kyc-dname').value, 
+                first_name: document.getElementById('kyc-fname').value,
+                last_name: document.getElementById('kyc-lname').value,
+                birth_date: document.getElementById('kyc-date').value,
+                street: document.getElementById('kyc-street').value,
+                building_number: document.getElementById('kyc-cp').value,
+                orientation_number: document.getElementById('kyc-co').value,
+                city: document.getElementById('kyc-city').value,
+                zip_code: document.getElementById('kyc-zip').value,
+                bank_account: document.getElementById('kyc-bank').value,
+                kyc_status: 'submitted'
+            };
+
+            const { error } = await supabaseClient.from('profiles').update(profileData).eq('id', user.id);
+            if (error) alert("Chyba ukládání do databáze: " + error.message);
+            else {
+                alert("Údaje uloženy k Vašemu účtu a odeslány ke kontrole!");
+                // Po vyplnění KYC ho pošleme rovnou do profilu, ne na domovskou obrazovku
+                navigate('profil');
+            }
+        };
+
+        // --- VLOŽENÍ INZERÁTU A AI ASISTENT ---
+        window.toggleAuctionFields = function(isAuction) {
+            const fixedPrice = document.getElementById('field-fixed-price');
+            const aucPrice = document.getElementById('field-auction-price');
+            const aucDuration = document.getElementById('field-auction-duration');
+            const priceInput = document.getElementById('ad-price');
+            const startingInput = document.getElementById('ad-starting-price');
+
+            if (isAuction) {
+                fixedPrice.classList.add('hidden'); fixedPrice.classList.remove('flex');
+                aucPrice.classList.remove('hidden'); aucPrice.classList.add('flex');
+                aucDuration.classList.remove('hidden'); aucDuration.classList.add('flex');
+                priceInput.removeAttribute('required'); startingInput.setAttribute('required', 'true');
+            } else {
+                fixedPrice.classList.remove('hidden'); fixedPrice.classList.add('flex');
+                aucPrice.classList.add('hidden'); aucPrice.classList.remove('flex');
+                aucDuration.classList.add('hidden'); aucDuration.classList.remove('flex');
+                startingInput.removeAttribute('required'); priceInput.setAttribute('required', 'true');
+            }
+        };
+
+        window.generateAIContent = function() {
+            const title = document.getElementById('ad-title').value;
+            const btnText = document.getElementById('ai-btn-text');
+            const descriptionBox = document.getElementById('ad-description');
+            const priceBox = document.getElementById('ad-price');
+            const startingPriceBox = document.getElementById('ad-starting-price');
+
+            if (!title || title.length < 3) {
+                alert("Nejprve prosím napište alespoň název zboží, aby měla AI z čeho vařit.");
+                document.getElementById('ad-title').focus();
+                return;
+            }
+
+            btnText.innerText = "Analyzuji trh a generuji...";
+            
+            setTimeout(() => {
+                const aiDescription = `Prodávám vynikající položku: ${title}. \n\nTento kousek byl pečlivě zkontrolován a je připraven dělat radost novému majiteli. Ideální příležitost získat prémiovou kvalitu za zlomek původní ceny. Garantuji bezproblémové předání a stav přesně podle fotografií. V případě dotazů mě neváhejte kontaktovat!`;
+                const aiPrice = Math.floor(Math.random() * (15000 - 500 + 1) + 500);
+
+                descriptionBox.value = aiDescription;
+                descriptionBox.classList.add('bg-yellow-50');
+                priceBox.value = aiPrice;
+                priceBox.classList.add('bg-yellow-50');
+                startingPriceBox.value = Math.floor(aiPrice * 0.3); 
+                startingPriceBox.classList.add('bg-yellow-50');
+
+                btnText.innerText = "Hotovo! (Upravte si text)";
+                
+                setTimeout(() => {
+                    descriptionBox.classList.remove('bg-yellow-50');
+                    priceBox.classList.remove('bg-yellow-50');
+                    startingPriceBox.classList.remove('bg-yellow-50');
+                }, 2000);
+            }, 1500);
+        };
+
+        window.previewImage = function(input) {
+            if (input.files && input.files[0]) {
+                const reader = new FileReader();
+                const container = input.parentElement;
+                reader.onload = function(e) {
+                    container.style.backgroundImage = `url(${e.target.result})`;
+                    container.style.backgroundSize = 'cover';
+                    container.style.backgroundPosition = 'center';
+                    const svg = container.querySelector('svg');
+                    const span = container.querySelector('span');
+                    if(svg) svg.style.display = 'none';
+                    if(span) span.style.display = 'none';
+                    container.classList.remove('border-dashed', 'bg-sky-50', 'border-sky-200');
+                }
+                reader.readAsDataURL(input.files[0]);
+            }
+        };
+
+        window.handleAdSubmit = async function(e) {
+            e.preventDefault();
+            if (!supabaseClient) return alert("Supabase není nakonfigurován!");
+
+            const btn = document.querySelector('form button[type="submit"]');
+            const origText = btn ? btn.innerText : 'Odeslat';
+            if (btn) { btn.innerText = "Nahrávám fotky a zapisuji..."; btn.disabled = true; }
+
+            try {
+                const { data: { user } } = await supabaseClient.auth.getUser();
+                if (!user) throw new Error("Pro vložení inzerátu musíte být přihlášeni.");
+
+                const typeEl = document.querySelector('input[name="ad-type"]:checked');
+                const isAuction = typeEl && typeEl.value === 'aukce';
+                
+                const title = document.getElementById('ad-title').value;
+                const category = document.getElementById('ad-category').value;
+                const condition = document.getElementById('ad-condition').value;
+
+                if (!title || !category || !condition) throw new Error("Vyplňte prosím název, kategorii a stav.");
+
+                const fileInputs = document.querySelectorAll('input[type="file"]');
+                const uploadedImages = [];
+                
+                for (let input of fileInputs) {
+                    if (input.files && input.files[0]) {
+                        const file = input.files[0];
+                        const fileExt = file.name.split('.').pop();
+                        const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+                        
+                        const { data, error } = await supabaseClient.storage
+                            .from('inzeraty')
+                            .upload(fileName, file, { cacheControl: '3600', upsert: false });
+                            
+                        if (!error && data) {
+                            const { data: publicUrlData } = supabaseClient.storage.from('inzeraty').getPublicUrl(fileName);
+                            if (publicUrlData && publicUrlData.publicUrl) {
+                                uploadedImages.push(publicUrlData.publicUrl);
+                            }
+                        } else {
+                            console.error("Chyba při nahrávání fotky:", error);
+                        }
+                    }
+                }
+
+                if (uploadedImages.length === 0) {
+                    uploadedImages.push('https://images.unsplash.com/photo-1523275335684-37898b6baf30?q=80&w=800&auto=format&fit=crop');
+                }
+
+                const adData = {
+                    seller_id: user.id,
+                    title: title,
+                    description: document.getElementById('ad-description').value || '',
+                    category: category,
+                    condition: condition,
+                    brand: document.getElementById('ad-brand').value || null,
+                    weight: parseFloat(document.getElementById('ad-weight').value) || null,
+                    dimensions: document.getElementById('ad-dimensions').value || null,
+                    shipping_methods: Array.from(document.querySelectorAll('input[name="shipping"]:checked')).map(el => el.value),
+                    images: uploadedImages,
+                    has_360: (uploadedImages.length >= 4),
+                    status: 'aktivní'
+                };
+
+                let tableName = isAuction ? 'aukce' : 'pevna_cena';
+
+                if (isAuction) {
+                    const startPrice = parseInt(document.getElementById('ad-starting-price').value);
+                    if (isNaN(startPrice) || startPrice < 1) throw new Error("Neplatná vyvolávací cena!");
+                    
+                    const durationDays = parseInt(document.getElementById('ad-duration').value) || 7;
+                    const endTime = new Date();
+                    endTime.setDate(endTime.getDate() + durationDays);
+
+                    adData.starting_price = startPrice;
+                    adData.current_price = startPrice;
+                    adData.end_time = endTime.toISOString();
+                } else {
+                    const fixPrice = parseInt(document.getElementById('ad-price').value);
+                    if (isNaN(fixPrice) || fixPrice < 1) throw new Error("Neplatná pevná cena!");
+                    adData.price = fixPrice;
+                    
+                    // Lhůta 20 dní pro inzerát s pevnou cenou
+                    const expiresTime = new Date();
+                    expiresTime.setDate(expiresTime.getDate() + 20);
+                    adData.expires_at = expiresTime.toISOString();
+                }
+
+                const { error } = await supabaseClient.from(tableName).insert([adData]);
+                if (error) throw new Error(error.message);
+
+                alert("Inzerát a fotografie byly úspěšně nahrány!");
+                navigate('profil');
+
+            } catch (err) {
+                alert("Chyba při ukládání: " + err.message);
+                console.error("Debug Info:", err);
+            } finally {
+                if (btn) { btn.innerText = origText; btn.disabled = false; }
+            }
+        };
+
+        // --- DASHBOARD A SPRÁVA PROFILU ---
+        window.loadProfileData = async function(activeTab = 'inzeraty') {
+            if (!supabaseClient) return;
+            const { data: { user }, error: authErr } = await supabaseClient.auth.getUser();
+            if (authErr || !user) { navigate('login'); return; }
+            
+            window.currentUser = user; 
+
+            await fetchDatabaseItems();
+
+            const myAukceCount = dataAukce.filter(i => i.seller_id === user.id).length;
+            const myPevnaCount = dataPevnaCena.filter(i => i.seller_id === user.id).length;
+            const activeCountEl = document.getElementById('profile-active-ads-count');
+            if (activeCountEl) {
+                activeCountEl.innerText = myAukceCount + myPevnaCount;
+            }
+
+            const tabContainer = document.getElementById('profile-tab-content');
+            if (tabContainer) {
+                tabContainer.innerHTML = renderProfileTabContent(activeTab);
+            }
+            
+            const emailEl = document.getElementById('profile-email');
+            if(emailEl) emailEl.innerText = user.email;
+
+            const { data, error } = await supabaseClient.from('profiles').select('*').eq('id', user.id).single();
+
+            if (data && !error) {
+                const fullName = (data.first_name || '') + ' ' + (data.last_name || '');
+                const displayName = data.display_name || fullName.trim() || 'Nepojmenovaný uživatel';
+                
+                const nameEl = document.getElementById('profile-name');
+                if(nameEl) nameEl.innerText = displayName; 
+                
+                const initials = (data.display_name ? data.display_name[0] : (data.first_name ? data.first_name[0] : ''));
+                const initEl = document.getElementById('profile-initials');
+                if(initEl) initEl.innerText = initials.toUpperCase() || '👤';
+
+                const earnedEl = document.getElementById('profile-earned');
+                if(earnedEl) earnedEl.innerHTML = `${data.total_earned || 0} <span class="text-xl text-gray-400 font-bold">Kč</span>`;
+
+                const ratingEl = document.getElementById('profile-rating');
+                if(ratingEl) ratingEl.innerText = (data.rating || 0).toFixed(1);
+                
+                
+                if(data.is_verified) {
+                     const badgeEl = document.getElementById('profile-verified-badge');
+                     if(badgeEl) { badgeEl.classList.remove('hidden'); badgeEl.classList.add('inline-flex'); }
+                }
+
+                if (activeTab === 'kyc') {
+                    const kycDisplay = document.getElementById('kyc-display-dname');
+                    const kycName = document.getElementById('kyc-display-name');
+                    const kycDate = document.getElementById('kyc-display-date');
+                    const kycAddress = document.getElementById('kyc-display-address');
+                    const kycBank = document.getElementById('kyc-display-bank');
+                    const kycBadge = document.getElementById('kyc-status-badge');
+
+                    if(kycDisplay) kycDisplay.innerText = data.display_name || 'Nezadáno';
+                    if(kycName) kycName.innerText = fullName.trim() || 'Nezadáno';
+                    
+                    if(kycDate && data.birth_date) {
+                        const parts = data.birth_date.split('-');
+                        kycDate.innerText = parts.length === 3 ? `${parts[2]}.${parts[1]}.${parts[0]}` : data.birth_date;
+                    } else if (kycDate) kycDate.innerText = 'Nezadáno';
+
+                    if(kycAddress) {
+                        if (data.street || data.city) {
+                            const coStr = data.orientation_number ? `/${data.orientation_number}` : '';
+                            kycAddress.innerText = `${data.street || ''} ${data.building_number || ''}${coStr}, ${data.zip_code || ''} ${data.city || ''}`;
+                        } else kycAddress.innerText = 'Nezadáno';
+                    }
+
+                    if(kycBank) kycBank.innerText = data.bank_account || 'Nezadáno';
+
+                    if(kycBadge) {
+                        if (data.kyc_status === 'submitted') {
+                            kycBadge.innerText = 'Čeká na schválení';
+                            kycBadge.className = 'bg-amber-100 text-amber-800 text-xs px-3 py-1 rounded-full font-bold uppercase border border-amber-200';
+                        } else if (data.kyc_status === 'approved' || data.is_verified) {
+                            kycBadge.innerText = 'Schváleno / Ověřeno';
+                            kycBadge.className = 'bg-green-100 text-green-800 text-xs px-3 py-1 rounded-full font-bold uppercase border border-green-200';
+                        } else {
+                            kycBadge.innerText = 'Neověřeno';
+                            kycBadge.className = 'bg-red-100 text-red-800 text-xs px-3 py-1 rounded-full font-bold uppercase border border-red-200';
+                        }
+                    }
+                }
+            }
+        };
+
+        window.renderProfileTabContent = function(tab) {
+            if (tab === 'kyc') {
+                return `
+                    <div class="flex items-center justify-between mb-6 fade-in">
+                        <h3 class="text-xl font-bold text-gray-800">Moje osobní a KYC údaje</h3>
+                        <span id="kyc-status-badge" class="bg-gray-100 text-gray-600 text-xs px-3 py-1 rounded-full font-bold uppercase tracking-wider">Načítám status...</span>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 bg-gray-50/50 p-6 rounded-3xl border border-gray-100 mb-4 fade-in">
+                        <div class="sm:col-span-2">
+                            <p class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Zobrazované jméno veřejně</p>
+                            <p id="kyc-display-dname" class="font-bold text-sky-600 text-xl">⏳ Načítám...</p>
+                        </div>
+                        <div class="border-t border-gray-100 pt-4">
+                            <p class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Skutečné jméno a příjmení</p>
+                            <p id="kyc-display-name" class="font-bold text-gray-800 text-lg">⏳ Načítám...</p>
+                        </div>
+                        <div class="border-t border-gray-100 pt-4">
+                            <p class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Datum narození</p>
+                            <p id="kyc-display-date" class="font-bold text-gray-800 text-lg">⏳ Načítám...</p>
+                        </div>
+                        <div class="sm:col-span-2 border-t border-gray-100 pt-4">
+                            <p class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Trvalé bydliště</p>
+                            <p id="kyc-display-address" class="font-bold text-gray-800 text-lg">⏳ Načítám...</p>
+                        </div>
+                        <div class="sm:col-span-2 border-t border-gray-100 pt-4">
+                            <p class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Bankovní účet</p>
+                            <p id="kyc-display-bank" class="font-bold text-gray-800 text-lg text-sky-600">⏳ Načítám...</p>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-6 p-4 bg-sky-50 text-sky-700 rounded-2xl text-xs border border-sky-100 flex gap-2 fade-in">
+                        <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        <span>Skutečné osobní údaje jsou bezpečně šifrovány. Zákazníci uvidí u inzerátů pouze Vaše Zobrazované jméno.</span>
+                    </div>
+                `;
+            }
+            
+            if (tab === 'moje-aukce') {
+                setTimeout(async () => {
+                    if (!supabaseClient || !window.currentUser) return;
+                    const container = document.getElementById('my-auctions-list');
+                    if (!container) return;
+
+                    const { data: bids, error } = await supabaseClient
+                        .from('bids')
+                        .select('auction_id, amount, created_at')
+                        .eq('bidder_id', window.currentUser.id)
+                        .order('created_at', { ascending: false });
+
+                    if (error || !bids || bids.length === 0) {
+                        container.innerHTML = '<p class="text-gray-500 text-center py-8">Zatím jste se nezúčastnili žádné aukce.</p>';
+                        return;
+                    }
+
+                    const uniqueAuctionIds = [...new Set(bids.map(b => b.auction_id))];
+                    const myBidMap = {};
+                    bids.forEach(b => { if (!myBidMap[b.auction_id]) myBidMap[b.auction_id] = b.amount; });
+
+                    const relevantAukce = dataAukce.filter(a => uniqueAuctionIds.includes(a.id));
+
+                    if (relevantAukce.length === 0) {
+                        container.innerHTML = '<p class="text-gray-500 text-center py-8">Inzeráty již nejsou aktivní nebo se nenačetly.</p>';
+                        return;
+                    }
+
+                    container.innerHTML = relevantAukce.map(item => {
+                        const myBid = myBidMap[item.id];
+                        const isWinning = item.price === myBid;
+                        return `
+                        <div onclick="navigate('aukce-detail/${item.id}')" class="flex items-center gap-4 p-4 border ${isWinning ? 'border-green-200 bg-green-50/40' : 'border-gray-100 bg-white'} rounded-2xl hover:shadow-md transition-shadow cursor-pointer fade-in group">
+                            <div class="w-16 h-16 rounded-xl bg-gray-100 overflow-hidden shrink-0">
+                                <img src="${item.img}" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1523275335684-37898b6baf30?q=80&w=800&auto=format&fit=crop';" class="w-full h-full object-cover group-hover:scale-110 transition-transform">
+                            </div>
+                            <div class="flex-grow min-w-0">
+                                <h4 class="font-bold text-gray-800 line-clamp-1">${item.title}</h4>
+                                <div class="flex items-center gap-2 mt-1 flex-wrap">
+                                    <span class="text-xs text-gray-400">Aktuální cena: <strong class="text-sky-600">${item.price.toLocaleString('cs-CZ')} Kč</strong></span>
+                                    <span class="text-xs text-gray-400">Můj příhoz: <strong class="text-gray-600">${myBid.toLocaleString('cs-CZ')} Kč</strong></span>
+                                </div>
+                            </div>
+                            <div class="shrink-0 text-right">
+                                ${isWinning
+                                    ? '<span class="inline-block bg-green-100 text-green-700 text-xs px-3 py-1 rounded-full font-bold">Vedete ✓</span>'
+                                    : '<span class="inline-block bg-red-100 text-red-600 text-xs px-3 py-1 rounded-full font-bold">Přebiti</span>'
+                                }
+                            </div>
+                        </div>`;
+                    }).join('');
+                }, 0);
+
+                return `
+                    <div class="flex items-center justify-between mb-6 fade-in">
+                        <h3 class="text-xl font-bold text-gray-800">Aukce, kterých se účastním</h3>
+                    </div>
+                    <div id="my-auctions-list" class="flex flex-col gap-3">
+                        <p class="text-gray-400 text-center py-8 text-sm">Načítám...</p>
+                    </div>`;
+            }
+
+            if (tab === 'transakce') {                return `<h3 class="text-xl font-bold text-gray-800 mb-4 fade-in">Historie transakcí</h3><p class="text-gray-500 text-center py-8 fade-in">Zatím jste neuskutečnili žádné nákupy ani prodeje.</p>`;
+            }
+            
+            if (tab === 'oblibene') {
+                const favs = getFavorites();
+                if (favs.length === 0) {
+                    return `<h3 class="text-xl font-bold text-gray-800 mb-4 fade-in">Oblíbené položky</h3><p class="text-gray-500 text-center py-8 font-medium fade-in">Seznam sledovaných položek je prázdný. Klikněte na ❤️ u inzerátu, který vás zajímá.</p>`;
+                }
+                let html = `<div class="flex items-center justify-between mb-6 fade-in"><h3 class="text-xl font-bold text-gray-800">Oblíbené položky (${favs.length})</h3></div><div class="flex flex-col gap-4">`;
+                favs.forEach(item => {
+                    const isAukce = item.type === 'aukce';
+                    const detailView = isAukce ? 'aukce-detail' : 'pevna-cena-detail';
+                    html += `
+                    <div class="flex items-center gap-4 p-4 border border-gray-100 rounded-2xl hover:shadow-md transition-shadow cursor-pointer fade-in bg-white group" onclick="navigate('${detailView}/${item.id}')">
+                        <div class="w-16 h-16 rounded-xl bg-gray-100 overflow-hidden shrink-0">
+                            <img src="${item.img}" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1523275335684-37898b6baf30?q=80&w=800&auto=format&fit=crop';" class="w-full h-full object-cover group-hover:scale-110 transition-transform">
+                        </div>
+                        <div class="flex-grow">
+                            <div class="text-xs ${isAukce ? 'text-sky-500' : 'text-pink-500'} font-bold mb-0.5 uppercase">${isAukce ? 'Aukce' : 'Pevná cena'}</div>
+                            <h4 class="font-bold text-gray-800 line-clamp-1">${item.title}</h4>
+                        </div>
+                        <div class="text-right">
+                            <div class="text-xs text-gray-400 uppercase font-semibold">Konečná cena</div>
+                            <div class="font-bold text-lg ${isAukce ? 'text-sky-500' : 'text-pink-500'}">${getPriceInfo(item.price).total.toLocaleString('cs-CZ')} Kč</div>
+                        </div>
+                        <button onclick="toggleFavorite(event, '${item.id}', '${item.type}'); navigate('profil/oblibene');" data-id="${item.id}" class="fav-btn pl-2 text-red-400 hover:text-red-600 transition-colors" aria-label="Odebrat z oblíbených">
+                            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path></svg>
+                        </button>
+                    </div>`;
+                });
+                html += `</div>`;
+                return html;
+            }
+            
+            if (tab === 'inzeraty') {
+                if (!window.currentUser) {
+                    return `<p class="text-gray-500 py-4 text-center fade-in">⏳ Načítám inzeráty ze serveru...</p>`;
+                }
+
+                const myAukce = dataAukce.filter(i => i.seller_id === window.currentUser.id);
+                const myPevna = dataPevnaCena.filter(i => i.seller_id === window.currentUser.id);
+                const myAds = [...myAukce, ...myPevna];
+
+                const getDaysRemaining = (dateString) => {
+                    if (!dateString) return 'Vyprší brzy';
+                    const diff = new Date(dateString).getTime() - new Date().getTime();
+                    if (diff <= 0) return 'Vypršelo';
+                    const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
+                    return `Končí za ${days} dní`;
+                };
+
+                let html = `
+                    <div class="flex items-center justify-between mb-6 fade-in">
+                        <h3 class="text-xl font-bold text-gray-800">Moje aktivní nabídky (${myAds.length})</h3>
+                        <button onclick="navigate('novy-inzerat')" class="bg-sky-100 text-sky-600 hover:bg-sky-200 font-bold py-2 px-4 rounded-xl text-sm transition-colors">+ Nový inzerát</button>
+                    </div>
+                `;
+
+                if (myAds.length === 0) {
+                    html += `<p class="text-gray-500 py-4 text-center fade-in">Zatím zde nemáte žádné aktivní inzeráty. Zkuste nějaký přidat!</p>`;
+                } else {
+                    html += `<div class="flex flex-col gap-4">`;
+                    myAds.forEach(item => {
+                        const isAukce = item.type === 'aukce';
+                        html += `
+                        <div onclick="navigate('${isAukce ? 'aukce-detail' : 'pevna-cena-detail'}/${item.id}')" class="flex items-center gap-4 p-4 border border-gray-100 rounded-2xl hover:shadow-md transition-shadow cursor-pointer fade-in bg-white group">
+                            <div class="w-16 h-16 rounded-xl bg-gray-100 overflow-hidden shrink-0 flex items-center justify-center">
+                                <img src="${item.img}" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1523275335684-37898b6baf30?q=80&w=800&auto=format&fit=crop';" class="w-full h-full object-cover group-hover:scale-110 transition-transform">
+                            </div>
+                            <div class="flex-grow">
+                                <div class="text-xs ${isAukce ? 'text-sky-500' : 'text-pink-500'} font-bold mb-0.5 uppercase flex items-center gap-2">
+                                    ${isAukce ? 'Aukce' : 'Pevná cena'}
+                                    <span class="text-gray-400 flex items-center gap-1 font-medium bg-gray-50 px-2 py-0.5 rounded-md lowercase tracking-normal">
+                                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                        ${getDaysRemaining(item.endTime)}
+                                    </span>
+                                </div>
+                                <h4 class="font-bold text-gray-800 line-clamp-1">${item.title}</h4>
+                            </div>
+                            <div class="text-right">
+                                <div class="text-xs text-gray-400 uppercase font-semibold">Cena</div>
+                                <div class="font-bold text-lg text-gray-800">${item.price.toLocaleString('cs-CZ')} Kč</div>
+                            </div>
+                            <div class="pl-4">
+                                <button class="text-gray-400 hover:text-sky-500 p-2"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg></button>
+                            </div>
+                        </div>
+                        `;
+                    });
+                    html += `</div>`;
+                }
+                return html;
+            }
+        };
+
+        // --- ŠABLONY STRÁNEK ---
+        const views = {
+            home: () => `
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8 w-full fade-in">
+                    <div onclick="navigate('aukce', 'Vše')" class="relative h-[450px] md:h-[500px] rounded-[2rem] overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-300 cursor-pointer bg-white group">
+                        <img src="https://images.unsplash.com/photo-1589829085413-56de8ae18c73?q=80&w=1000&auto=format&fit=crop" class="absolute inset-0 w-full h-full object-cover opacity-90 group-hover:scale-105 transition-transform duration-700">
+                        <div class="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent transition-colors duration-300 group-hover:from-black/60"></div>
+                        <div class="absolute inset-x-0 bottom-0 p-10 transform transition-transform duration-300 group-hover:-translate-y-2">
+                            <h2 class="text-4xl md:text-5xl font-bold text-white mb-3 drop-shadow-lg">Aukce</h2>
+                            <p class="text-white/95 text-xl drop-shadow-md">Přihazuj a získej nejlepší cenu na trhu.</p>
+                        </div>
+                    </div>
+                    <div onclick="navigate('pevna-cena', 'Vše')" class="relative h-[450px] md:h-[500px] rounded-[2rem] overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-300 cursor-pointer bg-white group">
+                        <img src="https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?q=80&w=1000&auto=format&fit=crop" class="absolute inset-0 w-full h-full object-cover opacity-90 group-hover:scale-105 transition-transform duration-700">
+                        <div class="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent transition-colors duration-300 group-hover:from-black/60"></div>
+                        <div class="absolute inset-x-0 bottom-0 p-10 transform transition-transform duration-300 group-hover:-translate-y-2">
+                            <h2 class="text-4xl md:text-5xl font-bold text-white mb-3 drop-shadow-lg">Pevná cena</h2>
+                            <p class="text-white/95 text-xl drop-shadow-md">Kup hned za stanovenou částku bez čekání.</p>
+                        </div>
+                    </div>
+                </div>
+            `,
+            
+            kontakt: () => `
+                <div class="w-full bg-white/90 backdrop-blur-xl p-10 rounded-[2rem] shadow-xl fade-in min-h-[500px] border border-white/50 flex flex-col items-center justify-center relative">
+                    <button onclick="navigate('home')" class="absolute top-8 left-8 text-sky-500 font-bold hover:text-sky-600 transition-colors flex items-center gap-2">← Zpět</button>
+                    <h2 class="text-4xl font-extrabold mb-4 text-pastel-text">Kontakt</h2>
+                    <p class="text-gray-500">Zde se bude nacházet kontaktní formulář, e-mail a adresa provozovatele tržiště.</p>
+                </div>
+            `,
+            
+            vop: () => `
+                <div class="w-full bg-white/90 backdrop-blur-xl p-10 rounded-[2rem] shadow-xl fade-in min-h-[500px] border border-white/50 flex flex-col items-center justify-center relative">
+                    <button onclick="navigate('home')" class="absolute top-8 left-8 text-sky-500 font-bold hover:text-sky-600 transition-colors flex items-center gap-2">← Zpět</button>
+                    <h2 class="text-4xl font-extrabold mb-4 text-pastel-text">Obchodní podmínky</h2>
+                    <p class="text-gray-500">Zde se bude nacházet znění Všeobecných obchodních podmínek (VOP).</p>
+                </div>
+            `,
+
+            login: () => `
+                <div class="w-full max-w-md mx-auto bg-white/90 backdrop-blur-xl p-8 md:p-10 rounded-[2.5rem] shadow-2xl fade-in border border-white/50 relative overflow-hidden">
+                    <button onclick="navigate('home')" class="absolute top-6 left-6 text-gray-400 hover:text-gray-600 transition-colors p-2">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                    </button>
+                    
+                    <div class="text-center mt-6 mb-8">
+                        <h2 class="text-3xl font-extrabold text-pastel-text mb-3">Přihlášení / Registrace</h2>
+                        <p class="text-gray-500 mb-4">Pro pokračování využijte sociální sítě nebo zadejte e-mail.</p>
+                        <button onclick="navigate('kyc')" class="text-xs text-sky-500 font-semibold underline">Přímý skok na ověření totožnosti (KYC)</button>
+                    </div>
+
+                    <div class="flex flex-col gap-4">
+                        <button onclick="loginWithProvider('google')" class="w-full flex items-center justify-center gap-3 bg-white border border-gray-200 text-gray-700 font-bold py-3.5 px-6 rounded-2xl hover:bg-gray-50 hover:shadow-md transition-all">
+                            <svg class="w-6 h-6" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+                            Pokračovat přes Google
+                        </button>
+
+                        <button onclick="loginWithProvider('facebook')" class="w-full flex items-center justify-center gap-3 bg-[#1877F2] text-white font-bold py-3.5 px-6 rounded-2xl hover:bg-[#166FE5] hover:shadow-md transition-all shadow-[0_5px_15px_-5px_rgba(24,119,242,0.5)]">
+                            <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.469h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.469h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+                            Pokračovat přes Facebook
+                        </button>
+
+                        <div class="relative flex py-2 items-center">
+                            <div class="flex-grow border-t border-gray-200"></div>
+                            <span class="flex-shrink-0 mx-4 text-gray-400 text-sm">nebo e-mailem</span>
+                            <div class="flex-grow border-t border-gray-200"></div>
+                        </div>
+
+                        <form onsubmit="handleEmailAuth(event)" class="flex flex-col gap-3">
+                            <input type="email" id="email-input" placeholder="Váš e-mail" required class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-sky-400 bg-white/50">
+                            <input type="password" id="password-input" placeholder="Heslo" required class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-sky-400 bg-white/50">
+                            <div class="flex gap-2 mt-1">
+                                <button type="submit" data-action="signin" class="flex-1 bg-gray-800 text-white font-bold py-3 rounded-xl text-sm hover:bg-gray-900 transition-colors">Přihlásit</button>
+                                <button type="submit" data-action="signup" class="flex-1 bg-white border border-gray-300 text-gray-700 font-bold py-3 rounded-xl text-sm hover:bg-gray-50 transition-colors">Registrovat</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            `,
+
+            kyc: () => `
+                <div class="w-full max-w-xl mx-auto bg-white/90 backdrop-blur-xl p-8 md:p-10 rounded-[2.5rem] shadow-2xl fade-in border border-white/50">
+                    <div class="text-center mb-8">
+                        <span class="inline-block bg-sky-100 text-sky-800 text-xs px-3 py-1 rounded-full font-bold uppercase tracking-wide mb-3">Zabezpečení trhu</span>
+                        <h2 class="text-3xl font-extrabold text-pastel-text">Ověření totožnosti (KYC)</h2>
+                        <p class="text-gray-500 text-sm mt-1">Vyplňte prosím pravdivé identifikační údaje pro schválení účtu v systému.</p>
+                    </div>
+                    <form onsubmit="handleKYCSubmit(event)" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        
+                        <div class="flex flex-col gap-1 sm:col-span-2 mb-2">
+                            <label class="text-xs font-bold text-gray-500 pl-1">Zobrazované jméno (Přezdívka / Název firmy)</label>
+                            <input type="text" id="kyc-dname" required placeholder="Např. AutoBazar Brno (uvidí ostatní uživatelé)" class="w-full px-4 py-3 rounded-xl border border-sky-300 shadow-sm text-sm focus:outline-sky-400 bg-sky-50/30">
+                        </div>
+
+                        <div class="flex flex-col gap-1">
+                            <label class="text-xs font-bold text-gray-500 pl-1">Skutečné jméno</label>
+                            <input type="text" id="kyc-fname" required class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-sky-400 bg-white/50">
+                        </div>
+                        <div class="flex flex-col gap-1">
+                            <label class="text-xs font-bold text-gray-500 pl-1">Skutečné příjmení</label>
+                            <input type="text" id="kyc-lname" required class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-sky-400 bg-white/50">
+                        </div>
+                        <div class="flex flex-col gap-1 sm:col-span-2">
+                            <label class="text-xs font-bold text-gray-500 pl-1">Datum narození</label>
+                            <input type="date" id="kyc-date" required class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-sky-400 bg-white/50">
+                        </div>
+                        
+                        <div class="flex flex-col gap-1 sm:col-span-2 mt-2 pt-4 border-t border-gray-200/60">
+                            <label class="text-xs font-bold text-gray-500 pl-1">Ulice</label>
+                            <input type="text" id="kyc-street" required class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-sky-400 bg-white/50">
+                        </div>
+                        
+                        <div class="grid grid-cols-2 gap-4 sm:col-span-2">
+                            <div class="flex flex-col gap-1">
+                                <label class="text-xs font-bold text-gray-500 pl-1">Číslo popisné</label>
+                                <input type="text" id="kyc-cp" required class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-sky-400 bg-white/50">
+                            </div>
+                            <div class="flex flex-col gap-1">
+                                <label class="text-xs font-bold text-gray-500 pl-1">Č. orientační <span class="font-normal opacity-70">(nepovinné)</span></label>
+                                <input type="text" id="kyc-co" class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-sky-400 bg-white/50">
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-4 sm:col-span-2 mb-2 pb-4 border-b border-gray-200/60">
+                            <div class="flex flex-col gap-1">
+                                <label class="text-xs font-bold text-gray-500 pl-1">Město</label>
+                                <input type="text" id="kyc-city" required class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-sky-400 bg-white/50">
+                            </div>
+                            <div class="flex flex-col gap-1">
+                                <label class="text-xs font-bold text-gray-500 pl-1">PSČ</label>
+                                <input type="text" id="kyc-zip" required class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-sky-400 bg-white/50">
+                            </div>
+                        </div>
+
+                        <div class="flex flex-col gap-1 sm:col-span-2">
+                            <label class="text-xs font-bold text-gray-500 pl-1">Bankovní účet</label>
+                            <input type="text" id="kyc-bank" required placeholder="Např. 123456789/0100" class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-sky-400 bg-white/50">
+                        </div>
+                        <div class="sm:col-span-2 mt-4">
+                            <button type="submit" class="w-full bg-sky-500 hover:bg-sky-600 text-white font-bold py-4 rounded-xl transition-all shadow-md text-base">
+                                Uložit a odeslat dokumenty
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            `,
+
+            profil: (activeTab = 'inzeraty') => {
+                if (typeof activeTab !== 'string' || !activeTab) activeTab = 'inzeraty';
+                setTimeout(() => { loadProfileData(activeTab); }, 0);
+                
+                const getTabStyle = (tabName) => tabName === activeTab 
+                    ? 'px-8 py-5 font-bold text-sky-500 border-b-2 border-sky-500 bg-sky-50/50 whitespace-nowrap outline-none' 
+                    : 'px-8 py-5 font-bold text-gray-500 hover:text-gray-800 transition-colors whitespace-nowrap outline-none';
+
+                return `
+                <div class="w-full max-w-5xl mx-auto fade-in">
+                    
+                    <div class="bg-white/90 backdrop-blur-xl p-8 rounded-[2rem] shadow-xl border border-white/50 mb-8 flex flex-col md:flex-row items-center md:items-start gap-6 relative overflow-hidden">
+                        <div class="absolute top-0 right-0 w-32 h-32 bg-sky-100 rounded-bl-full -z-10 opacity-50"></div>
+                        
+                        <div id="profile-initials" class="w-24 h-24 rounded-full bg-gradient-to-tr from-sky-400 to-sky-200 flex items-center justify-center text-white font-bold text-4xl shadow-lg shrink-0 select-none">
+                            ⏳
+                        </div>
+                        
+                        <div class="flex-grow text-center md:text-left">
+                            <div class="flex flex-col md:flex-row md:items-center gap-2 md:gap-4 mb-2">
+                                <h2 id="profile-name" class="text-3xl font-extrabold text-pastel-text">Načítám...</h2>
+                                
+                                <span id="profile-verified-badge" class="hidden items-center gap-1 bg-green-50 text-green-700 text-xs px-3 py-1 rounded-full font-bold uppercase tracking-wide border border-green-200 w-max mx-auto md:mx-0 animate-pulse">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                    Ověřený účet
+                                </span>
+                            </div>
+                            <p id="profile-email" class="text-gray-500 mb-4">...</p>
+                            
+                            <div class="flex items-center justify-center md:justify-start text-yellow-500 font-bold gap-1 bg-yellow-50 w-max px-4 py-2 rounded-xl border border-yellow-100 mx-auto md:mx-0">
+                                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path></svg>
+                                <span id="profile-rating">...</span> / 5
+                            </div>
+                        </div>
+                        
+                        <div class="mt-4 md:mt-0">
+                            <button onclick="handleLogout()" class="text-gray-400 hover:text-red-500 font-bold text-sm transition-colors flex items-center gap-2 bg-gray-50 hover:bg-red-50 px-4 py-2 rounded-xl">
+                                Odhlásit se
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+                        <div class="bg-white/90 backdrop-blur-xl p-6 rounded-[1.5rem] shadow-sm border border-gray-100 flex flex-col">
+                            <span class="text-gray-400 text-xs font-bold uppercase tracking-wider mb-2">Moje výdělky</span>
+                            <span id="profile-earned" class="text-3xl font-black text-gray-800">0 <span class="text-xl text-gray-400 font-bold">Kč</span></span>
+                        </div>
+                        <div class="bg-white/90 backdrop-blur-xl p-6 rounded-[1.5rem] shadow-sm border border-gray-100 flex flex-col">
+                            <span class="text-gray-400 text-xs font-bold uppercase tracking-wider mb-2">Aktivní nabídky</span>
+                            <span id="profile-active-ads-count" class="text-3xl font-black text-sky-500">0</span>
+                        </div>
+                        <div class="bg-white/90 backdrop-blur-xl p-6 rounded-[1.5rem] shadow-sm border border-gray-100 flex flex-col">
+                            <span class="text-gray-400 text-xs font-bold uppercase tracking-wider mb-2">Úspěšné prodeje</span>
+                            <span class="text-3xl font-black text-green-500">0</span>
+                        </div>
+                    </div>
+
+                    <div class="bg-white/90 backdrop-blur-xl rounded-[2rem] shadow-xl border border-white/50 overflow-hidden">
+                        <div class="flex border-b border-gray-100 overflow-x-auto scrollbar-hide">
+                            <button onclick="navigate('profil/inzeraty')" class="${getTabStyle('inzeraty')}">Aktivní inzeráty</button>
+                            <button onclick="navigate('profil/moje-aukce')" class="${getTabStyle('moje-aukce')}">Moje aukce 🔨</button>
+                            <button onclick="navigate('profil/transakce')" class="${getTabStyle('transakce')}">Historie transakcí</button>
+                            <button onclick="navigate('profil/kyc')" class="${getTabStyle('kyc')}">Osobní údaje (KYC)</button>
+                            <button onclick="navigate('profil/oblibene')" class="${getTabStyle('oblibene')}">Oblíbené ❤️</button>
+                        </div>
+                        
+                        <div class="p-8" id="profile-tab-content">
+                            ${renderProfileTabContent(activeTab)}
+                        </div>
+                    </div>
+
+                </div>
+                `;
+            },
+
+            'novy-inzerat': () => `
+                <div class="w-full max-w-4xl mx-auto bg-white/90 backdrop-blur-xl p-8 md:p-10 rounded-[2.5rem] shadow-2xl fade-in border border-white/50 mb-10">
+                    <button onclick="navigate('profil')" class="mb-6 text-sky-500 font-bold hover:text-sky-600 transition-colors flex items-center gap-2">← Zpět na profil</button>
+                    
+                    <div class="mb-8">
+                        <h2 class="text-3xl font-extrabold text-pastel-text">Nový inzerát</h2>
+                        <p class="text-gray-500">Vyplňte detaily nebo nechte AI, ať vám pomůže s textem a cenou.</p>
+                    </div>
+
+                    <form onsubmit="handleAdSubmit(event)" class="flex flex-col gap-8">
+                        
+                        <div class="bg-gray-50 p-6 rounded-3xl border border-gray-100">
+                            <label class="text-sm font-bold text-gray-700 block mb-3">Typ prodeje</label>
+                            <div class="flex gap-4">
+                                <label class="flex-1 cursor-pointer">
+                                    <input type="radio" name="ad-type" value="pevna_cena" class="peer sr-only" checked onchange="toggleAuctionFields(false)">
+                                    <div class="text-center py-4 rounded-2xl border-2 border-transparent peer-checked:border-sky-500 peer-checked:bg-sky-50 peer-checked:text-sky-700 bg-white font-bold transition-all shadow-sm">
+                                        Pevná cena
+                                    </div>
+                                </label>
+                                <label class="flex-1 cursor-pointer">
+                                    <input type="radio" name="ad-type" value="aukce" class="peer sr-only" onchange="toggleAuctionFields(true)">
+                                    <div class="text-center py-4 rounded-2xl border-2 border-transparent peer-checked:border-sky-500 peer-checked:bg-sky-50 peer-checked:text-sky-700 bg-white font-bold transition-all shadow-sm">
+                                        Aukce
+                                    </div>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div>
+                            <h3 class="text-lg font-bold text-gray-800 mb-3 flex items-center gap-2">
+                                <svg class="w-5 h-5 text-sky-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                                Fotografie (360° pohled)
+                            </h3>
+                            <p class="text-xs text-gray-500 mb-4">Pro vytvoření 360° zobrazení vyfoťte předmět postupně ze 4 stran (zepředu, zleva, zezadu, zprava). Náš systém je při nahrávání automaticky zmenší.</p>
+                            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                ${['Zepředu', 'Zleva', 'Zezadu', 'Zprava'].map(side => `
+                                <label class="border-2 border-dashed border-sky-200 bg-sky-50 hover:bg-sky-100 rounded-2xl h-32 flex flex-col items-center justify-center cursor-pointer transition-colors group">
+                                    <input type="file" accept="image/*" class="hidden" onchange="previewImage(this)">
+                                    <svg class="w-8 h-8 text-sky-400 group-hover:scale-110 transition-transform mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                                    <span class="text-xs font-bold text-sky-700">${side}</span>
+                                </label>
+                                `).join('')}
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div class="flex flex-col gap-1 md:col-span-2">
+                                <label class="text-xs font-bold text-gray-500 pl-1">Název zboží</label>
+                                <input type="text" id="ad-title" required placeholder="Např. Zlaté hodinky Omega" class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-sky-400">
+                            </div>
+                            
+                            <div class="flex flex-col gap-1">
+                                <label class="text-xs font-bold text-gray-500 pl-1">Kategorie</label>
+                                <select id="ad-category" required class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-sky-400 bg-white">
+                                    <option value="" disabled selected>Vyberte kategorii</option>
+                                    ${vsechnyKategorie.filter(k => k !== 'Vše').map(k => `<option value="${k}">${k}</option>`).join('')}
+                                </select>
+                            </div>
+
+                            <div class="flex flex-col gap-1">
+                                <label class="text-xs font-bold text-gray-500 pl-1">Stav zboží</label>
+                                <select id="ad-condition" required class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-sky-400 bg-white">
+                                    <option value="" disabled selected>Vyberte stav</option>
+                                    <option value="Nové">Nové (s visačkou/nerozbalené)</option>
+                                    <option value="Rozbalené">Rozbalené (jako nové)</option>
+                                    <option value="Použité">Použité (běžné opotřebení)</option>
+                                    <option value="Poškozené">Poškozené / Na náhradní díly</option>
+                                </select>
+                            </div>
+
+                            <div class="flex flex-col gap-1 md:col-span-2">
+                                <label class="text-xs font-bold text-gray-500 pl-1">Značka (volitelné)</label>
+                                <input type="text" id="ad-brand" placeholder="Např. Apple, Nike, Škoda..." class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-sky-400">
+                            </div>
+                        </div>
+
+                        <div class="bg-gradient-to-r from-purple-50 to-pink-50 p-6 rounded-3xl border border-purple-100 flex flex-col md:flex-row items-center justify-between gap-4">
+                            <div>
+                                <h4 class="font-bold text-purple-800 flex items-center gap-2">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                                    Nechte AI napsat inzerát za vás
+                                </h4>
+                                <p class="text-xs text-purple-600 mt-1">Vyplňte Název a Stav výše, klikněte na tlačítko a umělá inteligence automaticky vytvoří poutavý popis a odhadne tržní cenu.</p>
+                            </div>
+                            <button type="button" onclick="generateAIContent()" class="shrink-0 bg-purple-500 hover:bg-purple-600 text-white font-bold py-3 px-6 rounded-xl transition-all shadow-md text-sm flex items-center gap-2">
+                                <span id="ai-btn-text">Vygenerovat pomocí AI</span>
+                            </button>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div class="flex flex-col gap-1 md:col-span-2">
+                                <label class="text-xs font-bold text-gray-500 pl-1">Popis inzerátu</label>
+                                <textarea id="ad-description" required rows="5" placeholder="Popsat detailně předmět, jeho vady a přednosti..." class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-sky-400"></textarea>
+                            </div>
+
+                            <div id="field-fixed-price" class="flex flex-col gap-1 md:col-span-2">
+                                <label class="text-xs font-bold text-gray-500 pl-1">Cena (Kč)</label>
+                                <input type="number" id="ad-price" placeholder="Např. 1500" class="w-full px-4 py-3 rounded-xl border border-gray-200 text-xl font-bold focus:outline-sky-400 text-sky-600">
+                            </div>
+
+                            <div id="field-auction-price" class="hidden flex-col gap-1">
+                                <label class="text-xs font-bold text-gray-500 pl-1">Vyvolávací cena (Kč)</label>
+                                <input type="number" id="ad-starting-price" placeholder="Např. 1" class="w-full px-4 py-3 rounded-xl border border-gray-200 text-xl font-bold focus:outline-sky-400 text-sky-600">
+                            </div>
+                            <div id="field-auction-duration" class="hidden flex-col gap-1">
+                                <label class="text-xs font-bold text-gray-500 pl-1">Doba trvání aukce</label>
+                                <select id="ad-duration" class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-sky-400 bg-white">
+                                    <option value="7">7 dní</option>
+                                    <option value="10">10 dní</option>
+                                    <option value="14">14 dní</option>
+                                    <option value="20">20 dní</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="border-t border-gray-100 pt-8 mt-2">
+                            <h3 class="text-lg font-bold text-gray-800 mb-4">Přeprava a rozměry</h3>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                                <div class="flex flex-col gap-1">
+                                    <label class="text-xs font-bold text-gray-500 pl-1">Váha (kg)</label>
+                                    <input type="number" step="0.1" id="ad-weight" placeholder="Např. 1.5" class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-sky-400">
+                                </div>
+                                <div class="flex flex-col gap-1">
+                                    <label class="text-xs font-bold text-gray-500 pl-1">Rozměry (cm)</label>
+                                    <input type="text" id="ad-dimensions" placeholder="D x Š x V (např. 30x20x10)" class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-sky-400">
+                                </div>
+                            </div>
+
+                            <label class="text-xs font-bold text-gray-500 pl-1 mb-2 block">Nabízené způsoby dopravy</label>
+                            <div class="flex flex-wrap gap-3">
+                                ${['Zásilkovna', 'PPL', 'Česká pošta', 'Osobní předání'].map(metoda => `
+                                <label class="flex items-center gap-2 bg-gray-50 px-4 py-2 rounded-xl border border-gray-200 cursor-pointer hover:bg-gray-100 transition-colors">
+                                    <input type="checkbox" name="shipping" value="${metoda}" class="w-4 h-4 text-sky-500 rounded focus:ring-sky-400" checked>
+                                    <span class="text-sm font-semibold text-gray-700">${metoda}</span>
+                                </label>
+                                `).join('')}
+                            </div>
+                        </div>
+
+                        <div class="mt-8">
+                            <button type="submit" class="w-full bg-sky-500 hover:bg-sky-600 text-white font-black py-5 rounded-2xl transition-all shadow-lg text-lg uppercase tracking-wider">
+                                Vložit inzerát na tržiště
+                            </button>
+                            <p class="text-center text-xs text-gray-400 mt-3">Vložením inzerátu souhlasíte s VOP tržiště FairTrade.</p>
+                        </div>
+
+                    </form>
+                </div>
+            `,
+            
+            aukce: (kategorieFilter = 'Vše') => {
+                const filteredData = dataAukce.filter(item => kategorieFilter === 'Vše' || item.category === kategorieFilter);
+                
+                return `
+                <div class="w-full bg-white/90 backdrop-blur-xl p-6 md:p-10 rounded-[2rem] shadow-xl fade-in min-h-[500px] border border-white/50">
+                    <button onclick="navigate('home')" class="mb-4 text-sky-500 font-bold hover:text-sky-600 transition-colors flex items-center gap-2 text-lg">← Zpět na výběr</button>
+                    <h2 class="text-3xl md:text-4xl font-extrabold mb-6 text-pastel-text">Aktivní aukce <span class="text-lg text-gray-400 font-medium ml-2">(${filteredData.length})</span></h2>
+                    
+                    ${renderCategories('aukce', kategorieFilter)}
+                    
+                    ${filteredData.length === 0 ? '<p class="text-gray-500 py-10 text-center">V této kategorii zatím nejsou žádné aukce. Vložte první!</p>' : ''}
+                    
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                        ${filteredData.map(item => `
+                            <div onclick="navigate('aukce-detail/${item.id}')" class="bg-white rounded-2xl p-4 shadow-sm hover:shadow-lg border border-gray-100 flex flex-col group relative cursor-pointer transition-shadow">
+                                <div class="relative overflow-hidden rounded-xl mb-4 h-48 bg-gray-50">
+                                    <img src="${item.img}" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1523275335684-37898b6baf30?q=80&w=800&auto=format&fit=crop';" class="object-cover w-full h-full group-hover:scale-105 transition-transform duration-500">
+                                    <div class="absolute bottom-2 left-2 bg-black/60 text-white text-xs font-bold px-2 py-1 rounded-lg backdrop-blur-sm leading-tight">
+                                        <div class="text-white/70 font-normal text-[10px]">Konečná cena pro kupujícího</div>
+                                        ${getPriceInfo(item.price).total.toLocaleString('cs-CZ')} Kč
+                                    </div>
+                                    <button onclick="toggleFavorite(event, '${item.id}', '${item.type}')" data-id="${item.id}" class="fav-btn absolute top-2 right-2 w-8 h-8 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center hover:bg-black/60 transition-colors ${isFavorite(item.id) ? 'text-red-500' : 'text-white'}" aria-label="Přidat do oblíbených">
+                                        <svg class="w-4 h-4" fill="${isFavorite(item.id) ? 'currentColor' : 'none'}" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path></svg>
+                                    </button>
+                                </div>
+                                <div class="text-xs font-bold text-sky-500 mb-1">${item.category}</div>
+                                <h3 class="text-lg font-bold text-gray-800 line-clamp-2 leading-tight h-12">${item.title}</h3>
+                                
+                                <div class="mt-auto pt-4">
+                                    <p class="text-xs text-gray-400 uppercase font-semibold tracking-wider">Aktuální cena</p>
+                                    <div class="text-2xl font-black text-sky-500 mb-4">${item.price.toLocaleString('cs-CZ')} Kč</div>
+                                    <button class="w-full bg-sky-50 text-sky-600 font-bold py-3 rounded-xl transition-colors border border-sky-100">Otevřít aukci</button>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `},
+
+            'aukce-detail': (id) => {
+                const item = dataAukce.find(i => i.id == id);
+                if (!item) return `<div class="w-full bg-white/90 backdrop-blur-xl p-10 rounded-[2rem] shadow-xl fade-in min-h-[500px] border border-white/50"><button onclick="navigate('aukce')" class="text-sky-500 font-bold">← Zpět na seznam</button><p class="mt-10">Aukce nenalezena.</p></div>`;
+                const prices = getPriceInfo(item.price);
+                const isOwner = window.currentUser && window.currentUser.id === item.seller_id;
+                
+                return `
+                <div class="w-full bg-white/90 backdrop-blur-xl p-6 md:p-10 rounded-[2rem] shadow-xl fade-in min-h-[500px] border border-white/50 relative">
+                    <button onclick="navigate('aukce')" class="mb-8 text-sky-500 font-bold hover:text-sky-600 transition-colors flex items-center gap-2 text-lg">← Zpět na seznam</button>
+                    <script>setTimeout(()=>{subscribeToAuction('${item.id}');requestNotificationPermission();},100)<\/script>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-10">
+                        <div class="bg-white rounded-3xl p-4 md:p-6 flex flex-col items-center justify-center border border-gray-100 relative shadow-inner overflow-hidden group">
+                            <img src="${item.img}" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1523275335684-37898b6baf30?q=80&w=800&auto=format&fit=crop';" class="rounded-xl object-cover w-full h-[300px] md:h-[450px]">
+                            
+                            ${item.has360 ? `
+                            <div class="absolute bottom-6 flex gap-2 z-10">
+                                <button onclick="open360('${item.img}')" class="bg-white/95 backdrop-blur-md text-gray-800 px-6 py-3 rounded-full shadow-lg font-bold text-sm flex items-center gap-3 hover:bg-white hover:scale-105 transition-all">
+                                    <svg class="w-5 h-5 text-sky-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                                    Spustit 360° Pohled
+                                </button>
+                            </div>` : ''}
+                        </div>
+
+                        <div class="flex flex-col">
+                            <div class="flex flex-wrap gap-2 mb-4 items-center">
+                                <span class="inline-block bg-sky-100 text-sky-800 text-sm px-4 py-1.5 rounded-full font-bold uppercase tracking-wide">Aukce</span>
+                                <span class="inline-block bg-gray-100 text-gray-600 text-sm px-4 py-1.5 rounded-full font-bold tracking-wide">${item.category}</span>
+                                <button onclick="navigate('seller-inzeraty', '${item.seller_id}')" class="inline-flex items-center gap-1.5 bg-white border border-gray-200 hover:border-sky-400 hover:text-sky-600 text-gray-500 text-sm px-4 py-1.5 rounded-full font-bold transition-colors">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
+                                    Další inzeráty prodejce
+                                </button>
+                            </div>
+                            <h2 class="text-3xl md:text-5xl font-extrabold mb-4 text-pastel-text">${item.title}</h2>
+                            
+                            <div class="flex items-center gap-4 bg-gray-50 p-4 rounded-2xl mb-6">
+                                <div class="w-12 h-12 rounded-full bg-sky-200 flex items-center justify-center text-sky-700 font-bold text-lg">${item.seller.charAt(0).toUpperCase()}</div>
+                                <div>
+                                    <p class="font-bold text-gray-800 flex items-center gap-1">
+                                        ${item.seller}
+                                        ${item.verified ? `<svg class="w-5 h-5 text-sky-500" fill="currentColor" viewBox="0 0 20 20" title="Ověřený prodejce"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg>` : ''}
+                                    </p>
+                                    <div class="flex items-center text-yellow-500 text-sm font-bold gap-1">
+                                        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path></svg>
+                                        ${item.rating} / 5
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <p class="text-gray-600 mb-8 leading-relaxed">${item.description}</p>
+                            
+                            <div class="bg-sky-50 border border-sky-100 p-6 rounded-3xl mb-8">
+                                <p class="text-gray-400 text-xs font-semibold uppercase tracking-wider mb-1">Cena prodejce</p>
+                                <div class="text-4xl font-black text-gray-800 mb-4" id="price-${item.id}" data-price="${item.price}">${item.price.toLocaleString('cs-CZ')} Kč</div>
+                                
+                                <div class="border-t border-sky-200/50 pt-4 mt-2">
+                                    <p class="text-gray-500 text-sm font-semibold uppercase mb-1">Konečná cena pro kupujícího</p>
+                                    <div class="flex items-end gap-3">
+                                        <div class="text-2xl font-bold text-sky-600" id="total-${item.id}">${prices.total.toLocaleString('cs-CZ')} Kč</div>
+                                        <div class="text-xs text-gray-400 mb-1 pb-0.5" id="fees-${item.id}">(obsahuje +5% poplatek a ${ESCROW_FEE} Kč)</div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            ${isOwner ? `
+                                <div class="bg-yellow-50 border border-yellow-200 p-6 rounded-3xl mt-4">
+                                    <h3 class="font-bold text-yellow-800 mb-4 flex items-center gap-2">Správa vašeho inzerátu</h3>
+                                    <div class="flex flex-col sm:flex-row gap-3">
+                                        <button onclick="alert('Editace bude dostupná v další verzi.')" class="flex-1 bg-white border border-yellow-300 text-yellow-700 hover:bg-yellow-100 font-bold py-3 rounded-xl transition-colors">✏️ Upravit</button>
+                                        <button onclick="extendAd('${item.type}', '${item.id}')" class="flex-1 bg-white border border-yellow-300 text-yellow-700 hover:bg-yellow-100 font-bold py-3 rounded-xl transition-colors text-sm">⏱️ Prodloužit (5 Kč / 10 dní)</button>
+                                        <button onclick="deleteAd('${item.type}', '${item.id}')" class="flex-1 bg-red-500 hover:bg-red-600 text-white font-bold py-3 rounded-xl transition-colors">🗑️ Smazat</button>
+                                    </div>
+                                </div>
+                            ` : `
+                                <div class="relative w-full">
+                                    <button onclick="toggleBidMenu('${item.id}')" class="w-full bg-sky-500 hover:bg-sky-600 text-white font-bold py-5 px-8 rounded-2xl transition-all shadow-md text-xl">Přihodit</button>
+                                    <div id="bid-menu-${item.id}" class="hidden absolute bottom-full left-0 w-full mb-3 bg-white rounded-2xl shadow-2xl border border-gray-100 p-4 z-20 transition-all">
+                                        <div class="flex flex-wrap justify-center gap-2 md:gap-3">
+                                            ${[50, 100, 200, 500, 1000].map(amount => `<button onclick="placeBid('${item.id}', ${amount})" class="flex-1 min-w-[30%] bg-sky-50 text-sky-700 hover:bg-sky-500 hover:text-white py-3 rounded-xl font-bold text-lg transition-colors">+${amount}</button>`).join('')}
+                                        </div>
+                                        <button onclick="toggleBidMenu('${item.id}')" class="absolute -top-3 -right-3 bg-white shadow-md rounded-full p-1.5 text-gray-400">
+                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                                        </button>
+                                    </div>
+                                </div>
+                            `}
+                        </div>
+                    </div>
+                </div>
+                `;
+            },
+
+            'pevna-cena': (kategorieFilter = 'Vše') => {
+                const filteredData = dataPevnaCena.filter(item => kategorieFilter === 'Vše' || item.category === kategorieFilter);
+                
+                return `
+                <div class="w-full bg-white/90 backdrop-blur-xl p-6 md:p-10 rounded-[2rem] shadow-xl fade-in min-h-[500px] border border-white/50">
+                    <button onclick="navigate('home')" class="mb-4 text-pink-500 font-bold hover:text-pink-600 transition-colors flex items-center gap-2 text-lg">← Zpět na výběr</button>
+                    <h2 class="text-3xl md:text-4xl font-extrabold mb-6 text-pastel-text">Pevná cena <span class="text-lg text-gray-400 font-medium ml-2">(${filteredData.length})</span></h2>
+                    
+                    ${renderCategories('pevna-cena', kategorieFilter)}
+                    
+                    ${filteredData.length === 0 ? '<p class="text-gray-500 py-10 text-center">V této kategorii zatím není žádné zboží k okamžitému nákupu. Vložte první!</p>' : ''}
+                    
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                        ${filteredData.map(item => `
+                            <div onclick="navigate('pevna-cena-detail/${item.id}')" class="bg-white rounded-2xl p-4 shadow-sm hover:shadow-lg border border-gray-100 flex flex-col group cursor-pointer transition-shadow">
+                                <div class="relative overflow-hidden rounded-xl mb-4 h-48 bg-gray-50">
+                                    <img src="${item.img}" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1523275335684-37898b6baf30?q=80&w=800&auto=format&fit=crop';" class="object-cover w-full h-full group-hover:scale-105 transition-transform duration-500">
+                                    <div class="absolute bottom-2 left-2 bg-black/60 text-white text-xs font-bold px-2 py-1 rounded-lg backdrop-blur-sm leading-tight">
+                                        <div class="text-white/70 font-normal text-[10px]">Konečná cena pro kupujícího</div>
+                                        ${getPriceInfo(item.price).total.toLocaleString('cs-CZ')} Kč
+                                    </div>
+                                    <button onclick="toggleFavorite(event, '${item.id}', '${item.type}')" data-id="${item.id}" class="fav-btn absolute top-2 right-2 w-8 h-8 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center hover:bg-black/60 transition-colors ${isFavorite(item.id) ? 'text-red-500' : 'text-white'}" aria-label="Přidat do oblíbených">
+                                        <svg class="w-4 h-4" fill="${isFavorite(item.id) ? 'currentColor' : 'none'}" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path></svg>
+                                    </button>
+                                </div>
+                                <div class="text-xs font-bold text-pink-500 mb-1">${item.category}</div>
+                                <h3 class="text-lg font-bold text-gray-800 line-clamp-2 leading-tight h-12">${item.title}</h3>
+                                
+                                <div class="mt-auto pt-4">
+                                    <p class="text-xs text-gray-400 uppercase font-semibold tracking-wider">Cena ihned</p>
+                                    <div class="text-2xl font-black text-pink-500 mb-4">${item.price.toLocaleString('cs-CZ')} Kč</div>
+                                    <button class="w-full bg-pink-50 text-pink-600 font-bold py-3 rounded-xl border border-pink-100">Koupit</button>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `},
+            
+            'pevna-cena-detail': (id) => {
+                const item = dataPevnaCena.find(i => i.id == id);
+                if (!item) return `<div class="w-full bg-white/90 backdrop-blur-xl p-10 rounded-[2rem] shadow-xl fade-in min-h-[500px] border border-white/50"><button onclick="navigate('pevna-cena')" class="text-pink-500 font-bold">← Zpět na katalog</button><p class="mt-10">Položka nenalezena.</p></div>`;
+                const prices = getPriceInfo(item.price);
+                const isOwner = window.currentUser && window.currentUser.id === item.seller_id;
+
+                return `
+                <div class="w-full bg-white/90 backdrop-blur-xl p-6 md:p-10 rounded-[2rem] shadow-xl fade-in min-h-[500px] border border-white/50">
+                    <button onclick="navigate('pevna-cena')" class="mb-8 text-pink-500 font-bold hover:text-pink-600 transition-colors flex items-center gap-2 text-lg">← Zpět na katalog</button>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-10">
+                        <div class="bg-white rounded-3xl p-4 md:p-6 flex flex-col items-center justify-center border border-gray-100 shadow-inner group">
+                            <img src="${item.img}" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1523275335684-37898b6baf30?q=80&w=800&auto=format&fit=crop';" class="rounded-xl object-cover w-full h-[300px] md:h-[450px]">
+                        </div>
+                        <div class="flex flex-col">
+                            <div class="flex flex-wrap gap-2 mb-4 items-center">
+                                <span class="inline-block bg-pink-100 text-pink-800 text-sm px-4 py-1.5 rounded-full font-bold uppercase tracking-wide">Kup teď</span>
+                                <span class="inline-block bg-gray-100 text-gray-600 text-sm px-4 py-1.5 rounded-full font-bold tracking-wide">${item.category}</span>
+                                <button onclick="navigate('seller-inzeraty', '${item.seller_id}')" class="inline-flex items-center gap-1.5 bg-white border border-gray-200 hover:border-pink-400 hover:text-pink-600 text-gray-500 text-sm px-4 py-1.5 rounded-full font-bold transition-colors">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
+                                    Další inzeráty prodejce
+                                </button>
+                            </div>
+                            <h2 class="text-3xl md:text-5xl font-extrabold mb-4 text-pastel-text">${item.title}</h2>
+                            
+                            <div class="flex items-center gap-4 bg-gray-50 p-4 rounded-2xl mb-6">
+                                <div class="w-12 h-12 rounded-full bg-pink-200 flex items-center justify-center text-pink-700 font-bold text-lg">${item.seller.charAt(0).toUpperCase()}</div>
+                                <div>
+                                    <p class="font-bold text-gray-800 flex items-center gap-1">
+                                        ${item.seller}
+                                        ${item.verified ? `<svg class="w-5 h-5 text-sky-500" fill="currentColor" viewBox="0 0 20 20" title="Ověřený prodejce"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg>` : ''}
+                                    </p>
+                                    <div class="flex items-center text-yellow-500 text-sm font-bold gap-1">
+                                        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path></svg>
+                                        ${item.rating} / 5
+                                    </div>
+                                </div>
+                            </div>
+
+                            <p class="text-gray-600 mb-8 leading-relaxed">${item.description}</p>
+                            
+                            <div class="bg-pink-50 border border-pink-100 p-6 rounded-3xl mb-8">
+                                <p class="text-gray-400 text-xs font-semibold uppercase tracking-wider mb-1">Cena prodejce</p>
+                                <div class="text-4xl font-black text-gray-800 mb-4">${item.price.toLocaleString('cs-CZ')} Kč</div>
+                                
+                                <div class="border-t border-pink-200/50 pt-4 mt-2">
+                                    <p class="text-gray-500 text-sm font-semibold uppercase mb-1">Konečná cena pro kupujícího</p>
+                                    <div class="flex items-end gap-3">
+                                        <div class="text-2xl font-bold text-pink-600">${prices.total.toLocaleString('cs-CZ')} Kč</div>
+                                        <div class="text-xs text-gray-400 mb-1 pb-0.5">(obsahuje +5% poplatek a ${ESCROW_FEE} Kč za úschovu)</div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            ${isOwner ? `
+                                <div class="bg-yellow-50 border border-yellow-200 p-6 rounded-3xl mt-4">
+                                    <h3 class="font-bold text-yellow-800 mb-4 flex items-center gap-2">Správa vašeho inzerátu</h3>
+                                    <div class="flex flex-col sm:flex-row gap-3">
+                                        <button onclick="alert('Editace bude dostupná v další verzi.')" class="flex-1 bg-white border border-yellow-300 text-yellow-700 hover:bg-yellow-100 font-bold py-3 rounded-xl transition-colors">✏️ Upravit</button>
+                                        <button onclick="extendAd('${item.type}', '${item.id}')" class="flex-1 bg-white border border-yellow-300 text-yellow-700 hover:bg-yellow-100 font-bold py-3 rounded-xl transition-colors text-sm">⏱️ Prodloužit (5 Kč / 10 dní)</button>
+                                        <button onclick="deleteAd('${item.type}', '${item.id}')" class="flex-1 bg-red-500 hover:bg-red-600 text-white font-bold py-3 rounded-xl transition-colors">🗑️ Smazat</button>
+                                    </div>
+                                </div>
+                            ` : `
+                                <button class="w-full bg-pink-500 hover:bg-pink-600 text-white font-bold py-5 px-8 rounded-2xl transition-all shadow-[0_10px_20px_-10px_rgba(236,72,153,0.6)] text-xl">
+                                    Koupit ihned
+                                </button>
+                            `}
+                        </div>
+                    </div>
+                </div>
+                `;
+            }
+        };
+
+        // --- INZERÁTY PRODEJCE ---
+        views['seller-inzeraty'] = (sellerId) => {
+            const sellerAukce = dataAukce.filter(i => i.seller_id === sellerId);
+            const sellerPevna = dataPevnaCena.filter(i => i.seller_id === sellerId);
+            const allItems = [...sellerAukce, ...sellerPevna];
+            const sellerName = allItems.length > 0 ? allItems[0].seller : 'Prodejce';
+            const total = allItems.length;
+
+            const renderCard = (item) => {
+                const isAukce = item.type === 'aukce';
+                const detailView = isAukce ? 'aukce-detail' : 'pevna-cena-detail';
+                const accentColor = isAukce ? 'sky' : 'pink';
+                return `
+                <div onclick="navigate('${detailView}/${item.id}')" class="bg-white rounded-2xl p-4 shadow-sm hover:shadow-lg border border-gray-100 flex flex-col group relative cursor-pointer transition-shadow">
+                    <div class="relative overflow-hidden rounded-xl mb-4 h-48 bg-gray-50">
+                        <img src="${item.img}" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1523275335684-37898b6baf30?q=80&w=800&auto=format&fit=crop';" class="object-cover w-full h-full group-hover:scale-105 transition-transform duration-500">
+                        <div class="absolute bottom-2 left-2 bg-black/60 text-white text-xs font-bold px-2 py-1 rounded-lg backdrop-blur-sm leading-tight">
+                            <div class="text-white/70 font-normal text-[10px]">Konečná cena pro kupujícího</div>
+                            ${getPriceInfo(item.price).total.toLocaleString('cs-CZ')} Kč
+                        </div>
+                        <button onclick="toggleFavorite(event, '${item.id}', '${item.type}')" data-id="${item.id}" class="fav-btn absolute top-2 right-2 w-8 h-8 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center hover:bg-black/60 transition-colors ${isFavorite(item.id) ? 'text-red-500' : 'text-white'}" aria-label="Přidat do oblíbených">
+                            <svg class="w-4 h-4" fill="${isFavorite(item.id) ? 'currentColor' : 'none'}" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path></svg>
+                        </button>
+                    </div>
+                    <div class="text-xs font-bold text-${accentColor}-500 mb-1 uppercase">${isAukce ? 'Aukce' : 'Pevná cena'} · ${item.category}</div>
+                    <h3 class="text-base font-bold text-gray-800 line-clamp-2 leading-tight flex-grow">${item.title}</h3>
+                    <div class="mt-3 pt-3 border-t border-gray-50">
+                        <div class="text-2xl font-black text-${accentColor}-500">${item.price.toLocaleString('cs-CZ')} Kč</div>
+                    </div>
+                </div>`;
+            };
+
+            return `
+            <div class="w-full bg-white/90 backdrop-blur-xl p-6 md:p-10 rounded-[2rem] shadow-xl fade-in min-h-[500px] border border-white/50">
+                <button onclick="history.back()" class="mb-6 text-sky-500 font-bold hover:text-sky-600 transition-colors flex items-center gap-2 text-lg">← Zpět</button>
+                <div class="flex items-center gap-4 mb-8">
+                    <div class="w-14 h-14 rounded-full bg-gradient-to-tr from-sky-400 to-sky-200 flex items-center justify-center text-white font-bold text-2xl shrink-0">${sellerName.charAt(0).toUpperCase()}</div>
+                    <div>
+                        <h2 class="text-2xl md:text-3xl font-extrabold text-pastel-text">${sellerName}</h2>
+                        <p class="text-gray-400 text-sm">${total} aktivní${total === 1 ? '' : total >= 2 && total <= 4 ? '' : 'ch'} inzerát${total === 1 ? '' : total >= 2 && total <= 4 ? 'y' : 'ů'}</p>
+                    </div>
+                </div>
+                ${total === 0 ? '<p class="text-gray-500 py-10 text-center">Tento prodejce nemá žádné aktivní inzeráty.</p>' : ''}
+                ${sellerAukce.length > 0 ? `
+                    <h3 class="text-lg font-bold text-gray-700 mb-4 flex items-center gap-2">
+                        <span class="inline-block bg-sky-100 text-sky-700 text-xs px-3 py-1 rounded-full font-bold uppercase">Aukce (${sellerAukce.length})</span>
+                    </h3>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">${sellerAukce.map(renderCard).join('')}</div>
+                ` : ''}
+                ${sellerPevna.length > 0 ? `
+                    <h3 class="text-lg font-bold text-gray-700 mb-4 flex items-center gap-2">
+                        <span class="inline-block bg-pink-100 text-pink-700 text-xs px-3 py-1 rounded-full font-bold uppercase">Pevná cena (${sellerPevna.length})</span>
+                    </h3>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">${sellerPevna.map(renderCard).join('')}</div>
+                ` : ''}
+            </div>`;
+        };
+
+        // --- NAVIGACE A ROUTING (SPA) ---
+        function navigate(path, param = null) {
+            let viewName = path;
+            let idOrCategory = param;
+
+            if (path.includes('/')) {
+                const parts = path.split('/');
+                viewName = parts[0];
+                idOrCategory = parts[1];
+            }
+
+            const app = document.getElementById('app');
+            if (!views[viewName]) viewName = 'home';
+            
+            let htmlToRender = views[viewName](idOrCategory);
+            app.innerHTML = htmlToRender;
+
+            const fullUrl = idOrCategory && !vsechnyKategorie.includes(idOrCategory) ? `${viewName}/${idOrCategory}` : viewName;
+            if (fullUrl !== 'home') {
+                history.pushState({ view: fullUrl, param: idOrCategory }, '', '#' + fullUrl);
+            } else {
+                history.pushState({ view: 'home' }, '', window.location.pathname);
+            }
+        }
+
+        window.toggleBidMenu = function(id) {
+            if (!window.currentUser) {
+                showLoginPrompt('Pro účast v aukci musíte být přihlášeni!');
+                return;
+            }
+            document.getElementById('bid-menu-' + id).classList.toggle('hidden');
+        };
+
+        window.showLoginPrompt = function(message) {
+            const existing = document.getElementById('login-prompt-overlay');
+            if (existing) existing.remove();
+            const overlay = document.createElement('div');
+            overlay.id = 'login-prompt-overlay';
+            overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;padding:1rem';
+            overlay.innerHTML = `
+                <div style="background:#fff;border-radius:2rem;padding:2.5rem;max-width:420px;width:100%;text-align:center;position:relative">
+                    <button onclick="document.getElementById('login-prompt-overlay').remove()" style="position:absolute;top:1rem;right:1rem;background:none;border:none;cursor:pointer;color:#9ca3af;font-size:1.5rem">✕</button>
+                    <div style="width:56px;height:56px;background:#EFF6FF;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 1rem">
+                        <svg style="width:28px;height:28px;color:#3B82F6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+                    </div>
+                    <h3 style="font-size:1.3rem;font-weight:800;color:#1e293b;margin-bottom:.5rem">Přihlášení vyžadováno</h3>
+                    <p style="color:#64748b;margin-bottom:1.5rem;font-size:.95rem">${message}</p>
+                    <button onclick="document.getElementById('login-prompt-overlay').remove();navigate('login')" style="width:100%;background:#0ea5e9;color:#fff;font-weight:700;padding:.875rem;border-radius:.875rem;border:none;cursor:pointer;font-size:1rem;transition:background .15s" onmouseover="this.style.background='#0284c7'" onmouseout="this.style.background='#0ea5e9'">
+                        Přihlásit se / Registrovat
+                    </button>
+                </div>`;
+            document.body.appendChild(overlay);
+            overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+        };
+
+        window.placeBid = async function(id, amount) {
+            if (!window.currentUser) {
+                showLoginPrompt('Pro účast v aukci musíte být přihlášeni!');
+                return;
+            }
+
+            const pEl = document.getElementById('price-' + id);
+            const tEl = document.getElementById('total-' + id);
+            if (!pEl) return;
+
+            const currentPrice = parseInt(pEl.getAttribute('data-price'));
+            const newPrice = currentPrice + amount;
+
+            pEl.setAttribute('data-price', newPrice);
+            pEl.innerText = newPrice.toLocaleString('cs-CZ') + ' Kč';
+            if (tEl) tEl.innerText = getPriceInfo(newPrice).total.toLocaleString('cs-CZ') + ' Kč';
+
+            if (supabaseClient) {
+                const { error: bidError } = await supabaseClient.from('bids').insert([{
+                    auction_id: id,
+                    bidder_id: window.currentUser.id,
+                    amount: newPrice
+                }]);
+                if (bidError) console.error("Chyba při ukládání příhozu:", bidError.message);
+
+                const { error: updateError } = await supabaseClient.from('aukce')
+                    .update({ current_price: newPrice, last_bidder_id: window.currentUser.id })
+                    .eq('id', id);
+                if (updateError) console.error("Chyba při aktualizaci ceny:", updateError.message);
+            }
+            toggleBidMenu(id);
+        };
+
+        // --- REALTIME PŘÍHOZY ---
+        let realtimeChannel = null;
+
+        window.subscribeToAuction = function(auctionId) {
+            if (realtimeChannel) supabaseClient.removeChannel(realtimeChannel);
+            if (!supabaseClient || !window.currentUser) return;
+
+            realtimeChannel = supabaseClient
+                .channel('auction-' + auctionId)
+                .on('postgres_changes', {
+                    event: 'UPDATE',
+                    schema: 'public',
+                    table: 'aukce',
+                    filter: 'id=eq.' + auctionId
+                }, (payload) => {
+                    const newPrice = payload.new.current_price;
+                    const lastBidder = payload.new.last_bidder_id;
+                    const isMyBid = lastBidder === window.currentUser.id;
+
+                    const pEl = document.getElementById('price-' + auctionId);
+                    const tEl = document.getElementById('total-' + auctionId);
+                    if (pEl) {
+                        pEl.setAttribute('data-price', newPrice);
+                        pEl.innerText = newPrice.toLocaleString('cs-CZ') + ' Kč';
+                    }
+                    if (tEl) tEl.innerText = getPriceInfo(newPrice).total.toLocaleString('cs-CZ') + ' Kč';
+
+                    if (!isMyBid) showBidNotification(newPrice, auctionId);
+                })
+                .subscribe();
+        };
+
+        window.showBidNotification = function(newPrice, auctionId) {
+            const existing = document.getElementById('bid-toast');
+            if (existing) existing.remove();
+            const toast = document.createElement('div');
+            toast.id = 'bid-toast';
+            toast.style.cssText = 'position:fixed;bottom:1.5rem;right:1.5rem;z-index:9998;background:#1e293b;color:#fff;padding:1rem 1.25rem;border-radius:1rem;max-width:320px;display:flex;align-items:center;gap:.75rem;animation:slideIn .3s ease';
+            toast.innerHTML = `
+                <div style="width:36px;height:36px;background:#0ea5e9;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center">
+                    <svg style="width:18px;height:18px" fill="none" stroke="white" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path></svg>
+                </div>
+                <div>
+                    <div style="font-weight:700;font-size:.9rem">Někdo přihodil!</div>
+                    <div style="font-size:.8rem;color:#94a3b8">Nová cena: <strong style="color:#38bdf8">${newPrice.toLocaleString('cs-CZ')} Kč</strong></div>
+                </div>
+                <button onclick="document.getElementById('bid-toast').remove()" style="background:none;border:none;color:#94a3b8;cursor:pointer;margin-left:auto;font-size:1.1rem">✕</button>`;
+            document.body.appendChild(toast);
+
+            if (!document.getElementById('bid-toast-style')) {
+                const s = document.createElement('style');
+                s.id = 'bid-toast-style';
+                s.textContent = '@keyframes slideIn{from{transform:translateY(20px);opacity:0}to{transform:translateY(0);opacity:1}}';
+                document.head.appendChild(s);
+            }
+
+            setTimeout(() => { const t = document.getElementById('bid-toast'); if (t) t.remove(); }, 6000);
+
+            if ('Notification' in window && Notification.permission === 'granted') {
+                new Notification('FairTrade — někdo přihodil!', {
+                    body: `Nová cena: ${newPrice.toLocaleString('cs-CZ')} Kč`,
+                    icon: '/favicon.ico'
+                });
+            }
+        };
+
+        window.requestNotificationPermission = function() {
+            if ('Notification' in window && Notification.permission === 'default') {
+                Notification.requestPermission();
+            }
+        };
+
+        // --- INTERAKTIVNÍ 360° PROHLÍŽEČ ---
+        let isDragging = false;
+        let startX = 0;
+        let currentPos = 0;
+
+        window.open360 = function(imgSrc) {
+            const modal = document.getElementById('modal-360');
+            const img = document.getElementById('img-360');
+            img.src = imgSrc;
+            currentPos = 0;
+            img.style.transform = `rotateY(0deg)`;
+            modal.classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+        }
+
+        window.close360 = function() {
+            document.getElementById('modal-360').classList.add('hidden');
+            document.body.style.overflow = 'auto';
+        }
+
+        function startDrag(e) {
+            isDragging = true;
+            startX = e.type.includes('mouse') ? e.pageX : e.touches[0].pageX;
+        }
+        function doDrag(e) {
+            if (!isDragging) return;
+            e.preventDefault();
+            const x = e.type.includes('mouse') ? e.pageX : e.touches[0].pageX;
+            const diff = x - startX;
+            currentPos += diff * 0.5;
+            document.getElementById('img-360').style.transform = `rotateY(${currentPos}deg)`;
+            startX = x;
+        }
+        function stopDrag() {
+            isDragging = false;
+        }
+
+        window.addEventListener('popstate', (event) => {
+            if (event.state && event.state.view) navigate(event.state.view, event.state.param);
+            else navigate('home');
+        });
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            await fetchDatabaseItems();
+            const hash = window.location.hash.replace('#', '');
+            if (hash) navigate(hash);
+            else navigate('home');
+        });
+    </script>
+</body>
+</html>
             }
         }
     </script>
