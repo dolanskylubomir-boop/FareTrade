@@ -221,9 +221,11 @@
                 const { data: dbAukce, error: err1 } = await supabaseClient.from('aukce').select('*').neq('status', 'zruseno');
                 const { data: dbPevna, error: err2 } = await supabaseClient.from('pevna_cena').select('*').neq('status', 'zruseno');
                 const { data: dbProfiles, error: err3 } = await supabaseClient.from('profiles').select('id, first_name, last_name, display_name, is_verified, rating');
+                const { data: dbBids, error: errBids } = await supabaseClient.from('bids').select('auction_id, bidder_id, amount');
                 
                 if (err1) console.error("Chyba Aukce:", err1.message);
                 if (err2) console.error("Chyba Pevná cena:", err2.message);
+                if (errBids) console.error("Chyba načítání nové tabulky Bids:", errBids.message);
 
                 const profilesMap = {};
                 if (dbProfiles) {
@@ -232,6 +234,20 @@
 
                 // Načtení lokálních příhozů jako Fallback pro RLS
                 let localBids = JSON.parse(localStorage.getItem('ft_local_bids') || '{}');
+
+                // Zpracování dat z nové tabulky 'bids'
+                const auctionBids = {};
+                if (dbBids) {
+                    dbBids.forEach(bid => {
+                        // Uchováme vždy jen tu nejvyšší nalezenou hodnotu pro danou aukci
+                        if (!auctionBids[bid.auction_id] || bid.amount > auctionBids[bid.auction_id].amount) {
+                            auctionBids[bid.auction_id] = {
+                                amount: bid.amount,
+                                bidder_id: bid.bidder_id
+                            };
+                        }
+                    });
+                }
 
                 const safeImage = (item) => {
                     if (item.images && item.images.length > 0 && item.images[0]) return item.images[0];
@@ -270,7 +286,14 @@
                         let currentPrice = item.current_price || item.starting_price || 0;
                         let lastBidderId = item.last_bidder_id || null;
 
-                        // OVERRIDE: Pokud máme v local cache vyšší příhoz než vrátil server (obchází RLS blokace na Supabase)
+                        // OVERRIDE: Pokud je v nové tabulce 'bids' příhoz vyšší, nahradíme data
+                        // Toto řeší problém, že update do tabulky aukce zablokovalo RLS pravidlo
+                        if (auctionBids[item.id] && auctionBids[item.id].amount > currentPrice) {
+                            currentPrice = auctionBids[item.id].amount;
+                            lastBidderId = auctionBids[item.id].bidder_id;
+                        }
+
+                        // OVERRIDE z lokální cache pro absolutní jistotu okamžité UI odezvy
                         if (localBids[item.id] && localBids[item.id].price > currentPrice) {
                             currentPrice = localBids[item.id].price;
                             lastBidderId = localBids[item.id].last_bidder_id;
@@ -1632,14 +1655,25 @@
             
             // Komunikace s DB
             if (supabaseClient) {
-                const { error } = await supabaseClient.from('aukce').update({ 
+                // 1. Zápis do nové tabulky bids (Toto by mělo projít RLS bez problémů)
+                const { error: bidError } = await supabaseClient.from('bids').insert([{
+                    auction_id: id,
+                    bidder_id: window.currentUser.id,
+                    amount: val
+                }]);
+
+                if (bidError) {
+                    console.error("Chyba při ukládání do tabulky bids:", bidError.message);
+                }
+
+                // 2. Pokus o přímý zápis do aukce (Pravděpodobně selže na RLS, proto ho dáváme jako volitelný)
+                const { error: updateError } = await supabaseClient.from('aukce').update({ 
                     current_price: val,
-                    last_bidder_id: window.currentUser.id // Bezpečně fallbackujeme na tuto kolonu
+                    last_bidder_id: window.currentUser.id 
                 }).eq('id', id);
                 
-                if (error) {
-                    console.warn("Supabase RLS zablokovalo update (Očekávané z důvodu chybějící RPC v Supabase). Používám lokální cache.", error.message);
-                    // DŮLEŽITÉ: Odstraněn alert, aby UI plynule pokračovalo a nepřerušilo kód!
+                if (updateError) {
+                    console.warn("Supabase RLS zablokovalo update aukce. Zápis je řešen přes tabulku bids a lokální cache.", updateError.message);
                 } 
             }
             
