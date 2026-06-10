@@ -358,6 +358,9 @@
                             price: currentPrice,
                             category: item.category,
                             img: safeImage(item),
+                            images: item.images || [safeImage(item)],
+                            condition: item.condition,
+                            brand: item.brand,
                             has360: item.has_360 || false,
                             seller: seller.name,
                             verified: seller.verified,
@@ -381,6 +384,9 @@
                             price: item.price || 0,
                             category: item.category,
                             img: safeImage(item),
+                            images: item.images || [safeImage(item)],
+                            condition: item.condition,
+                            brand: item.brand,
                             has360: item.has_360 || false,
                             seller: seller.name,
                             verified: seller.verified,
@@ -1548,7 +1554,11 @@
             
             aukce: (kategorieFilter) => {
                 kategorieFilter = kategorieFilter || 'Vše';
-                const filteredData = dataAukce.filter(item => kategorieFilter === 'Vše' || item.category === kategorieFilter);
+                const filteredData = dataAukce.filter(item => {
+                    const isCategoryMatch = kategorieFilter === 'Vše' || item.category === kategorieFilter;
+                    const isMine = window.currentUser && item.seller_id === window.currentUser.id;
+                    return isCategoryMatch && !isMine;
+                });
                 
                 return `
                 <div class="w-full bg-white/90 backdrop-blur-xl p-6 md:p-10 rounded-[2rem] shadow-xl fade-in min-h-[500px] border border-white/50">
@@ -1598,17 +1608,28 @@
                 <div class="w-full bg-white/90 backdrop-blur-xl p-6 md:p-10 rounded-[2rem] shadow-xl fade-in min-h-[500px] border border-white/50 relative">
                     <button onclick="navigate('aukce')" class="mb-8 text-sky-500 font-bold hover:text-sky-600 transition-colors flex items-center gap-2 text-lg">← Zpět na seznam</button>
                     
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-10">
-                        <div class="bg-white rounded-3xl p-4 md:p-6 flex flex-col items-center justify-center border border-gray-100 relative shadow-inner overflow-hidden group">
-                            <img src="${item.img}" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1523275335684-37898b6baf30?q=80&w=800&auto=format&fit=crop';" class="rounded-xl object-cover w-full h-[300px] md:h-[450px]">
+                        <div>
+                            <div class="bg-white rounded-3xl p-4 md:p-6 flex flex-col items-center justify-center border border-gray-100 relative shadow-inner overflow-hidden group">
+                                <img id="main-img-${item.id}" src="${item.img}" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1523275335684-37898b6baf30?q=80&w=800&auto=format&fit=crop';" class="rounded-xl object-cover w-full h-[300px] md:h-[450px] transition-all duration-300">
+                                
+                                ${item.has360 ? `
+                                <div class="absolute bottom-6 flex gap-2 z-10">
+                                    <button onclick="open360('${item.img}')" class="bg-white/95 backdrop-blur-md text-gray-800 px-6 py-3 rounded-full shadow-lg font-bold text-sm flex items-center gap-3 hover:bg-white hover:scale-105 transition-all">
+                                        <svg class="w-5 h-5 text-sky-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                                        Spustit 360° Pohled
+                                    </button>
+                                </div>` : ''}
+                            </div>
                             
-                            ${item.has360 ? `
-                            <div class="absolute bottom-6 flex gap-2 z-10">
-                                <button onclick="open360('${item.img}')" class="bg-white/95 backdrop-blur-md text-gray-800 px-6 py-3 rounded-full shadow-lg font-bold text-sm flex items-center gap-3 hover:bg-white hover:scale-105 transition-all">
-                                    <svg class="w-5 h-5 text-sky-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
-                                    Spustit 360° Pohled
-                                </button>
-                            </div>` : ''}
+                            ${item.images && item.images.length > 1 ? `
+                            <div class="flex gap-3 mt-4 overflow-x-auto w-full pb-2 scrollbar-hide">
+                                ${item.images.map((imgUrl) => `
+                                    <div class="w-20 h-20 rounded-xl border-2 border-transparent hover:border-sky-500 cursor-pointer overflow-hidden shrink-0 shadow-sm" onclick="document.getElementById('main-img-${item.id}').src='${imgUrl}'">
+                                        <img src="${imgUrl}" class="w-full h-full object-cover" onerror="this.src='https://images.unsplash.com/photo-1523275335684-37898b6baf30?q=80&w=800&auto=format&fit=crop'">
+                                    </div>
+                                `).join('')}
+                            </div>
+                            ` : ''}
                         </div>
 
                         <div class="flex flex-col">
@@ -1622,9 +1643,11 @@
                             <div class="flex flex-wrap gap-2 mb-4 items-center">
                                 <span class="inline-block bg-sky-100 text-sky-800 text-sm px-4 py-1.5 rounded-full font-bold uppercase tracking-wide">Aukce</span>
                                 <span class="inline-block bg-gray-100 text-gray-600 text-sm px-4 py-1.5 rounded-full font-bold tracking-wide">${item.category}</span>
+                                ${item.condition ? `<span class="inline-block bg-purple-100 text-purple-800 text-sm px-4 py-1.5 rounded-full font-bold tracking-wide">${item.condition}</span>` : ''}
+                                ${item.brand ? `<span class="inline-block bg-indigo-100 text-indigo-800 text-sm px-4 py-1.5 rounded-full font-bold tracking-wide">${item.brand}</span>` : ''}
                                 <button onclick="navigate('seller-inzeraty', '${item.seller_id}')" class="inline-flex items-center gap-1.5 bg-white border border-gray-200 hover:border-sky-400 hover:text-sky-600 text-gray-500 text-sm px-4 py-1.5 rounded-full font-bold transition-colors">
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
-                                    Další inzeráty prodejce
+                                    Další inzeráty
                                 </button>
                             </div>
                             <h2 class="text-3xl md:text-5xl font-extrabold mb-4 text-pastel-text">${item.title}</h2>
@@ -1688,7 +1711,11 @@
 
             'pevna-cena': (kategorieFilter) => {
                 kategorieFilter = kategorieFilter || 'Vše';
-                const filteredData = dataPevnaCena.filter(item => kategorieFilter === 'Vše' || item.category === kategorieFilter);
+                const filteredData = dataPevnaCena.filter(item => {
+                    const isCategoryMatch = kategorieFilter === 'Vše' || item.category === kategorieFilter;
+                    const isMine = window.currentUser && item.seller_id === window.currentUser.id;
+                    return isCategoryMatch && !isMine;
+                });
                 
                 return `
                 <div class="w-full bg-white/90 backdrop-blur-xl p-6 md:p-10 rounded-[2rem] shadow-xl fade-in min-h-[500px] border border-white/50">
@@ -1736,17 +1763,31 @@
                 <div class="w-full bg-white/90 backdrop-blur-xl p-6 md:p-10 rounded-[2rem] shadow-xl fade-in min-h-[500px] border border-white/50">
                     <button onclick="navigate('pevna-cena')" class="mb-8 text-pink-500 font-bold hover:text-pink-600 transition-colors flex items-center gap-2 text-lg">← Zpět na katalog</button>
                     
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-10">
-                        <div class="bg-white rounded-3xl p-4 md:p-6 flex flex-col items-center justify-center border border-gray-100 shadow-inner group">
-                            <img src="${item.img}" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1523275335684-37898b6baf30?q=80&w=800&auto=format&fit=crop';" class="rounded-xl object-cover w-full h-[300px] md:h-[450px]">
+                        <div>
+                            <div class="bg-white rounded-3xl p-4 md:p-6 flex flex-col items-center justify-center border border-gray-100 relative shadow-inner group overflow-hidden">
+                                <img id="main-img-${item.id}" src="${item.img}" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1523275335684-37898b6baf30?q=80&w=800&auto=format&fit=crop';" class="rounded-xl object-cover w-full h-[300px] md:h-[450px] transition-all duration-300">
+                            </div>
+                            
+                            ${item.images && item.images.length > 1 ? `
+                            <div class="flex gap-3 mt-4 overflow-x-auto w-full pb-2 scrollbar-hide">
+                                ${item.images.map((imgUrl) => `
+                                    <div class="w-20 h-20 rounded-xl border-2 border-transparent hover:border-pink-500 cursor-pointer overflow-hidden shrink-0 shadow-sm" onclick="document.getElementById('main-img-${item.id}').src='${imgUrl}'">
+                                        <img src="${imgUrl}" class="w-full h-full object-cover" onerror="this.src='https://images.unsplash.com/photo-1523275335684-37898b6baf30?q=80&w=800&auto=format&fit=crop'">
+                                    </div>
+                                `).join('')}
+                            </div>
+                            ` : ''}
                         </div>
+                        
                         <div class="flex flex-col">
                             <div class="flex flex-wrap gap-2 mb-4 items-center">
                                 <span class="inline-block bg-pink-100 text-pink-800 text-sm px-4 py-1.5 rounded-full font-bold uppercase tracking-wide">Kup teď</span>
                                 <span class="inline-block bg-gray-100 text-gray-600 text-sm px-4 py-1.5 rounded-full font-bold tracking-wide">${item.category}</span>
+                                ${item.condition ? `<span class="inline-block bg-purple-100 text-purple-800 text-sm px-4 py-1.5 rounded-full font-bold tracking-wide">${item.condition}</span>` : ''}
+                                ${item.brand ? `<span class="inline-block bg-indigo-100 text-indigo-800 text-sm px-4 py-1.5 rounded-full font-bold tracking-wide">${item.brand}</span>` : ''}
                                 <button onclick="navigate('seller-inzeraty', '${item.seller_id}')" class="inline-flex items-center gap-1.5 bg-white border border-gray-200 hover:border-pink-400 hover:text-pink-600 text-gray-500 text-sm px-4 py-1.5 rounded-full font-bold transition-colors">
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
-                                    Další inzeráty prodejce
+                                    Další inzeráty
                                 </button>
                             </div>
                             <h2 class="text-3xl md:text-5xl font-extrabold mb-4 text-pastel-text">${item.title}</h2>
