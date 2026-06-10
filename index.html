@@ -142,19 +142,63 @@
             return { fee: fee, total: price + fee + ESCROW_FEE };
         };
 
-        // --- NAČÍTÁNÍ Z DATABÁZE (NEZNIČITELNÁ VERZE BEZ JOINŮ) ---
+        // --- SPRÁVA INZERÁTŮ (Smazání a Prodloužení) ---
+        window.deleteAd = async function(type, id) {
+            if(!confirm("Opravdu chcete tento inzerát smazat? Trvale se přestane zobrazovat všem uživatelům na tržišti.")) return;
+            
+            const tableName = type === 'aukce' ? 'aukce' : 'pevna_cena';
+            // Změna statutu na zruseno
+            const { error } = await supabaseClient.from(tableName).update({ status: 'zruseno' }).eq('id', id);
+            
+            if(error) {
+                alert("Chyba při mazání: " + error.message);
+            } else {
+                alert("Inzerát byl úspěšně smazán a stažen z veřejné nabídky.");
+                await fetchDatabaseItems(); 
+                navigate('profil');
+            }
+        };
+
+        window.extendAd = async function(type, id) {
+            if(!confirm("Prodloužení inzerátu o dalších 10 dnů je zpoplatněno částkou 5 Kč.\n\nPozději zde bude napojena platební brána pro ověření.\nPřejete si inzerát prodloužit nyní?")) return;
+            
+            const tableName = type === 'aukce' ? 'aukce' : 'pevna_cena';
+            const items = type === 'aukce' ? dataAukce : dataPevnaCena;
+            const item = items.find(i => i.id === id);
+            
+            if(!item || !item.endTime) {
+                alert("Chyba: Nepodařilo se zjistit aktuální konec inzerátu.");
+                return;
+            }
+            
+            // Výpočet nového data (+ 10 dní)
+            const currentEnd = new Date(item.endTime);
+            currentEnd.setDate(currentEnd.getDate() + 10);
+            const updateData = type === 'aukce' ? { end_time: currentEnd.toISOString() } : { expires_at: currentEnd.toISOString() };
+
+            const { error } = await supabaseClient.from(tableName).update(updateData).eq('id', id);
+            
+            if(error) {
+                alert("Chyba při prodlužování: " + error.message);
+            } else {
+                alert("Platnost inzerátu byla úspěšně prodloužena o 10 dnů!");
+                await fetchDatabaseItems();
+                navigate(type === 'aukce' ? 'aukce-detail' : 'pevna-cena-detail', id);
+            }
+        };
+
+        // --- NAČÍTÁNÍ Z DATABÁZE ---
         window.fetchDatabaseItems = async function() {
             if (!supabaseClient) return;
             try {
-                // Stáhneme tabulky zcela odděleně. Tím obejdeme JAKOUKOLIV chybu propojení v Supabase.
-                const { data: dbAukce, error: err1 } = await supabaseClient.from('aukce').select('*');
-                const { data: dbPevna, error: err2 } = await supabaseClient.from('pevna_cena').select('*');
+                // Skrýváme všechny inzeráty, které mají status zrušeno
+                const { data: dbAukce, error: err1 } = await supabaseClient.from('aukce').select('*').neq('status', 'zruseno');
+                const { data: dbPevna, error: err2 } = await supabaseClient.from('pevna_cena').select('*').neq('status', 'zruseno');
                 const { data: dbProfiles, error: err3 } = await supabaseClient.from('profiles').select('id, first_name, last_name, display_name, is_verified, rating');
                 
                 if (err1) console.error("Chyba Aukce:", err1.message);
                 if (err2) console.error("Chyba Pevná cena:", err2.message);
 
-                // Vytvoříme si mapu profilů pro bleskové přiřazení jmen k inzerátům
                 const profilesMap = {};
                 if (dbProfiles) {
                     dbProfiles.forEach(p => { profilesMap[p.id] = p; });
@@ -427,7 +471,6 @@
 
                 if (!title || !category || !condition) throw new Error("Vyplňte prosím název, kategorii a stav.");
 
-                // --- NAHRÁVÁNÍ OBRÁZKŮ DO SUPABASE STORAGE ---
                 const fileInputs = document.querySelectorAll('input[type="file"]');
                 const uploadedImages = [];
                 
@@ -452,7 +495,6 @@
                     }
                 }
 
-                // Pokud zapomene nebo se pokazí upload, dáme fallback
                 if (uploadedImages.length === 0) {
                     uploadedImages.push('https://images.unsplash.com/photo-1523275335684-37898b6baf30?q=80&w=800&auto=format&fit=crop');
                 }
@@ -489,6 +531,11 @@
                     const fixPrice = parseInt(document.getElementById('ad-price').value);
                     if (isNaN(fixPrice) || fixPrice < 1) throw new Error("Neplatná pevná cena!");
                     adData.price = fixPrice;
+                    
+                    // Lhůta 20 dní pro inzerát s pevnou cenou
+                    const expiresTime = new Date();
+                    expiresTime.setDate(expiresTime.getDate() + 20);
+                    adData.expires_at = expiresTime.toISOString();
                 }
 
                 const { error } = await supabaseClient.from(tableName).insert([adData]);
@@ -513,10 +560,8 @@
             
             window.currentUser = user; 
 
-            // Stáhneme data inzerátů aby byly aktuální dlaždice
             await fetchDatabaseItems();
 
-            // Oprava horní dlaždice inzerátů z profilu (zobrazí se číslo)
             const myAukceCount = dataAukce.filter(i => i.seller_id === user.id).length;
             const myPevnaCount = dataPevnaCena.filter(i => i.seller_id === user.id).length;
             const activeCountEl = document.getElementById('profile-active-ads-count');
@@ -535,12 +580,11 @@
             const { data, error } = await supabaseClient.from('profiles').select('*').eq('id', user.id).single();
 
             if (data && !error) {
-                // Poskládání jména a určení, co je hlavní vizitka
                 const fullName = (data.first_name || '') + ' ' + (data.last_name || '');
                 const displayName = data.display_name || fullName.trim() || 'Nepojmenovaný uživatel';
                 
                 const nameEl = document.getElementById('profile-name');
-                if(nameEl) nameEl.innerText = displayName; // Zobrazí se nová přezdívka nebo firma
+                if(nameEl) nameEl.innerText = displayName; 
                 
                 const initials = (data.display_name ? data.display_name[0] : (data.first_name ? data.first_name[0] : ''));
                 const initEl = document.getElementById('profile-initials');
@@ -555,7 +599,6 @@
                 }
 
                 if (activeTab === 'kyc') {
-                    // Propíšeme údaje do KYC záložky v profilu
                     const kycDisplay = document.getElementById('kyc-display-dname');
                     const kycName = document.getElementById('kyc-display-name');
                     const kycDate = document.getElementById('kyc-display-date');
@@ -651,7 +694,6 @@
                 const myPevna = dataPevnaCena.filter(i => i.seller_id === window.currentUser.id);
                 const myAds = [...myAukce, ...myPevna];
 
-                // Výpočet odpočtu pro profil inzerátů
                 const getDaysRemaining = (dateString) => {
                     if (!dateString) return 'Vyprší brzy';
                     const diff = new Date(dateString).getTime() - new Date().getTime();
@@ -1112,6 +1154,7 @@
                 const item = dataAukce.find(i => i.id == id);
                 if (!item) return `<div class="w-full bg-white/90 backdrop-blur-xl p-10 rounded-[2rem] shadow-xl fade-in min-h-[500px] border border-white/50"><button onclick="navigate('aukce')" class="text-sky-500 font-bold">← Zpět na seznam</button><p class="mt-10">Aukce nenalezena.</p></div>`;
                 const prices = getPriceInfo(item.price);
+                const isOwner = window.currentUser && window.currentUser.id === item.seller_id;
                 
                 return `
                 <div class="w-full bg-white/90 backdrop-blur-xl p-6 md:p-10 rounded-[2rem] shadow-xl fade-in min-h-[500px] border border-white/50 relative">
@@ -1166,17 +1209,28 @@
                                 </div>
                             </div>
                             
-                            <div class="relative w-full">
-                                <button onclick="toggleBidMenu('${item.id}')" class="w-full bg-sky-500 hover:bg-sky-600 text-white font-bold py-5 px-8 rounded-2xl transition-all shadow-md text-xl">Přihodit</button>
-                                <div id="bid-menu-${item.id}" class="hidden absolute bottom-full left-0 w-full mb-3 bg-white rounded-2xl shadow-2xl border border-gray-100 p-4 z-20 transition-all">
-                                    <div class="flex flex-wrap justify-center gap-2 md:gap-3">
-                                        ${[50, 100, 200, 500, 1000].map(amount => `<button onclick="placeBid('${item.id}', ${amount})" class="flex-1 min-w-[30%] bg-sky-50 text-sky-700 hover:bg-sky-500 hover:text-white py-3 rounded-xl font-bold text-lg transition-colors">+${amount}</button>`).join('')}
+                            ${isOwner ? `
+                                <div class="bg-yellow-50 border border-yellow-200 p-6 rounded-3xl mt-4">
+                                    <h3 class="font-bold text-yellow-800 mb-4 flex items-center gap-2">Správa vašeho inzerátu</h3>
+                                    <div class="flex flex-col sm:flex-row gap-3">
+                                        <button onclick="alert('Editace bude dostupná v další verzi.')" class="flex-1 bg-white border border-yellow-300 text-yellow-700 hover:bg-yellow-100 font-bold py-3 rounded-xl transition-colors">✏️ Upravit</button>
+                                        <button onclick="extendAd('${item.type}', '${item.id}')" class="flex-1 bg-white border border-yellow-300 text-yellow-700 hover:bg-yellow-100 font-bold py-3 rounded-xl transition-colors text-sm">⏱️ Prodloužit (5 Kč / 10 dní)</button>
+                                        <button onclick="deleteAd('${item.type}', '${item.id}')" class="flex-1 bg-red-500 hover:bg-red-600 text-white font-bold py-3 rounded-xl transition-colors">🗑️ Smazat</button>
                                     </div>
-                                    <button onclick="toggleBidMenu('${item.id}')" class="absolute -top-3 -right-3 bg-white shadow-md rounded-full p-1.5 text-gray-400">
-                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-                                    </button>
                                 </div>
-                            </div>
+                            ` : `
+                                <div class="relative w-full">
+                                    <button onclick="toggleBidMenu('${item.id}')" class="w-full bg-sky-500 hover:bg-sky-600 text-white font-bold py-5 px-8 rounded-2xl transition-all shadow-md text-xl">Přihodit</button>
+                                    <div id="bid-menu-${item.id}" class="hidden absolute bottom-full left-0 w-full mb-3 bg-white rounded-2xl shadow-2xl border border-gray-100 p-4 z-20 transition-all">
+                                        <div class="flex flex-wrap justify-center gap-2 md:gap-3">
+                                            ${[50, 100, 200, 500, 1000].map(amount => `<button onclick="placeBid('${item.id}', ${amount})" class="flex-1 min-w-[30%] bg-sky-50 text-sky-700 hover:bg-sky-500 hover:text-white py-3 rounded-xl font-bold text-lg transition-colors">+${amount}</button>`).join('')}
+                                        </div>
+                                        <button onclick="toggleBidMenu('${item.id}')" class="absolute -top-3 -right-3 bg-white shadow-md rounded-full p-1.5 text-gray-400">
+                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                                        </button>
+                                    </div>
+                                </div>
+                            `}
                         </div>
                     </div>
                 </div>
@@ -1219,6 +1273,7 @@
                 const item = dataPevnaCena.find(i => i.id == id);
                 if (!item) return `<div class="w-full bg-white/90 backdrop-blur-xl p-10 rounded-[2rem] shadow-xl fade-in min-h-[500px] border border-white/50"><button onclick="navigate('pevna-cena')" class="text-pink-500 font-bold">← Zpět na katalog</button><p class="mt-10">Položka nenalezena.</p></div>`;
                 const prices = getPriceInfo(item.price);
+                const isOwner = window.currentUser && window.currentUser.id === item.seller_id;
 
                 return `
                 <div class="w-full bg-white/90 backdrop-blur-xl p-6 md:p-10 rounded-[2rem] shadow-xl fade-in min-h-[500px] border border-white/50">
@@ -1264,9 +1319,20 @@
                                 </div>
                             </div>
                             
-                            <button class="w-full bg-pink-500 hover:bg-pink-600 text-white font-bold py-5 px-8 rounded-2xl transition-all shadow-[0_10px_20px_-10px_rgba(236,72,153,0.6)] text-xl">
-                                Koupit ihned
-                            </button>
+                            ${isOwner ? `
+                                <div class="bg-yellow-50 border border-yellow-200 p-6 rounded-3xl mt-4">
+                                    <h3 class="font-bold text-yellow-800 mb-4 flex items-center gap-2">Správa vašeho inzerátu</h3>
+                                    <div class="flex flex-col sm:flex-row gap-3">
+                                        <button onclick="alert('Editace bude dostupná v další verzi.')" class="flex-1 bg-white border border-yellow-300 text-yellow-700 hover:bg-yellow-100 font-bold py-3 rounded-xl transition-colors">✏️ Upravit</button>
+                                        <button onclick="extendAd('${item.type}', '${item.id}')" class="flex-1 bg-white border border-yellow-300 text-yellow-700 hover:bg-yellow-100 font-bold py-3 rounded-xl transition-colors text-sm">⏱️ Prodloužit (5 Kč / 10 dní)</button>
+                                        <button onclick="deleteAd('${item.type}', '${item.id}')" class="flex-1 bg-red-500 hover:bg-red-600 text-white font-bold py-3 rounded-xl transition-colors">🗑️ Smazat</button>
+                                    </div>
+                                </div>
+                            ` : `
+                                <button class="w-full bg-pink-500 hover:bg-pink-600 text-white font-bold py-5 px-8 rounded-2xl transition-all shadow-[0_10px_20px_-10px_rgba(236,72,153,0.6)] text-xl">
+                                    Koupit ihned
+                                </button>
+                            `}
                         </div>
                     </div>
                 </div>
