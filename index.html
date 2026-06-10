@@ -128,31 +128,6 @@
         let dataPevnaCena = [];
         window.currentUser = null;
 
-        // --- OBLÍBENÉ INZERÁTY (LOCAL STORAGE) ---
-        window.getFavorites = function() {
-            if (!window.currentUser) return [];
-            try {
-                return JSON.parse(localStorage.getItem('fairtrade_favs_' + window.currentUser.id)) || [];
-            } catch(e) { return []; }
-        };
-
-        window.toggleFavorite = function(id) {
-            if (!window.currentUser) {
-                alert("Pro přidání inzerátu do oblíbených se musíte přihlásit.");
-                return;
-            }
-            let favs = window.getFavorites();
-            if (favs.includes(id)) {
-                favs = favs.filter(favId => favId !== id); 
-            } else {
-                favs.push(id); 
-            }
-            localStorage.setItem('fairtrade_favs_' + window.currentUser.id, JSON.stringify(favs));
-            
-            const hash = window.location.hash.replace('#', '') || 'home';
-            navigate(hash);
-        };
-
         window.renderCategories = function(view, currentFilter) {
             return `
             <div class="flex gap-2 overflow-x-auto pb-4 mb-4 scrollbar-hide">
@@ -172,6 +147,7 @@
             if(!confirm("Opravdu chcete tento inzerát smazat? Trvale se přestane zobrazovat všem uživatelům na tržišti.")) return;
             
             const tableName = type === 'aukce' ? 'aukce' : 'pevna_cena';
+            // Změna statutu na zruseno
             const { error } = await supabaseClient.from(tableName).update({ status: 'zruseno' }).eq('id', id);
             
             if(error) {
@@ -195,6 +171,7 @@
                 return;
             }
             
+            // Výpočet nového data (+ 10 dní)
             const currentEnd = new Date(item.endTime);
             currentEnd.setDate(currentEnd.getDate() + 10);
             const updateData = type === 'aukce' ? { end_time: currentEnd.toISOString() } : { expires_at: currentEnd.toISOString() };
@@ -214,6 +191,7 @@
         window.fetchDatabaseItems = async function() {
             if (!supabaseClient) return;
             try {
+                // Skrýváme všechny inzeráty, které mají status zrušeno
                 const { data: dbAukce, error: err1 } = await supabaseClient.from('aukce').select('*').neq('status', 'zruseno');
                 const { data: dbPevna, error: err2 } = await supabaseClient.from('pevna_cena').select('*').neq('status', 'zruseno');
                 const { data: dbProfiles, error: err3 } = await supabaseClient.from('profiles').select('id, first_name, last_name, display_name, is_verified, rating');
@@ -295,7 +273,7 @@
             }
         };
 
-        // --- AUTH & KYC ---
+// --- AUTH & KYC ---
         async function checkUserProfileKYC(user, redirectIfVerified = false) {
             if (!supabaseClient) return;
             try {
@@ -303,6 +281,7 @@
                 if (!error && data && data.kyc_status === 'unverified') {
                     navigate('kyc');
                 } else if (redirectIfVerified) {
+                    // Pokud je účet v pořádku, pošleme ho rovnou do profilu
                     navigate('profil');
                 }
             } catch (e) {
@@ -320,6 +299,7 @@
                         btn.setAttribute('onclick', "navigate('profil')"); 
                     }
                     if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
+                        // Pokud se přihlašuje přes Google/FB a je na stránce 'login', přesměrujeme ho do profilu
                         const isLoginScreen = window.location.hash.includes('login');
                         await checkUserProfileKYC(session.user, isLoginScreen);
                     }
@@ -357,6 +337,7 @@
                 if (error) alert("Chyba přihlášení: " + error.message);
                 else {
                     alert("Úspěšně přihlášen!");
+                    // Po úspěšném přihlášení e-mailem vynutíme skok do profilu
                     if (data && data.user) { await checkUserProfileKYC(data.user, true); } else { navigate('home'); }
                 }
             }
@@ -398,6 +379,7 @@
             if (error) alert("Chyba ukládání do databáze: " + error.message);
             else {
                 alert("Údaje uloženy k Vašemu účtu a odeslány ke kontrole!");
+                // Po vyplnění KYC ho pošleme rovnou do profilu, ne na domovskou obrazovku
                 navigate('profil');
             }
         };
@@ -559,6 +541,7 @@
                     if (isNaN(fixPrice) || fixPrice < 1) throw new Error("Neplatná pevná cena!");
                     adData.price = fixPrice;
                     
+                    // Lhůta 20 dní pro inzerát s pevnou cenou
                     const expiresTime = new Date();
                     expiresTime.setDate(expiresTime.getDate() + 20);
                     adData.expires_at = expiresTime.toISOString();
@@ -708,42 +691,7 @@
             }
             
             if (tab === 'oblibene') {
-                if (!window.currentUser) return `<p class="text-gray-500 py-4 text-center fade-in">⏳ Načítám...</p>`;
-                
-                const favIds = window.getFavorites();
-                const myFavs = [...dataAukce, ...dataPevnaCena].filter(item => favIds.includes(item.id));
-
-                let html = `
-                    <div class="flex items-center justify-between mb-6 fade-in">
-                        <h3 class="text-xl font-bold text-gray-800">Moje oblíbené inzeráty (${myFavs.length})</h3>
-                    </div>
-                `;
-
-                if (myFavs.length === 0) {
-                    html += `<p class="text-gray-500 text-center py-8 font-medium fade-in">Seznam sledovaných položek je prázdný. Klikněte na ❤️ u inzerátu, který vás zajímá.</p>`;
-                } else {
-                    html += `<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">`;
-                    myFavs.forEach(item => {
-                        const isAukce = item.type === 'aukce';
-                        html += `
-                        <div onclick="navigate('${isAukce ? 'aukce-detail' : 'pevna-cena-detail'}/${item.id}')" class="bg-white rounded-2xl p-4 shadow-sm hover:shadow-lg border border-gray-100 flex flex-col group relative cursor-pointer transition-shadow fade-in">
-                            <div class="relative overflow-hidden rounded-xl mb-4 h-40 bg-gray-50">
-                                <button onclick="event.stopPropagation(); window.toggleFavorite('${item.id}')" class="absolute top-2 right-2 p-2 bg-white/90 backdrop-blur-sm rounded-full shadow-md hover:scale-110 transition-transform z-10 text-red-500">
-                                    <svg class="w-5 h-5" fill="currentColor" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path></svg>
-                                </button>
-                                <img src="${item.img}" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1523275335684-37898b6baf30?q=80&w=800&auto=format&fit=crop';" class="object-cover w-full h-full group-hover:scale-105 transition-transform duration-500">
-                            </div>
-                            <div class="text-xs font-bold ${isAukce ? 'text-sky-500' : 'text-pink-500'} mb-1">${isAukce ? 'Aukce' : 'Pevná cena'} • ${item.category}</div>
-                            <h3 class="text-sm font-bold text-gray-800 line-clamp-2 leading-tight mb-2">${item.title}</h3>
-                            <div class="mt-auto">
-                                <div class="font-black ${isAukce ? 'text-sky-500' : 'text-pink-500'}">${item.price.toLocaleString('cs-CZ')} Kč</div>
-                            </div>
-                        </div>
-                        `;
-                    });
-                    html += `</div>`;
-                }
-                return html;
+                return `<h3 class="text-xl font-bold text-gray-800 mb-4 fade-in">Oblíbené položky</h3><p class="text-gray-500 text-center py-8 font-medium fade-in">Seznam sledovaných položek je prázdný. Klikněte na ❤️ u inzerátu, který vás zajímá.</p>`;
             }
             
             if (tab === 'inzeraty') {
@@ -811,7 +759,7 @@
         const views = {
             home: () => `
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-8 w-full fade-in">
-                    <div onclick="navigate('aukce', 'Vše')" class="relative h-[450px] md:h-[500px] rounded-[2rem] overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-300 cursor-pointer bg-white group">
+                    <div onclick="navigate('aukce')" class="relative h-[450px] md:h-[500px] rounded-[2rem] overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-300 cursor-pointer bg-white group">
                         <img src="https://images.unsplash.com/photo-1589829085413-56de8ae18c73?q=80&w=1000&auto=format&fit=crop" class="absolute inset-0 w-full h-full object-cover opacity-90 group-hover:scale-105 transition-transform duration-700">
                         <div class="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent transition-colors duration-300 group-hover:from-black/60"></div>
                         <div class="absolute inset-x-0 bottom-0 p-10 transform transition-transform duration-300 group-hover:-translate-y-2">
@@ -819,7 +767,7 @@
                             <p class="text-white/95 text-xl drop-shadow-md">Přihazuj a získej nejlepší cenu na trhu.</p>
                         </div>
                     </div>
-                    <div onclick="navigate('pevna-cena', 'Vše')" class="relative h-[450px] md:h-[500px] rounded-[2rem] overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-300 cursor-pointer bg-white group">
+                    <div onclick="navigate('pevna-cena')" class="relative h-[450px] md:h-[500px] rounded-[2rem] overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-300 cursor-pointer bg-white group">
                         <img src="https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?q=80&w=1000&auto=format&fit=crop" class="absolute inset-0 w-full h-full object-cover opacity-90 group-hover:scale-105 transition-transform duration-700">
                         <div class="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent transition-colors duration-300 group-hover:from-black/60"></div>
                         <div class="absolute inset-x-0 bottom-0 p-10 transform transition-transform duration-300 group-hover:-translate-y-2">
@@ -1192,33 +1140,21 @@
                     ${filteredData.length === 0 ? '<p class="text-gray-500 py-10 text-center">V této kategorii zatím nejsou žádné aukce. Vložte první!</p>' : ''}
                     
                     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                        ${filteredData.map(item => {
-                            const prices = getPriceInfo(item.price);
-                            const isFav = window.getFavorites().includes(item.id);
-                            const favButton = window.currentUser ? \`
-                                <button onclick="event.stopPropagation(); window.toggleFavorite('\${item.id}')" class="absolute top-3 right-3 p-2.5 bg-white/90 backdrop-blur-sm rounded-full shadow-md hover:scale-110 transition-transform z-10 \${isFav ? 'text-red-500' : 'text-gray-400 hover:text-red-400'}">
-                                    <svg class="w-5 h-5" fill="\${isFav ? 'currentColor' : 'none'}" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path></svg>
-                                </button>
-                            \` : '';
-
-                            return \`
-                            <div onclick="navigate('aukce-detail/\${item.id}')" class="bg-white rounded-2xl p-4 shadow-sm hover:shadow-lg border border-gray-100 flex flex-col group relative cursor-pointer transition-shadow">
+                        ${filteredData.map(item => `
+                            <div onclick="navigate('aukce-detail/${item.id}')" class="bg-white rounded-2xl p-4 shadow-sm hover:shadow-lg border border-gray-100 flex flex-col group relative cursor-pointer transition-shadow">
                                 <div class="relative overflow-hidden rounded-xl mb-4 h-48 bg-gray-50">
-                                    \${favButton}
-                                    <img src="\${item.img}" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1523275335684-37898b6baf30?q=80&w=800&auto=format&fit=crop';" class="object-cover w-full h-full group-hover:scale-105 transition-transform duration-500">
+                                    <img src="${item.img}" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1523275335684-37898b6baf30?q=80&w=800&auto=format&fit=crop';" class="object-cover w-full h-full group-hover:scale-105 transition-transform duration-500">
                                 </div>
-                                <div class="text-xs font-bold text-sky-500 mb-1">\${item.category}</div>
-                                <h3 class="text-lg font-bold text-gray-800 line-clamp-2 leading-tight h-12">\${item.title}</h3>
+                                <div class="text-xs font-bold text-sky-500 mb-1">${item.category}</div>
+                                <h3 class="text-lg font-bold text-gray-800 line-clamp-2 leading-tight h-12">${item.title}</h3>
                                 
                                 <div class="mt-auto pt-4">
-                                    <p class="text-xs text-gray-400 uppercase font-semibold tracking-wider">Cena prodejce</p>
-                                    <div class="text-2xl font-black text-sky-500 mb-1">\${item.price.toLocaleString('cs-CZ')} Kč</div>
-                                    <div class="text-xs text-gray-500 font-semibold mb-3">Konečná: <span class="text-gray-800">\${prices.total.toLocaleString('cs-CZ')} Kč</span></div>
+                                    <p class="text-xs text-gray-400 uppercase font-semibold tracking-wider">Aktuální cena</p>
+                                    <div class="text-2xl font-black text-sky-500 mb-4">${item.price.toLocaleString('cs-CZ')} Kč</div>
                                     <button class="w-full bg-sky-50 text-sky-600 font-bold py-3 rounded-xl transition-colors border border-sky-100">Otevřít aukci</button>
                                 </div>
                             </div>
-                            \`;
-                        }).join('')}
+                        `).join('')}
                     </div>
                 </div>
             `},
@@ -1323,33 +1259,21 @@
                     ${filteredData.length === 0 ? '<p class="text-gray-500 py-10 text-center">V této kategorii zatím není žádné zboží k okamžitému nákupu. Vložte první!</p>' : ''}
                     
                     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                        ${filteredData.map(item => {
-                            const prices = getPriceInfo(item.price);
-                            const isFav = window.getFavorites().includes(item.id);
-                            const favButton = window.currentUser ? \`
-                                <button onclick="event.stopPropagation(); window.toggleFavorite('\${item.id}')" class="absolute top-3 right-3 p-2.5 bg-white/90 backdrop-blur-sm rounded-full shadow-md hover:scale-110 transition-transform z-10 \${isFav ? 'text-red-500' : 'text-gray-400 hover:text-red-400'}">
-                                    <svg class="w-5 h-5" fill="\${isFav ? 'currentColor' : 'none'}" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path></svg>
-                                </button>
-                            \` : '';
-
-                            return \`
-                            <div onclick="navigate('pevna-cena-detail/\${item.id}')" class="bg-white rounded-2xl p-4 shadow-sm hover:shadow-lg border border-gray-100 flex flex-col group cursor-pointer transition-shadow">
-                                <div class="relative overflow-hidden rounded-xl mb-4 h-48 bg-gray-50">
-                                    \${favButton}
-                                    <img src="\${item.img}" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1523275335684-37898b6baf30?q=80&w=800&auto=format&fit=crop';" class="object-cover w-full h-full group-hover:scale-105 transition-transform duration-500">
+                        ${filteredData.map(item => `
+                            <div onclick="navigate('pevna-cena-detail/${item.id}')" class="bg-white rounded-2xl p-4 shadow-sm hover:shadow-lg border border-gray-100 flex flex-col group cursor-pointer transition-shadow">
+                                <div class="overflow-hidden rounded-xl mb-4 h-48 bg-gray-50">
+                                    <img src="${item.img}" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1523275335684-37898b6baf30?q=80&w=800&auto=format&fit=crop';" class="object-cover w-full h-full group-hover:scale-105 transition-transform duration-500">
                                 </div>
-                                <div class="text-xs font-bold text-pink-500 mb-1">\${item.category}</div>
-                                <h3 class="text-lg font-bold text-gray-800 line-clamp-2 leading-tight h-12">\${item.title}</h3>
+                                <div class="text-xs font-bold text-pink-500 mb-1">${item.category}</div>
+                                <h3 class="text-lg font-bold text-gray-800 line-clamp-2 leading-tight h-12">${item.title}</h3>
                                 
                                 <div class="mt-auto pt-4">
-                                    <p class="text-xs text-gray-400 uppercase font-semibold tracking-wider">Cena prodejce</p>
-                                    <div class="text-2xl font-black text-pink-500 mb-1">\${item.price.toLocaleString('cs-CZ')} Kč</div>
-                                    <div class="text-xs text-gray-500 font-semibold mb-3">Konečná: <span class="text-gray-800">\${prices.total.toLocaleString('cs-CZ')} Kč</span></div>
+                                    <p class="text-xs text-gray-400 uppercase font-semibold tracking-wider">Cena ihned</p>
+                                    <div class="text-2xl font-black text-pink-500 mb-4">${item.price.toLocaleString('cs-CZ')} Kč</div>
                                     <button class="w-full bg-pink-50 text-pink-600 font-bold py-3 rounded-xl border border-pink-100">Koupit</button>
                                 </div>
                             </div>
-                            \`;
-                        }).join('')}
+                        `).join('')}
                     </div>
                 </div>
             `},
