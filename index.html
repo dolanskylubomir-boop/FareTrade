@@ -660,28 +660,40 @@
             const emailEl = document.getElementById('profile-email');
             if(emailEl) emailEl.innerText = user.email;
 
-            // Transakce - Výpočty útrat a výdělků
-            let localTx = JSON.parse(localStorage.getItem('ft_local_transactions') || '[]');
-            let mergedTxMap = new Map();
-            dataTransakce.forEach(t => mergedTxMap.set(t.id, t));
-            localTx.forEach(t => mergedTxMap.set(t.id, t));
-            
-            let allMyTx = Array.from(mergedTxMap.values()).filter(t => t.seller_id === user.id || t.buyer_id === user.id);
-            let myCompletedSales = allMyTx.filter(t => t.seller_id === user.id && t.status === 'completed');
-            let myCompletedPurchases = allMyTx.filter(t => t.buyer_id === user.id && t.status === 'completed');
+            // Transakce — výpočty přímo z DB (jen completed)
+            if (supabaseClient) {
+                const { data: dbTxStats } = await supabaseClient
+                    .from('transactions')
+                    .select('price, seller_id, buyer_id, status')
+                    .eq('status', 'completed')
+                    .or(`buyer_id.eq.${user.id},seller_id.eq.${user.id}`);
 
-            let totalEarned = myCompletedSales.reduce((sum, t) => sum + t.price, 0);
-            let totalSpent = myCompletedPurchases.reduce((sum, t) => sum + t.price, 0);
-            let completedSalesCount = myCompletedSales.length;
+                const txStats = dbTxStats || [];
+                const completedSales     = txStats.filter(t => t.seller_id === user.id);
+                const completedPurchases = txStats.filter(t => t.buyer_id  === user.id);
+                const totalEarned  = completedSales.reduce((s, t) => s + t.price, 0);
+                const totalSpent   = completedPurchases.reduce((s, t) => s + t.price, 0);
+                const salesCount   = completedSales.length;
+                const purchaseCount = completedPurchases.length;
 
-            const earnedEl = document.getElementById('profile-earned');
-            if(earnedEl) earnedEl.innerHTML = `${totalEarned.toLocaleString('cs-CZ')} <span class="text-sm text-gray-400 font-bold">Kč</span>`;
+                const earnedEl = document.getElementById('profile-earned');
+                if (earnedEl) earnedEl.innerHTML = `${totalEarned.toLocaleString('cs-CZ')} <span class="text-sm text-gray-400 font-bold">Kč</span>`;
 
-            const spentEl = document.getElementById('profile-spent');
-            if(spentEl) spentEl.innerHTML = `${totalSpent.toLocaleString('cs-CZ')} <span class="text-sm text-gray-400 font-bold">Kč</span>`;
+                const spentEl = document.getElementById('profile-spent');
+                if (spentEl) spentEl.innerHTML = `${totalSpent.toLocaleString('cs-CZ')} <span class="text-sm text-gray-400 font-bold">Kč</span>`;
 
-            const salesCountEl = document.getElementById('profile-sales-count');
-            if(salesCountEl) salesCountEl.innerText = completedSalesCount;
+                const salesCountEl = document.getElementById('profile-sales-count');
+                if (salesCountEl) salesCountEl.innerText = salesCount;
+
+                const purchaseCountEl = document.getElementById('profile-purchase-count');
+                if (purchaseCountEl) purchaseCountEl.innerText = purchaseCount;
+
+                // Synchronizuj do profiles tabulky (total_earned + total_spent)
+                await supabaseClient.from('profiles').update({
+                    total_earned: totalEarned,
+                    total_spent:  totalSpent
+                }).eq('id', user.id);
+            }
 
             const { data, error } = await supabaseClient.from('profiles').select('*').eq('id', user.id).single();
 
@@ -1250,10 +1262,7 @@
                             </div>
                             <p id="profile-email" class="text-gray-500 mb-4">...</p>
                             
-                            <div class="flex items-center justify-center md:justify-start text-yellow-500 font-bold gap-1 bg-yellow-50 w-max px-4 py-2 rounded-xl border border-yellow-100 mx-auto md:mx-0">
-                                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path></svg>
-                                <span id="profile-rating">...</span> / 5
-                            </div>
+
                         </div>
                         
                         <div class="mt-4 md:mt-0">
@@ -1263,22 +1272,36 @@
                         </div>
                     </div>
 
-                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
-                        <div class="bg-white/90 backdrop-blur-xl p-6 rounded-[1.5rem] shadow-sm border border-gray-100 flex flex-col">
-                            <span class="text-gray-400 text-[10px] font-bold uppercase tracking-wider mb-2">Celkem vyděláno</span>
-                            <span id="profile-earned" class="text-2xl font-black text-gray-800">0 <span class="text-sm text-gray-400 font-bold">Kč</span></span>
-                        </div>
-                        <div class="bg-white/90 backdrop-blur-xl p-6 rounded-[1.5rem] shadow-sm border border-gray-100 flex flex-col">
-                            <span class="text-gray-400 text-[10px] font-bold uppercase tracking-wider mb-2">Celkem nakoupeno</span>
-                            <span id="profile-spent" class="text-2xl font-black text-pink-500">0 <span class="text-sm text-gray-400 font-bold">Kč</span></span>
-                        </div>
-                        <div class="bg-white/90 backdrop-blur-xl p-6 rounded-[1.5rem] shadow-sm border border-gray-100 flex flex-col">
+                    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
+                        <div class="bg-white/90 backdrop-blur-xl p-5 rounded-[1.5rem] shadow-sm border border-gray-100 flex flex-col sm:col-span-1">
                             <span class="text-gray-400 text-[10px] font-bold uppercase tracking-wider mb-2">Aktivní nabídky</span>
                             <span id="profile-active-ads-count" class="text-2xl font-black text-sky-500">0</span>
                         </div>
-                        <div class="bg-white/90 backdrop-blur-xl p-6 rounded-[1.5rem] shadow-sm border border-gray-100 flex flex-col">
-                            <span class="text-gray-400 text-[10px] font-bold uppercase tracking-wider mb-2">Hotové prodeje</span>
-                            <span id="profile-sales-count" class="text-2xl font-black text-green-500">0</span>
+                        <div class="bg-white/90 backdrop-blur-xl p-5 rounded-[1.5rem] shadow-sm border border-green-100 flex flex-col sm:col-span-1">
+                            <span class="text-green-500 text-[10px] font-bold uppercase tracking-wider mb-1">Hotových prodejů</span>
+                            <span id="profile-sales-count" class="text-2xl font-black text-green-600">0</span>
+                        </div>
+                        <div class="bg-white/90 backdrop-blur-xl p-5 rounded-[1.5rem] shadow-sm border border-pink-100 flex flex-col sm:col-span-1">
+                            <span class="text-pink-400 text-[10px] font-bold uppercase tracking-wider mb-1">Hotových nákupů</span>
+                            <span id="profile-purchase-count" class="text-2xl font-black text-pink-500">0</span>
+                        </div>
+                        <div class="bg-white/90 backdrop-blur-xl p-5 rounded-[1.5rem] shadow-sm border border-gray-100 flex flex-col sm:col-span-1 relative overflow-hidden">
+                            <div class="absolute top-0 left-0 w-1 h-full bg-gray-300"></div>
+                            <span class="text-gray-400 text-[10px] font-bold uppercase tracking-wider mb-1">Hodnocení</span>
+                            <div class="flex items-center gap-1">
+                                <svg class="w-4 h-4 text-yellow-400" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path></svg>
+                                <span id="profile-rating" class="text-2xl font-black text-gray-800">0.0</span>
+                            </div>
+                        </div>
+                        <div class="bg-white/90 backdrop-blur-xl p-5 rounded-[1.5rem] shadow-sm border border-green-100 flex flex-col col-span-2 sm:col-span-1 lg:col-span-1 relative overflow-hidden">
+                            <div class="absolute top-0 left-0 w-1 h-full bg-green-400"></div>
+                            <span class="text-green-500 text-[10px] font-bold uppercase tracking-wider mb-1">Celkem prodáno</span>
+                            <span id="profile-earned" class="text-2xl font-black text-green-700">0 <span class="text-sm text-gray-400 font-bold">Kč</span></span>
+                        </div>
+                        <div class="bg-white/90 backdrop-blur-xl p-5 rounded-[1.5rem] shadow-sm border border-pink-100 flex flex-col col-span-2 sm:col-span-1 lg:col-span-1 relative overflow-hidden">
+                            <div class="absolute top-0 left-0 w-1 h-full bg-pink-400"></div>
+                            <span class="text-pink-400 text-[10px] font-bold uppercase tracking-wider mb-1">Celkem nakoupeno</span>
+                            <span id="profile-spent" class="text-2xl font-black text-pink-600">0 <span class="text-sm text-gray-400 font-bold">Kč</span></span>
                         </div>
                     </div>
 
