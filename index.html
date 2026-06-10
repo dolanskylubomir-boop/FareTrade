@@ -273,8 +273,8 @@
         window.fetchDatabaseItems = async function() {
             if (!supabaseClient) return;
             try {
-                const { data: dbAukce, error: err1 } = await supabaseClient.from('aukce').select('*').eq('status', 'aktivní');
-                const { data: dbPevna, error: err2 } = await supabaseClient.from('pevna_cena').select('*').eq('status', 'aktivní');
+                const { data: dbAukce, error: err1 } = await supabaseClient.from('aukce').select('*').neq('status', 'zruseno');
+                const { data: dbPevna, error: err2 } = await supabaseClient.from('pevna_cena').select('*').neq('status', 'zruseno');
                 const { data: dbProfiles, error: err3 } = await supabaseClient.from('profiles').select('id, first_name, last_name, display_name, is_verified, rating');
                 const { data: dbBids, error: errBids } = await supabaseClient.from('bids').select('auction_id, bidder_id, amount');
                 const { data: dbTx, error: errTx } = await supabaseClient.from('transactions').select('*');
@@ -1131,25 +1131,16 @@
                         showToast("Chyba při vytváření objednávky: " + txError.message, "warning");
                         return;
                     }
-
-                    // Deaktivace inzerátu — zmizí ze všech výpisů okamžitě
-                    await supabaseClient
-                        .from('pevna_cena')
-                        .update({ status: 'prodáno' })
-                        .eq('id', item.id);
-
-                    // Aktualizuj lokální cache — odeber z dataPevnaCena
-                    dataPevnaCena = dataPevnaCena.filter(i => i.id !== item.id);
                 }
 
                 // Okamžitá lokální odezva pro kupujícího (realtime kanál se postará o ostatní profily)
                 handleRealtimeTransactionUpdate(newTx, 'INSERT');
-                showToast(\`Položka "\${item.title}" byla zakoupena!\`, 'success');
                 navigate('profil/transakce');
             }
         };
 
         // --- ZMĚNA STATUSU TRANSAKCE ---
+        // Vždy přes DB → Supabase Realtime kanál doručí změnu všem zúčastněným profilům automaticky
         window.updateTxStatus = async function(id, newStatus) {
             if (!supabaseClient) return;
             const { error } = await supabaseClient
@@ -1158,27 +1149,6 @@
                 .eq('id', id);
             if (error) {
                 showToast("Chyba aktualizace statusu: " + error.message, "warning");
-                return;
-            }
-
-            // Při dokončení (completed) → archivuj inzerát v DB
-            if (newStatus === 'completed') {
-                // Načteme transakci abychom znali item_id
-                const { data: txData } = await supabaseClient
-                    .from('transactions')
-                    .select('item_id')
-                    .eq('id', id)
-                    .single();
-
-                if (txData && txData.item_id) {
-                    await supabaseClient
-                        .from('pevna_cena')
-                        .update({ status: 'archivováno' })
-                        .eq('id', txData.item_id);
-                    // Odeber z lokální cache (byl už 'prodáno', teď 'archivováno' — v obou případech mimo výpis)
-                    dataPevnaCena = dataPevnaCena.filter(i => i.id !== txData.item_id);
-                }
-                showToast("Transakce dokončena a inzerát archivován.", "success");
             }
             // Realtime kanál 'realtime_transactions' zajistí refresh UI a push notifikaci pro oba účastníky
         };
@@ -2110,26 +2080,7 @@
                     });
                 }).subscribe();
 
-            // 3. Kanál pro pevna_cena — okamžité zmizení zakoupených/archivovaných položek u všech
-            supabaseClient.channel('realtime_pevna_cena')
-                .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'pevna_cena' }, (payload) => {
-                    const updated = payload.new;
-                    if (updated.status === 'prodáno' || updated.status === 'archivováno' || updated.status === 'zruseno') {
-                        // Odeber z lokální cache
-                        dataPevnaCena = dataPevnaCena.filter(i => i.id !== updated.id);
-                        // Pokud je výpis pevné ceny otevřen — tiše naviguj (překresli)
-                        if (window.location.hash.includes('pevna-cena') && !window.location.hash.includes('detail')) {
-                            navigate('pevna-cena');
-                        }
-                        // Pokud byl uživatel na detailu právě téhle položky — upozorni a přesměruj
-                        if (window.location.hash.includes('pevna-cena-detail/' + updated.id)) {
-                            showToast("Tato položka byla právě zakoupena jiným uživatelem.", "warning");
-                            setTimeout(() => navigate('pevna-cena'), 2000);
-                        }
-                    }
-                }).subscribe();
-
-            // 4. Kanál pro transakce — INSERT i UPDATE, pro všechny profily v reálném čase
+            // 3. Kanál pro transakce — INSERT i UPDATE, pro všechny profily v reálném čase
             supabaseClient.channel('realtime_transactions')
                 .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'transactions' }, (payload) => {
                     handleRealtimeTransactionUpdate(payload.new, 'INSERT');
