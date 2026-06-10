@@ -94,6 +94,9 @@
     <main id="app" class="flex-grow w-full max-w-6xl mx-auto p-6 md:p-8 flex flex-col justify-center relative">
     </main>
 
+    <!-- Plovoucí In-App Notifikace -->
+    <div id="toast-container" class="fixed top-20 md:bottom-10 md:top-auto right-4 z-50 flex flex-col gap-3 pointer-events-none"></div>
+
     <div id="modal-360" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
         <div class="bg-white rounded-3xl w-full max-w-3xl overflow-hidden shadow-2xl">
             <div class="p-4 flex justify-between items-center border-b border-gray-100">
@@ -1309,7 +1312,7 @@
                                 
                                 <div class="mt-auto pt-4">
                                     <p class="text-xs text-gray-400 uppercase font-semibold tracking-wider">Aktuální cena</p>
-                                    <div class="text-2xl font-black text-sky-500 mb-4">${item.price.toLocaleString('cs-CZ')} Kč</div>
+                                    <div class="text-2xl font-black text-sky-500 mb-4" id="list-price-${item.id}">${item.price.toLocaleString('cs-CZ')} Kč</div>
                                     <button class="w-full bg-sky-50 text-sky-600 font-bold py-3 rounded-xl transition-colors border border-sky-100">Otevřít aukci</button>
                                 </div>
                             </div>
@@ -1561,7 +1564,7 @@
                     <div class="text-xs font-bold text-${accentColor}-500 mb-1 uppercase">${isAukce ? 'Aukce' : 'Pevná cena'} · ${item.category}</div>
                     <h3 class="text-base font-bold text-gray-800 line-clamp-2 leading-tight flex-grow">${item.title}</h3>
                     <div class="mt-3 pt-3 border-t border-gray-50">
-                        <div class="text-2xl font-black text-${accentColor}-500">${item.price.toLocaleString('cs-CZ')} Kč</div>
+                        <div class="text-2xl font-black text-${accentColor}-500" id="list-price-${item.id}">${item.price.toLocaleString('cs-CZ')} Kč</div>
                     </div>
                 </div>`;
             };
@@ -1621,41 +1624,124 @@
             document.getElementById('bid-menu-' + id).classList.toggle('hidden');
         };
 
+        // --- TOAST NOTIFIKACE (PUSH) ---
+        window.showToast = function(message, type = 'info') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            
+            let bg = 'bg-gray-800 text-white';
+            let icon = `<svg class="w-5 h-5 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>`;
+            
+            if (type === 'success') {
+                bg = 'bg-white border-l-4 border-green-500 text-gray-800 shadow-xl';
+                icon = `<svg class="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>`;
+            } else if (type === 'warning') {
+                bg = 'bg-white border-l-4 border-yellow-500 text-gray-800 shadow-xl';
+                icon = `<svg class="w-5 h-5 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>`;
+            }
+
+            toast.className = `flex items-center gap-3 px-4 py-4 rounded-xl shadow-lg transform transition-all duration-300 translate-x-full ${bg} pointer-events-auto`;
+            toast.innerHTML = `${icon} <span class="font-bold text-sm">${message}</span>`;
+            
+            container.appendChild(toast);
+            
+            setTimeout(() => toast.classList.remove('translate-x-full'), 10);
+            
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-x-full');
+                setTimeout(() => toast.remove(), 300);
+            }, 5000);
+        };
+
+        // --- ZPRACOVÁNÍ REALTIME DAT ---
+        window.handleRealtimeAuctionUpdate = function(newAuctionData) {
+            const id = newAuctionData.id || newAuctionData.auction_id;
+            const index = dataAukce.findIndex(a => a.id === id);
+            if (index === -1) return;
+
+            const auction = dataAukce[index];
+            const oldPrice = auction.price;
+            const newPrice = newAuctionData.current_price || newAuctionData.amount || newAuctionData.starting_price;
+            const newBidder = newAuctionData.last_bidder_id || newAuctionData.bidder_id;
+
+            if (newPrice > oldPrice) {
+                auction.price = newPrice;
+                auction.last_bidder_id = newBidder;
+
+                // Vyhodnocení notifikací pro aktuálního uživatele
+                if (window.currentUser && newBidder !== window.currentUser.id) {
+                    if (auction.seller_id === window.currentUser.id) {
+                        showToast(`Nový příhoz ${newPrice.toLocaleString('cs-CZ')} Kč na vaši aukci "${auction.title}"!`, 'success');
+                    } else if (JSON.parse(localStorage.getItem('ft_local_bids') || '{}')[id]) {
+                        showToast(`Byli jste překonáni v aukci "${auction.title}"! Nová cena: ${newPrice.toLocaleString('cs-CZ')} Kč.`, 'warning');
+                    }
+                }
+
+                // Bezdotyková aktualizace cen v UI (na Detailu i v Dlaždicích)
+                const priceEl = document.getElementById('price-' + id);
+                const totalEl = document.getElementById('total-' + id);
+                const listPriceEl = document.getElementById('list-price-' + id);
+                
+                if (priceEl) {
+                    priceEl.setAttribute('data-price', newPrice);
+                    priceEl.innerText = newPrice.toLocaleString('cs-CZ') + ' Kč';
+                    priceEl.classList.add('text-green-500', 'scale-105', 'transition-transform');
+                    setTimeout(() => priceEl.classList.remove('text-green-500', 'scale-105'), 500);
+                }
+                if (totalEl) totalEl.innerText = getPriceInfo(newPrice).total.toLocaleString('cs-CZ') + ' Kč';
+                
+                if (listPriceEl) {
+                    listPriceEl.innerText = newPrice.toLocaleString('cs-CZ') + ' Kč';
+                    listPriceEl.classList.add('text-green-500', 'scale-105', 'transition-transform');
+                    setTimeout(() => listPriceEl.classList.remove('text-green-500', 'scale-105'), 500);
+                }
+
+                // Tichý refresh profilu (pokud ho má zrovna otevřený někdo jiný) pro načtení jména zájemce
+                if (window.location.hash.includes('profil')) {
+                    loadProfileData('inzeraty');
+                } else if (window.location.hash.includes('aukce-detail/' + id)) {
+                    // Počkáme na odeznění animace a tiše překreslíme detaily kvůli tlačítkům a bannerům
+                    setTimeout(() => navigate('aukce-detail', id), 2000);
+                }
+            }
+        };
+
+        // --- ZAPNUTÍ WEBSOCKET CHANNELŮ ---
+        window.setupRealtime = function() {
+            if (!supabaseClient) return;
+
+            // 1. Kanál pro změny přímo v tabulce aukce (pokud máte zapnutý trigger)
+            supabaseClient.channel('realtime_aukce')
+                .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'aukce' }, (payload) => {
+                    handleRealtimeAuctionUpdate(payload.new);
+                }).subscribe();
+
+            // 2. Kanál pro zápisy v tabulce bids (Zajistí okamžité Push notifikace z celé DB)
+            supabaseClient.channel('realtime_bids')
+                .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'bids' }, (payload) => {
+                    handleRealtimeAuctionUpdate({
+                        id: payload.new.auction_id,
+                        current_price: payload.new.amount,
+                        last_bidder_id: payload.new.bidder_id
+                    });
+                }).subscribe();
+        };
+
         // --- OPRAVA PŘÍHOZU ---
         window.placeBid = async function(id, amount) {
             if (!window.currentUser) {
-                alert("Pro uskutečnění příhozu musíte být přihlášeni.");
+                showToast("Pro uskutečnění příhozu musíte být přihlášeni.", "warning");
                 navigate('login');
                 return;
             }
 
             const pEl = document.getElementById('price-' + id);
-            const tEl = document.getElementById('total-' + id);
             
             let currentPrice = parseInt(pEl.getAttribute('data-price'));
             let val = currentPrice + amount;
             
-            // Okamžitá vizuální změna
-            pEl.setAttribute('data-price', val);
-            pEl.innerText = val.toLocaleString('cs-CZ') + ' Kč';
-            tEl.innerText = getPriceInfo(val).total.toLocaleString('cs-CZ') + ' Kč';
-            
-            // Úprava lokální paměti, aby cena nezmizela po překreslení profilu či detailu
-            const auctionIndex = dataAukce.findIndex(a => a.id == id);
-            if (auctionIndex !== -1) {
-                dataAukce[auctionIndex].price = val;
-                dataAukce[auctionIndex].last_bidder_id = window.currentUser.id; // Přidělení identifikátoru
-                dataAukce[auctionIndex].last_bidder_name = 'Vy (právě teď)';
-            }
-
-            // ULOŽIT DO LOCAL CACHE (Bypassujeme tím Supabase RLS blokaci při refreshování ze serveru)
-            let localBids = JSON.parse(localStorage.getItem('ft_local_bids') || '{}');
-            localBids[id] = { price: val, last_bidder_id: window.currentUser.id };
-            localStorage.setItem('ft_local_bids', JSON.stringify(localBids));
-            
-            // Komunikace s DB
+            // 1. BEZPEČNÝ ZÁPIS DO DATABÁZE - Musí projít předtím, než změníme UI
             if (supabaseClient) {
-                // 1. Zápis do nové tabulky bids (Toto by mělo projít RLS bez problémů)
                 const { error: bidError } = await supabaseClient.from('bids').insert([{
                     auction_id: id,
                     bidder_id: window.currentUser.id,
@@ -1663,23 +1749,32 @@
                 }]);
 
                 if (bidError) {
-                    console.error("Chyba při ukládání do tabulky bids:", bidError.message);
+                    console.error("Chyba při ukládání do tabulky bids:", bidError);
+                    showToast("Chyba DB: Příhoz se nepodařilo uložit! " + bidError.message, "warning");
+                    return; // Zastavíme provádění, pokud DB odmítne zápis!
                 }
 
-                // 2. Pokus o přímý zápis do aukce (Pravděpodobně selže na RLS, proto ho dáváme jako volitelný)
-                const { error: updateError } = await supabaseClient.from('aukce').update({ 
+                // Zkusit update aukce, nezastavujeme na chybě kvůli bezpečnosti DB (řeší se případně přes Bids kanál)
+                supabaseClient.from('aukce').update({ 
                     current_price: val,
                     last_bidder_id: window.currentUser.id 
-                }).eq('id', id);
-                
-                if (updateError) {
-                    console.warn("Supabase RLS zablokovalo update aukce. Zápis je řešen přes tabulku bids a lokální cache.", updateError.message);
-                } 
+                }).eq('id', id).then();
             }
             
-            // Skryje menu a zaktualizuje UI i při selhání databáze!
+            // 2. LOKÁLNÍ CACHE PRO ZABEZPEČENÍ OCHRANY RLS
+            let localBids = JSON.parse(localStorage.getItem('ft_local_bids') || '{}');
+            localBids[id] = { price: val, last_bidder_id: window.currentUser.id };
+            localStorage.setItem('ft_local_bids', JSON.stringify(localBids));
+            
+            showToast("Váš příhoz " + val.toLocaleString('cs-CZ') + " Kč byl úspěšně přijat!", "success");
             toggleBidMenu(id);
-            navigate('aukce-detail', id);
+            
+            // 3. OKAMŽITÁ ZMĚNA (Simulovaný průchod Realtime fce pro náš vlastní displej)
+            handleRealtimeAuctionUpdate({
+                id: id,
+                current_price: val,
+                last_bidder_id: window.currentUser.id
+            });
         };
 
         // --- INTERAKTIVNÍ 360° PROHLÍŽEČ ---
@@ -1726,6 +1821,7 @@
 
         document.addEventListener('DOMContentLoaded', async () => {
             await fetchDatabaseItems();
+            setupRealtime();
             const hash = window.location.hash.replace('#', '');
             if (hash) navigate(hash);
             else navigate('home');
