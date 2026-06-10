@@ -1181,80 +1181,31 @@
 
         window.updateTxStatus = async function(id, newStatus) {
             if (!supabaseClient) return;
-
-            // Načteme transakci pro item_id před samotným update
-            const { data: txData, error: txFetchErr } = await supabaseClient
-                .from('transactions')
-                .select('item_id, item_title')
-                .eq('id', id)
-                .single();
-
-            if (txFetchErr || !txData) {
-                showToast("Nepodařilo se načíst transakci.", "warning");
-                return;
-            }
-
             const { error } = await supabaseClient
                 .from('transactions')
                 .update({ status: newStatus })
                 .eq('id', id);
-
             if (error) {
                 showToast("Chyba aktualizace statusu: " + error.message, "warning");
                 return;
             }
 
-            const itemId = txData.item_id;
-            const itemTitle = txData.item_title || 'Inzerát';
-
             if (newStatus === 'completed') {
-                // Stav HOTOVO → archivuj inzerát (trvale skrytý)
-                if (itemId) {
+                const { data: txData } = await supabaseClient
+                    .from('transactions')
+                    .select('item_id')
+                    .eq('id', id)
+                    .single();
+
+                if (txData && txData.item_id) {
                     await supabaseClient
                         .from('pevna_cena')
                         .update({ status: 'archivováno' })
-                        .eq('id', itemId);
-                    dataPevnaCena = dataPevnaCena.filter(i => i.id !== itemId);
+                        .eq('id', txData.item_id);
+                    dataPevnaCena = dataPevnaCena.filter(i => i.id !== txData.item_id);
                 }
-                showToast(`Transakce dokončena — inzerát "${itemTitle}" archivován.`, "success");
-
-            } else if (newStatus === 'returned') {
-                // Stav ZRUŠENO → reaktivuj inzerát + prodluž platnost o 1 den
-                if (itemId) {
-                    // Načteme aktuální expires_at
-                    const { data: adData } = await supabaseClient
-                        .from('pevna_cena')
-                        .select('expires_at')
-                        .eq('id', itemId)
-                        .single();
-
-                    const base = adData && adData.expires_at ? new Date(adData.expires_at) : new Date();
-                    // Pokud expires_at je v minulosti, počítáme od teď
-                    const fromDate = base < new Date() ? new Date() : base;
-                    fromDate.setDate(fromDate.getDate() + 1);
-
-                    await supabaseClient
-                        .from('pevna_cena')
-                        .update({
-                            status: 'aktivní',
-                            expires_at: fromDate.toISOString()
-                        })
-                        .eq('id', itemId);
-
-                    // Přidej zpět do lokální cache (fetch čerstvých dat)
-                    const { data: refreshed } = await supabaseClient
-                        .from('pevna_cena')
-                        .select('*')
-                        .eq('id', itemId)
-                        .single();
-                    if (refreshed) {
-                        dataPevnaCena = dataPevnaCena.filter(i => i.id !== itemId);
-                        dataPevnaCena.push(refreshed);
-                    }
-                }
-                showToast(`Transakce zrušena — inzerát "${itemTitle}" reaktivován s prodlouženou platností.`, "warning");
+                showToast("Transakce dokončena a inzerát archivován.", "success");
             }
-            // Realtime kanál 'realtime_transactions' zajistí refresh UI a push notifikaci pro oba účastníky
         };
 
         // --- ŠABLONY STRÁNEK ---
@@ -1707,10 +1658,11 @@
                 // Dynamické určení cíle a textu pro tlačítko zpět
                 const backTarget = isOwner ? 'profil' : 'aukce';
                 const backText = isOwner ? 'Zpět na profil' : 'Zpět na seznam';
+                const backNav  = isOwner ? 'profil' : 'aukce';
                 
                 return `
                 <div class="w-full bg-white/90 backdrop-blur-xl p-6 md:p-10 rounded-[2rem] shadow-xl fade-in min-h-[500px] border border-white/50 relative">
-                    <button onclick="navigate('aukce')" class="mb-8 text-sky-500 font-bold hover:text-sky-600 transition-colors flex items-center gap-2 text-lg">← Zpět na seznam</button>
+                    <button onclick="navigate('${backNav}')" class="mb-8 text-sky-500 font-bold hover:text-sky-600 transition-colors flex items-center gap-2 text-lg">← ${backText}</button>
                     
                         <div>
                             <div class="bg-white rounded-3xl p-4 md:p-6 flex flex-col items-center justify-center border border-gray-100 relative shadow-inner overflow-hidden group">
@@ -1866,10 +1818,11 @@
                 // Dynamické určení cíle a textu pro tlačítko zpět
                 const backTarget = isOwner ? 'profil' : 'pevna-cena';
                 const backText = isOwner ? 'Zpět na profil' : 'Zpět na katalog';
+                const backNav  = isOwner ? 'profil' : 'pevna-cena';
 
                 return `
                 <div class="w-full bg-white/90 backdrop-blur-xl p-6 md:p-10 rounded-[2rem] shadow-xl fade-in min-h-[500px] border border-white/50">
-                    <button onclick="navigate('pevna-cena')" class="mb-8 text-pink-500 font-bold hover:text-pink-600 transition-colors flex items-center gap-2 text-lg">← Zpět na katalog</button>
+                    <button onclick="navigate('${backNav}')" class="mb-8 text-pink-500 font-bold hover:text-pink-600 transition-colors flex items-center gap-2 text-lg">← ${backText}</button>
                     
                         <div>
                             <div class="bg-white rounded-3xl p-4 md:p-6 flex flex-col items-center justify-center border border-gray-100 relative shadow-inner group overflow-hidden">
