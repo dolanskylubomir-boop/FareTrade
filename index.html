@@ -806,7 +806,20 @@
                 const myAds = [...myAukce, ...myPevna];
 
                 // Položky, ve kterých uživatel přihazuje (kde drží poslední příhoz)
-                const myBids = dataAukce.filter(i => i.last_bidder_id === window.currentUser.id && i.seller_id !== window.currentUser.id);
+                // Použij tabulku bids z DB:
+                const { data: myBidsFromDB } = await supabaseClient
+                    .from('bids')
+                    .select('auction_id')
+                    .eq('bidder_id', window.currentUser.id);
+
+                const myBidAuctionIds = new Set(myBidsFromDB?.map(b => b.auction_id));
+
+                const myBids = dataAukce.filter(i =>
+                    myBidAuctionIds.has(i.id) &&
+                    i.seller_id !== window.currentUser.id
+                );
+                const isLeading = i.last_bidder_id === window.currentUser.id;
+                // Zobrazit badge "Vedete" nebo "Byli jste překonáni!"
 
                 const getDaysRemaining = (dateString) => {
                     if (!dateString) return 'Vyprší brzy';
