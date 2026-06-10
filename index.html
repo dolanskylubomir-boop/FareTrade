@@ -142,33 +142,33 @@
             return { fee: fee, total: price + fee + ESCROW_FEE };
         };
 
-        // --- NAČÍTÁNÍ Z DATABÁZE S PODPOROU DISPLAY_NAME ---
+        // --- NAČÍTÁNÍ Z DATABÁZE ---
         window.fetchDatabaseItems = async function() {
             if (!supabaseClient) return;
             try {
-                // Přidáno display_name do výběru
-                const { data: dbAukce, error: err1 } = await supabaseClient.from('aukce').select('*, profiles(display_name, first_name, last_name, is_verified, rating)');
-                const { data: dbPevna, error: err2 } = await supabaseClient.from('pevna_cena').select('*, profiles(display_name, first_name, last_name, is_verified, rating)');
+                // OPRAVA: Místo vyjmenovávání sloupců použijeme profiles(*). 
+                // Tím obejdeme chybu Supabase cache, která inzeráty blokovala.
+                const { data: dbAukce, error: err1 } = await supabaseClient.from('aukce').select('*, profiles(*)');
+                const { data: dbPevna, error: err2 } = await supabaseClient.from('pevna_cena').select('*, profiles(*)');
                 
-                if (err1) console.error("Chyba načítání Aukce:", err1.message);
-                if (err2) console.error("Chyba načítání Pevná cena:", err2.message);
+                // Přidáno hlasité upozornění, pokud by Supabase něco blokoval
+                if (err1) alert("Chyba při stahování Aukcí ze Supabase: " + err1.message);
+                if (err2) alert("Chyba při stahování Pevné ceny ze Supabase: " + err2.message);
 
                 const safeImage = (item) => {
                     if (item.images && item.images.length > 0 && item.images[0]) return item.images[0];
                     return 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?q=80&w=600&auto=format&fit=crop';
                 };
 
-                // Nová logika pro získání jména
                 const getSellerName = (prof) => {
                     if (!prof) return 'Neznámý prodejce';
-                    // 1. Zkusíme Zobrazované jméno
+                    // Použije display_name (pokud už ho databáze zná), jinak složí jméno
                     if (prof.display_name && prof.display_name.trim() !== '') return prof.display_name;
-                    // 2. Pokud není, složíme skutečné jméno
                     const name = `${prof.first_name || ''} ${prof.last_name || ''}`.trim();
                     return name || 'Uživatel tržiště';
                 };
 
-                if (dbAukce) {
+                if (dbAukce && !err1) {
                     dataAukce = dbAukce.map(item => ({
                         id: item.id,
                         seller_id: item.seller_id,
@@ -182,11 +182,11 @@
                         verified: item.profiles ? item.profiles.is_verified : false,
                         rating: item.profiles ? item.profiles.rating : 0,
                         description: item.description,
-                        endTime: item.end_time // Přidáno pro odpočet
+                        endTime: item.end_time 
                     }));
                 }
 
-                if (dbPevna) {
+                if (dbPevna && !err2) {
                     dataPevnaCena = dbPevna.map(item => ({
                         id: item.id,
                         seller_id: item.seller_id,
@@ -200,11 +200,12 @@
                         verified: item.profiles ? item.profiles.is_verified : false,
                         rating: item.profiles ? item.profiles.rating : 0,
                         description: item.description,
-                        endTime: item.expires_at // Přidáno pro odpočet
+                        endTime: item.expires_at 
                     }));
                 }
             } catch(e) {
                 console.error("Kritická chyba načítání reálných dat:", e);
+                alert("Nepodařilo se spojit s databází inzerátů.");
             }
         };
 
@@ -289,7 +290,7 @@
             }
 
             const profileData = {
-                display_name: document.getElementById('kyc-dname').value, // Nové políčko uloženo
+                display_name: document.getElementById('kyc-dname').value, 
                 first_name: document.getElementById('kyc-fname').value,
                 last_name: document.getElementById('kyc-lname').value,
                 birth_date: document.getElementById('kyc-date').value,
@@ -313,15 +314,15 @@
         // --- DASHBOARD A SPRÁVA PROFILU ---
         window.loadProfileData = async function(activeTab = 'inzeraty') {
             if (!supabaseClient) return;
+            
+            // Stáhneme data inzerátů aby byly aktuální dlaždice
+            await fetchDatabaseItems();
+            
             const { data: { user }, error: authErr } = await supabaseClient.auth.getUser();
             if (authErr || !user) { navigate('login'); return; }
             
             window.currentUser = user; 
 
-            // Stáhneme data inzerátů aby byly aktuální dlaždice
-            await fetchDatabaseItems();
-
-            // Oprava horní dlaždice inzerátů z profilu (zobrazí se číslo)
             const myAukceCount = dataAukce.filter(i => i.seller_id === user.id).length;
             const myPevnaCount = dataPevnaCena.filter(i => i.seller_id === user.id).length;
             const activeCountEl = document.getElementById('profile-active-ads-count');
@@ -340,12 +341,11 @@
             const { data, error } = await supabaseClient.from('profiles').select('*').eq('id', user.id).single();
 
             if (data && !error) {
-                // Poskládání jména a určení, co je hlavní vizitka
                 const fullName = (data.first_name || '') + ' ' + (data.last_name || '');
                 const displayName = data.display_name || fullName.trim() || 'Nepojmenovaný uživatel';
                 
                 const nameEl = document.getElementById('profile-name');
-                if(nameEl) nameEl.innerText = displayName; // Zobrazí se nová přezdívka nebo firma
+                if(nameEl) nameEl.innerText = displayName; 
                 
                 const initials = (data.display_name ? data.display_name[0] : (data.first_name ? data.first_name[0] : ''));
                 const initEl = document.getElementById('profile-initials');
@@ -360,7 +360,6 @@
                 }
 
                 if (activeTab === 'kyc') {
-                    // Propíšeme údaje do KYC záložky v profilu
                     const kycDisplay = document.getElementById('kyc-display-dname');
                     const kycName = document.getElementById('kyc-display-name');
                     const kycDate = document.getElementById('kyc-display-date');
@@ -456,7 +455,6 @@
                 const myPevna = dataPevnaCena.filter(i => i.seller_id === window.currentUser.id);
                 const myAds = [...myAukce, ...myPevna];
 
-                // Výpočet odpočtu pro profil inzerátů
                 const getDaysRemaining = (dateString) => {
                     if (!dateString) return 'Vyprší brzy';
                     const diff = new Date(dateString).getTime() - new Date().getTime();
@@ -658,7 +656,6 @@
 
             profil: (activeTab = 'inzeraty') => {
                 if (typeof activeTab !== 'string' || !activeTab) activeTab = 'inzeraty';
-                
                 setTimeout(() => { loadProfileData(activeTab); }, 0);
                 
                 const getTabStyle = (tabName) => tabName === activeTab 
@@ -944,7 +941,7 @@
                             <h2 class="text-3xl md:text-5xl font-extrabold mb-4 text-pastel-text">${item.title}</h2>
                             
                             <div class="flex items-center gap-4 bg-gray-50 p-4 rounded-2xl mb-6">
-                                <div class="w-12 h-12 rounded-full bg-sky-200 flex items-center justify-center text-sky-700 font-bold text-lg">${item.seller.charAt(0)}</div>
+                                <div class="w-12 h-12 rounded-full bg-sky-200 flex items-center justify-center text-sky-700 font-bold text-lg">${item.seller.charAt(0).toUpperCase()}</div>
                                 <div>
                                     <p class="font-bold text-gray-800 flex items-center gap-1">
                                         ${item.seller}
@@ -1042,7 +1039,7 @@
                             <h2 class="text-3xl md:text-5xl font-extrabold mb-4 text-pastel-text">${item.title}</h2>
                             
                             <div class="flex items-center gap-4 bg-gray-50 p-4 rounded-2xl mb-6">
-                                <div class="w-12 h-12 rounded-full bg-pink-200 flex items-center justify-center text-pink-700 font-bold text-lg">${item.seller.charAt(0)}</div>
+                                <div class="w-12 h-12 rounded-full bg-pink-200 flex items-center justify-center text-pink-700 font-bold text-lg">${item.seller.charAt(0).toUpperCase()}</div>
                                 <div>
                                     <p class="font-bold text-gray-800 flex items-center gap-1">
                                         ${item.seller}
