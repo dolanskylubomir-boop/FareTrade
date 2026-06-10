@@ -784,17 +784,27 @@
             }
             
             if (tab === 'transakce') {
-                let localTx = JSON.parse(localStorage.getItem('ft_local_transactions') || '[]');
-                let mergedTxMap = new Map();
-                dataTransakce.forEach(t => mergedTxMap.set(t.id, t));
-                localTx.forEach(t => mergedTxMap.set(t.id, t));
-                let allTx = Array.from(mergedTxMap.values());
+                // Transakce se načítají asynchronně přes loadTransakceTab() níže
+                // Tato funkce vrátí pouze skeleton s ID kontejneru; data doplní async loader
+                setTimeout(() => loadTransakceTab(), 0);
+                return `
+                    <div class="flex items-center justify-between mb-6 fade-in">
+                        <h3 class="text-xl font-bold text-gray-800">Historie transakcí</h3>
+                        <span class="text-xs text-gray-400 font-semibold flex items-center gap-1">
+                            <span class="inline-block w-2 h-2 rounded-full bg-green-400 animate-pulse"></span> Živé
+                        </span>
+                    </div>
+                    <div id="transakce-content" class="text-gray-400 text-center py-10">⏳ Načítám transakce ze serveru...</div>
+                `;
+            }
 
+            // Placeholder pro kompilaci — skutečný render provede loadTransakceTab
+            if (tab === '_transakce_render') {
+                const allTx = window._txData || [];
                 const mySales = allTx.filter(tx => tx.seller_id === window.currentUser.id).sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
                 const myPurchases = allTx.filter(tx => tx.buyer_id === window.currentUser.id).sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
 
-                let html = `<div class="flex items-center justify-between mb-6 fade-in"><h3 class="text-xl font-bold text-gray-800">Historie transakcí</h3></div>`;
-                
+                let html = '';
                 if (mySales.length === 0 && myPurchases.length === 0) {
                     html += `<p class="text-gray-500 text-center py-8 fade-in">Zatím jste neuskutečnili žádné nákupy ani prodeje.</p>`;
                     return html;
@@ -846,6 +856,8 @@
 
                 return html;
             }
+
+            if (tab === 'transakce_UNUSED_SENTINEL') { return ''; }
             
             if (tab === 'oblibene') {
                 const favs = getFavorites();
@@ -1033,38 +1045,33 @@
                     created_at: new Date().toISOString()
                 };
 
-                // Lokální uložení (funguje okamžitě)
-                let localTx = JSON.parse(localStorage.getItem('ft_local_transactions') || '[]');
-                localTx.push(newTx);
-                localStorage.setItem('ft_local_transactions', JSON.stringify(localTx));
-
-                // Pokus o uložení do DB
+                // Uložení do DB — hlavní zdroj pravdy; realtime kanál doručí notifikaci i prodejci
                 if (supabaseClient) {
-                    supabaseClient.from('transactions').insert([newTx]).then();
-                    // Zde by mohlo následovat skrytí/smazání inzerátu
-                    // supabaseClient.from('pevna_cena').update({status: 'zruseno'}).eq('id', item.id).then();
+                    const { error: txError } = await supabaseClient.from('transactions').insert([newTx]);
+                    if (txError) {
+                        showToast("Chyba při vytváření objednávky: " + txError.message, "warning");
+                        return;
+                    }
                 }
 
-                showToast("Položka byla úspěšně zakoupena!", "success");
+                // Okamžitá lokální odezva pro kupujícího (realtime kanál se postará o ostatní profily)
+                handleRealtimeTransactionUpdate(newTx, 'INSERT');
                 navigate('profil/transakce');
             }
         };
 
-        // --- TESTOVACÍ ZMĚNA STATUSU (Pro Demo Nástroje) ---
-        window.updateTxStatus = function(id, newStatus) {
-            let localTx = JSON.parse(localStorage.getItem('ft_local_transactions') || '[]');
-            let tx = localTx.find(t => t.id === id);
-            if (tx) {
-                tx.status = newStatus;
-                localStorage.setItem('ft_local_transactions', JSON.stringify(localTx));
-                loadProfileData('transakce');
-            } else {
-                if (supabaseClient) {
-                    supabaseClient.from('transactions').update({status: newStatus}).eq('id', id).then(() => {
-                        fetchDatabaseItems().then(() => loadProfileData('transakce'));
-                    });
-                }
+        // --- ZMĚNA STATUSU TRANSAKCE ---
+        // Vždy přes DB → Supabase Realtime kanál doručí změnu všem zúčastněným profilům automaticky
+        window.updateTxStatus = async function(id, newStatus) {
+            if (!supabaseClient) return;
+            const { error } = await supabaseClient
+                .from('transactions')
+                .update({ status: newStatus })
+                .eq('id', id);
+            if (error) {
+                showToast("Chyba aktualizace statusu: " + error.message, "warning");
             }
+            // Realtime kanál 'realtime_transactions' zajistí refresh UI a push notifikaci pro oba účastníky
         };
 
         // --- ŠABLONY STRÁNEK ---
@@ -1757,6 +1764,32 @@
             </div>`;
         };
 
+        // --- ASYNC LOADER PRO ZÁLOŽKU TRANSAKCÍ ---
+        window.loadTransakceTab = async function() {
+            if (!supabaseClient || !window.currentUser) return;
+            const container = document.getElementById('transakce-content');
+            if (!container) return;
+
+            const { data: dbTx, error } = await supabaseClient
+                .from('transactions')
+                .select('*')
+                .or(`buyer_id.eq.${window.currentUser.id},seller_id.eq.${window.currentUser.id}`)
+                .order('created_at', { ascending: false });
+
+            if (error) {
+                if (container) container.innerHTML = `<p class="text-red-500 text-center py-8">Chyba načítání transakcí: ${error.message}</p>`;
+                return;
+            }
+
+            // Uložíme do okna pro případný re-render z handleRealtimeTransactionUpdate
+            window._txData = dbTx || [];
+
+            const html = renderProfileTabContent('_transakce_render');
+            if (container) {
+                container.innerHTML = html || '<p class="text-gray-500 text-center py-8 fade-in">Zatím jste neuskutečnili žádné nákupy ani prodeje.</p>';
+            }
+        };
+
         // --- NAVIGACE A ROUTING (SPA) ---
         function navigate(path, param = null) {
             let viewName = path;
@@ -1868,17 +1901,86 @@
             }
         };
 
+        // --- BROWSER PUSH NOTIFIKACE ---
+        window.requestPushPermission = async function() {
+            if (!('Notification' in window)) return;
+            if (Notification.permission === 'default') {
+                await Notification.requestPermission();
+            }
+        };
+
+        window.sendBrowserNotification = function(title, body, icon = null) {
+            if (!('Notification' in window) || Notification.permission !== 'granted') return;
+            new Notification(title, {
+                body: body,
+                icon: icon || 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?q=80&w=64&auto=format&fit=crop',
+                badge: icon || undefined,
+                tag: 'fairtrade-' + Date.now()
+            });
+        };
+
+        // --- REALTIME HANDLER PRO TRANSAKCE ---
+        window.handleRealtimeTransactionUpdate = function(tx, eventType) {
+            if (!window.currentUser) return;
+
+            const isBuyer  = tx.buyer_id  === window.currentUser.id;
+            const isSeller = tx.seller_id === window.currentUser.id;
+            if (!isBuyer && !isSeller) return;
+
+            // Aktualizuj lokální cache (přepíše nebo přidá záznam)
+            let localTx = JSON.parse(localStorage.getItem('ft_local_transactions') || '[]');
+            const idx = localTx.findIndex(t => t.id === tx.id);
+            if (idx >= 0) {
+                localTx[idx] = { ...localTx[idx], ...tx };
+            } else {
+                localTx.push(tx);
+            }
+            localStorage.setItem('ft_local_transactions', JSON.stringify(localTx));
+
+            // Sestav notifikační zprávu
+            const statusLabels = {
+                created:   isSeller ? `📦 Nová objednávka: "${tx.item_title}"` : `✅ Objednávka vytvořena: "${tx.item_title}"`,
+                paid:      isSeller ? `💰 Platba přijata za "${tx.item_title}"` : `✅ Platba potvrzena pro "${tx.item_title}"`,
+                returned:  `↩️ Vrácení zboží: "${tx.item_title}"`,
+                completed: isSeller ? `🎉 Prodej dokončen: "${tx.item_title}"` : `🎉 Nákup dokončen: "${tx.item_title}"`
+            };
+
+            const toastType = tx.status === 'returned' ? 'warning' : 'success';
+            const msg = statusLabels[tx.status] || `Transakce aktualizována: "${tx.item_title}"`;
+
+            showToast(msg, toastType);
+            sendBrowserNotification('FairTrade', msg, tx.item_image || null);
+
+            // Tichý refresh záložky transakce přes DB (pokud je zrovna otevřena)
+            const txContainer = document.getElementById('transakce-content');
+            if (txContainer) {
+                // Záložka transakce je otevřena — live refresh přes DB
+                if (window._txData) {
+                    const idx = window._txData.findIndex(t => t.id === tx.id);
+                    if (idx >= 0) window._txData[idx] = { ...window._txData[idx], ...tx };
+                    else window._txData.unshift(tx);
+                    const html = renderProfileTabContent('_transakce_render');
+                    txContainer.innerHTML = html || '<p class="text-gray-500 text-center py-8 fade-in">Zatím jste neuskutečnili žádné nákupy ani prodeje.</p>';
+                } else {
+                    loadTransakceTab();
+                }
+            }
+        };
+
         // --- ZAPNUTÍ WEBSOCKET CHANNELŮ ---
         window.setupRealtime = function() {
             if (!supabaseClient) return;
 
-            // 1. Kanál pro změny přímo v tabulce aukce (pokud máte zapnutý trigger)
+            // Požádat o povolení browser notifikací při spuštění realtime
+            requestPushPermission();
+
+            // 1. Kanál pro změny přímo v tabulce aukce
             supabaseClient.channel('realtime_aukce')
                 .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'aukce' }, (payload) => {
                     handleRealtimeAuctionUpdate(payload.new);
                 }).subscribe();
 
-            // 2. Kanál pro zápisy v tabulce bids (Zajistí okamžité Push notifikace z celé DB)
+            // 2. Kanál pro nové příhozy v tabulce bids
             supabaseClient.channel('realtime_bids')
                 .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'bids' }, (payload) => {
                     handleRealtimeAuctionUpdate({
@@ -1887,6 +1989,16 @@
                         last_bidder_id: payload.new.bidder_id
                     });
                 }).subscribe();
+
+            // 3. Kanál pro transakce — INSERT i UPDATE, pro všechny profily v reálném čase
+            supabaseClient.channel('realtime_transactions')
+                .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'transactions' }, (payload) => {
+                    handleRealtimeTransactionUpdate(payload.new, 'INSERT');
+                })
+                .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'transactions' }, (payload) => {
+                    handleRealtimeTransactionUpdate(payload.new, 'UPDATE');
+                })
+                .subscribe();
         };
 
         // --- OPRAVA PŘÍHOZU ---
