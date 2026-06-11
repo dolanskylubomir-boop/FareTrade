@@ -390,6 +390,27 @@
         </div>
     </div>
 
+    <!-- ===== MODAL: VOP (neztratí formulářová data) ===== -->
+    <div id="modal-vop" class="hidden fixed inset-0 z-[70] bg-black/70 modal-backdrop flex items-end sm:items-center justify-center p-0 sm:p-4" onclick="closeVopModal(event)">
+        <div class="modal-panel bg-white rounded-t-3xl sm:rounded-3xl w-full sm:max-w-2xl shadow-2xl flex flex-col" style="max-height:90vh" onclick="event.stopPropagation()">
+            <div class="p-5 border-b border-gray-100 flex justify-between items-center shrink-0">
+                <h3 class="font-extrabold text-lg text-gray-800 flex items-center gap-2">
+                    <svg class="w-5 h-5 text-sky-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                    Obchodní podmínky
+                </h3>
+                <button onclick="closeVopModal()" class="text-gray-400 hover:text-red-500 transition-colors p-2 rounded-lg hover:bg-red-50">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+            <div id="modal-vop-content" class="overflow-y-auto p-5 text-sm text-gray-700 leading-relaxed space-y-5 flex-1"></div>
+            <div class="p-4 border-t border-gray-100 shrink-0">
+                <button onclick="closeVopModal(true)" class="w-full bg-sky-500 hover:bg-sky-600 text-white font-bold py-3 rounded-2xl transition-all">
+                    Rozumím a souhlasím — zavřít
+                </button>
+            </div>
+        </div>
+    </div>
+
     <script>
 
 
@@ -415,6 +436,96 @@
 
     const vsechnyKategorie = ['Vše','Elektronika','Šperky','Sběratelství','Móda','Domácnost'];
     const FALLBACK_IMG     = 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?q=80&w=800&auto=format&fit=crop';
+
+    // ──────────────────────────────────────────────────────────────
+    // VOP MODAL
+    // ──────────────────────────────────────────────────────────────
+    const VOP_CONTENT_HTML = `
+        <p class="text-xs text-gray-400 mb-4">Platné od 1. 1. 2025 · Verze 1.0</p>
+        ${[
+            ['1. Provozovatel', 'Provozovatelem tržiště FairTrade je fyzická nebo právnická osoba zapsaná v obchodním či živnostenském rejstříku ČR. Kontakt: <strong>podpora@fairtrade-trziste.cz</strong>.'],
+            ['2. Věk a způsobilost', 'Registrací uživatel potvrzuje, že je <strong>starší 18 let</strong> a plně svéprávnou osobou nebo oprávněným zástupcem právnické osoby. Nezletilé osoby nesmí tržiště používat.'],
+            ['3. KYC ověření', 'Pro aktivní prodej je vyžadováno ověření totožnosti. Uživatel je povinen poskytnout jméno, příjmení, datum narození, adresu a číslo bankovního účtu.'],
+            ['4. Inzerování a aukce', 'Popis a fotografie musí věrně zobrazovat stav zboží. Aukce je závazná – vítěz příhozu je povinen zboží zakoupit. Prodávající musí odeslat zboží do 5 pracovních dnů.'],
+            ['5. Zakázané zboží', 'Zakázáno inzerovat: střelné zbraně, drogy, padělky, kradené zboží, živá zvířata (CITES), léčiva bez oprávnění a obsah porušující práva třetích osob.'],
+            ['6. Poplatky', 'Kupující hradí: 5% provizi z ceny a 49 Kč escrow poplatek. TOP inzeráty: 29–299 Kč dle délky zvýraznění.'],
+            ['7. Escrow ochrana', 'Platba je držena v úschově do potvrzení přijetí zboží kupujícím. Pokud kupující nepotvrdí do 14 dní, platba se uvolní automaticky.'],
+            ['8. Reklamace', 'Reklamaci je nutné uplatnit do 14 dní od přijetí. Stížnost lze řešit přes ČOI (coi.cz) nebo ODR (ec.europa.eu/consumers/odr).'],
+            ['9. GDPR', 'Osobní údaje jsou zpracovávány dle GDPR a zák. 110/2019 Sb. Máte právo na přístup, opravu, výmaz a přenositelnost údajů. Stížnost u ÚOOÚ (uoou.cz).'],
+            ['10. Rozhodné právo', 'VOP se řídí právem ČR (OZ č. 89/2012 Sb., zákon o ochraně spotřebitele č. 634/1992 Sb.). Spory řeší soudy ČR.'],
+        ].map(([t,c]) => '<div><p class="font-bold text-gray-800 mb-1">'+t+'</p><p class="text-gray-600 text-xs">'+c+'</p></div>').join('')}
+        <p class="text-xs text-gray-400 mt-4 pt-4 border-t border-gray-100">Plné znění VOP je dostupné v menu aplikace pod položkou „Obchodní podmínky".</p>`;
+
+    window.openVopModal = function(checkAfterClose) {
+        const el = document.getElementById('modal-vop');
+        const content = document.getElementById('modal-vop-content');
+        if (!el || !content) return;
+        content.innerHTML = VOP_CONTENT_HTML;
+        el._checkOnClose = !!checkAfterClose;
+        el.classList.remove('hidden');
+        document.body.style.overflow = 'hidden';
+    };
+
+    window.closeVopModal = function(eOrAgree) {
+        const el = document.getElementById('modal-vop');
+        if (!el) return;
+        if (eOrAgree && eOrAgree.target && eOrAgree.target !== el) return;
+        const doCheck = (eOrAgree === true) || el._checkOnClose;
+        el.classList.add('hidden');
+        document.body.style.overflow = '';
+        if (doCheck) {
+            const cb = document.getElementById('vop-consent');
+            if (cb) { cb.checked = true; cb.closest('label')?.classList.add('border-sky-300','bg-sky-50/40'); }
+        }
+    };
+
+    // ──────────────────────────────────────────────────────────────
+    // VALIDAČNÍ POMOCNÉ FUNKCE
+    // ──────────────────────────────────────────────────────────────
+    window.formatPSC = function(input) {
+        let v = input.value.replace(/\D/g,'').slice(0,5);
+        input.value = v.length > 3 ? v.slice(0,3) + ' ' + v.slice(3) : v;
+        const valid = v.length === 5;
+        input.classList.toggle('border-red-400', v.length > 0 && !valid);
+        input.classList.toggle('border-green-400', valid);
+        const hint = document.getElementById('psc-hint');
+        if (hint) hint.textContent = valid ? '✓ Formát PSČ je správný' : (v.length > 0 ? 'PSČ musí mít 5 číslic (např. 110 00)' : '');
+        hint && hint.classList.toggle('text-red-500', v.length > 0 && !valid);
+        hint && hint.classList.toggle('text-green-600', valid);
+    };
+
+    window.validateAge = function(input) {
+        if (!input.value) return true;
+        const birth = new Date(input.value);
+        const today = new Date();
+        const age = today.getFullYear() - birth.getFullYear() - (today < new Date(today.getFullYear(), birth.getMonth(), birth.getDate()) ? 1 : 0);
+        const valid = age >= 18 && age <= 120;
+        const tooYoung = age < 18;
+        input.classList.toggle('border-red-400', !valid);
+        input.classList.toggle('border-green-400', valid);
+        const hint = document.getElementById('age-hint');
+        if (hint) {
+            hint.textContent = valid ? '✓ Věk splňuje podmínky (18+)' : (tooYoung ? `✗ Musíte být starší 18 let (věk: ${age} let)` : '✗ Neplatné datum');
+            hint.classList.toggle('text-red-500', !valid);
+            hint.classList.toggle('text-green-600', valid);
+        }
+        return valid;
+    };
+
+    window.validateBankAccount = function(input) {
+        const v = input.value.trim();
+        if (!v) return true;
+        const valid = /^(\d{2,6}-)?(\d{2,10})\/\d{4}$/.test(v);
+        input.classList.toggle('border-red-400', !valid);
+        input.classList.toggle('border-green-400', valid);
+        const hint = document.getElementById('bank-hint');
+        if (hint) {
+            hint.textContent = valid ? '✓ Formát čísla účtu je správný' : 'Formát: 123456/0100 nebo 000000-123456/0100';
+            hint.classList.toggle('text-red-500', !valid);
+            hint.classList.toggle('text-green-600', valid);
+        }
+        return valid;
+    };
 
     // ──────────────────────────────────────────────────────────────
     // BEZPEČNOSTNÍ VRSTVA
@@ -792,25 +903,22 @@
     window.fetchDatabaseItems = async function() {
         if (!supabaseClient) { window.dataLoaded = true; return; }
 
-        // Nouzový timeout: pokud DB neodpoví do 12s, odblokuj UI
+        // Nouzový timeout: pokud DB neodpoví do 6s, odblokuj UI
         let _fallback = setTimeout(() => {
             if (!window.dataLoaded) {
                 window.dataLoaded = true;
                 const h = window.location.hash.replace('#','');
                 navigate(h || 'home');
             }
-        }, 12000);
+        }, 6000);
 
         try {
-            const [r1, r2, r3, r4, r5] = await Promise.all([
+            const [r1, r2, r3, r4] = await Promise.all([
                 supabaseClient.from('aukce').select('*').eq('status','aktivní').order('is_top', { ascending:false }),
                 supabaseClient.from('pevna_cena').select('*').eq('status','aktivní').order('is_top', { ascending:false }),
                 supabaseClient.from('profiles').select('id,first_name,last_name,display_name,is_verified,rating'),
-                supabaseClient.from('bids').select('auction_id,bidder_id,amount'),
-                supabaseClient.from('transactions').select('*')
+                supabaseClient.from('bids').select('auction_id,bidder_id,amount')
             ]);
-
-            if (r5.data) dataTransakce = r5.data;
 
             const profilesMap = {};
             if (r3.data) r3.data.forEach(p => { profilesMap[p.id] = p; });
@@ -1000,6 +1108,28 @@
         try {
             const { data:{ user }, error:userError } = await supabaseClient.auth.getUser();
             if (userError || !user) { alert('Pro uložení KYC musíte být přihlášeni.'); navigate('login'); return; }
+
+            // Validace věku 18+
+            const birthInput = document.getElementById('kyc-date');
+            if (!validateAge(birthInput)) {
+                if (btn) { btn.innerText=origText; btn.disabled=false; }
+                return showToast('Pro používání tržiště musíte být starší 18 let.', 'warning');
+            }
+
+            // Validace PSČ (5 číslic)
+            const zipVal = document.getElementById('kyc-zip').value.replace(/\s/g,'');
+            if (!/^\d{5}$/.test(zipVal)) {
+                if (btn) { btn.innerText=origText; btn.disabled=false; }
+                return showToast('PSČ musí obsahovat přesně 5 číslic (formát: XXX XX).', 'warning');
+            }
+
+            // Validace bankovního účtu
+            const bankInput = document.getElementById('kyc-bank');
+            if (!validateBankAccount(bankInput)) {
+                if (btn) { btn.innerText=origText; btn.disabled=false; }
+                return showToast('Neplatný formát bankovního účtu. Použijte formát: 123456/0100', 'warning');
+            }
+
             let avatarUrl = null;
             const avatarInput = document.getElementById('kyc-avatar');
             if (avatarInput?.files?.[0]) {
@@ -1694,7 +1824,7 @@
                     <input type="password" id="password-input" placeholder="Heslo (min. 8 znaků)" required autocomplete="current-password" minlength="8" maxlength="128" class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-sky-400 bg-white/60">
                     <label class="flex items-start gap-2.5 text-xs text-gray-500 cursor-pointer p-3 bg-gray-50 rounded-xl border border-gray-100 hover:border-sky-200 transition-colors">
                         <input type="checkbox" id="vop-consent" class="w-4 h-4 rounded mt-0.5 accent-sky-500 shrink-0">
-                        <span>Je mi více než <strong>18 let</strong>, přečetl(a) jsem si <button type="button" onclick="event.preventDefault();event.stopPropagation();navigate('vop')" class="text-sky-500 font-bold hover:underline">Obchodní podmínky</button> a souhlasím se zpracováním osobních údajů dle <strong>GDPR</strong>. <span class="text-gray-400">(Povinné pro registraci)</span></span>
+                        <span>Je mi více než <strong>18 let</strong>, přečetl(a) jsem si <button type="button" onclick="event.preventDefault();event.stopPropagation();openVopModal(true)" class="text-sky-500 font-bold hover:underline">Obchodní podmínky</button> a souhlasím se zpracováním osobních údajů dle <strong>GDPR</strong>. <span class="text-gray-400">(Povinné pro registraci)</span></span>
                     </label>
                     <div class="flex gap-2 mt-1">
                         <button type="submit" data-action="signin" class="flex-1 bg-gray-800 text-white font-bold py-3 rounded-xl text-sm hover:bg-gray-900 transition-colors">Přihlásit</button>
@@ -1723,13 +1853,71 @@
                 <div class="flex flex-col gap-1 sm:col-span-2"><label class="text-xs font-bold text-gray-500 pl-1">Zobrazované jméno / přezdívka / firma</label><input type="text" id="kyc-dname" required maxlength="60" placeholder="Uvidí ostatní uživatelé" class="w-full px-4 py-3 rounded-xl border border-sky-300 text-sm focus:outline-sky-400 bg-sky-50/30"></div>
                 <div class="flex flex-col gap-1"><label class="text-xs font-bold text-gray-500 pl-1">Skutečné jméno</label><input type="text" id="kyc-fname" required class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-sky-400 bg-white/60"></div>
                 <div class="flex flex-col gap-1"><label class="text-xs font-bold text-gray-500 pl-1">Skutečné příjmení</label><input type="text" id="kyc-lname" required class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-sky-400 bg-white/60"></div>
-                <div class="flex flex-col gap-1 sm:col-span-2"><label class="text-xs font-bold text-gray-500 pl-1">Datum narození</label><input type="date" id="kyc-date" required class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-sky-400 bg-white/60"></div>
-                <div class="flex flex-col gap-1 sm:col-span-2 pt-3 border-t border-gray-200/60"><label class="text-xs font-bold text-gray-500 pl-1">Ulice</label><input type="text" id="kyc-street" required class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-sky-400 bg-white/60"></div>
-                <div class="flex flex-col gap-1"><label class="text-xs font-bold text-gray-500 pl-1">Číslo popisné</label><input type="text" id="kyc-cp" required class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-sky-400 bg-white/60"></div>
-                <div class="flex flex-col gap-1"><label class="text-xs font-bold text-gray-500 pl-1">Č. orientační <span class="font-normal opacity-70">(nepovinné)</span></label><input type="text" id="kyc-co" class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-sky-400 bg-white/60"></div>
-                <div class="flex flex-col gap-1"><label class="text-xs font-bold text-gray-500 pl-1">Město</label><input type="text" id="kyc-city" required class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-sky-400 bg-white/60"></div>
-                <div class="flex flex-col gap-1"><label class="text-xs font-bold text-gray-500 pl-1">PSČ</label><input type="text" id="kyc-zip" required class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-sky-400 bg-white/60"></div>
-                <div class="flex flex-col gap-1 sm:col-span-2 pt-3 border-t border-gray-200/60"><label class="text-xs font-bold text-gray-500 pl-1">Bankovní účet</label><input type="text" id="kyc-bank" required placeholder="123456789/0100" class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-sky-400 bg-white/60"></div>
+                <!-- Datum narození se živou kontrolou věku 18+ -->
+                <div class="flex flex-col gap-1 sm:col-span-2">
+                    <label class="text-xs font-bold text-gray-500 pl-1">Datum narození <span class="text-red-400">*</span></label>
+                    <input type="date" id="kyc-date" required
+                        max="${new Date(new Date().setFullYear(new Date().getFullYear()-18)).toISOString().split('T')[0]}"
+                        onchange="validateAge(this)"
+                        class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-sky-400 bg-white/60 transition-colors">
+                    <span id="age-hint" class="text-xs pl-1 h-4"></span>
+                </div>
+
+                <!-- Adresa — sekce s nápovědou -->
+                <div class="sm:col-span-2 pt-3 border-t border-gray-200/60">
+                    <p class="text-xs font-bold text-gray-400 uppercase tracking-wide mb-3 flex items-center gap-1.5">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                        Trvalé bydliště — dle občanského průkazu
+                    </p>
+                    <div class="bg-sky-50 border border-sky-100 rounded-xl p-3 mb-3 text-xs text-sky-700 flex gap-2">
+                        <svg class="w-4 h-4 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        <span>Zadejte adresu přesně tak, jak je uvedena na OP nebo ŘP. Formát: <strong>Ulice č.p./č.o., PSČ Město</strong> (např. Václavské náměstí 1/846, 110 00 Praha 1).</span>
+                    </div>
+                </div>
+                <div class="flex flex-col gap-1 sm:col-span-2">
+                    <label class="text-xs font-bold text-gray-500 pl-1">Ulice <span class="text-red-400">*</span></label>
+                    <input type="text" id="kyc-street" required minlength="2" maxlength="100" placeholder="např. Václavské náměstí" autocomplete="street-address"
+                        class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-sky-400 bg-white/60 transition-colors">
+                    <span class="text-xs text-gray-400 pl-1">Jen název ulice bez čísla popisného</span>
+                </div>
+                <div class="flex flex-col gap-1">
+                    <label class="text-xs font-bold text-gray-500 pl-1">Číslo popisné <span class="text-red-400">*</span></label>
+                    <input type="text" id="kyc-cp" required maxlength="10" placeholder="např. 1"
+                        class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-sky-400 bg-white/60">
+                    <span class="text-xs text-gray-400 pl-1">Číslo popisné (povinné)</span>
+                </div>
+                <div class="flex flex-col gap-1">
+                    <label class="text-xs font-bold text-gray-500 pl-1">Č. orientační <span class="text-gray-400 font-normal">(nepovinné)</span></label>
+                    <input type="text" id="kyc-co" maxlength="10" placeholder="např. 846"
+                        class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-sky-400 bg-white/60">
+                    <span class="text-xs text-gray-400 pl-1">Lomítkem za č. popisným (nepovinné)</span>
+                </div>
+                <div class="flex flex-col gap-1">
+                    <label class="text-xs font-bold text-gray-500 pl-1">Město / obec <span class="text-red-400">*</span></label>
+                    <input type="text" id="kyc-city" required minlength="2" maxlength="80" placeholder="např. Praha 1" autocomplete="address-level2"
+                        class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-sky-400 bg-white/60">
+                </div>
+                <div class="flex flex-col gap-1">
+                    <label class="text-xs font-bold text-gray-500 pl-1">PSČ <span class="text-red-400">*</span></label>
+                    <input type="text" id="kyc-zip" required maxlength="6" placeholder="110 00" autocomplete="postal-code" inputmode="numeric"
+                        oninput="formatPSC(this)"
+                        class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-sky-400 bg-white/60 transition-colors">
+                    <span id="psc-hint" class="text-xs pl-1 h-4"></span>
+                </div>
+
+                <!-- Bankovní účet -->
+                <div class="flex flex-col gap-1 sm:col-span-2 pt-3 border-t border-gray-200/60">
+                    <label class="text-xs font-bold text-gray-500 pl-1">Bankovní účet <span class="text-red-400">*</span></label>
+                    <input type="text" id="kyc-bank" required maxlength="34" placeholder="123456/0100 nebo 000000-123456/0100"
+                        oninput="validateBankAccount(this)"
+                        class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-sky-400 bg-white/60 transition-colors">
+                    <span id="bank-hint" class="text-xs pl-1 h-4 text-gray-400">Formát: čísloúčtu/kódbanky (např. 123456/0100)</span>
+                    <div class="flex flex-wrap gap-1.5 mt-1">
+                        ${['0100 Komerční banka','0300 ČSOB','0600 MONETA','0800 Česká spořitelna','2010 Fio banka','3030 Air Bank','5500 Raiffeisenbank'].map(b =>
+                            `<button type="button" onclick="document.getElementById('kyc-bank').value += document.getElementById('kyc-bank').value.includes('/') ? '' : '/${b.split(' ')[0]}'; validateBankAccount(document.getElementById('kyc-bank'));" class="text-[10px] bg-gray-50 hover:bg-sky-50 border border-gray-200 hover:border-sky-300 text-gray-600 px-2 py-1 rounded-lg font-semibold transition-colors">${b}</button>`
+                        ).join('')}
+                    </div>
+                </div>
                 <div class="sm:col-span-2 mt-3"><button type="submit" class="w-full bg-sky-500 hover:bg-sky-600 text-white font-bold py-4 rounded-xl transition-all shadow-md">Uložit a odeslat ke kontrole</button></div>
             </form>
         </div>`,
