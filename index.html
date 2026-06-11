@@ -1326,8 +1326,8 @@
         const origText = btn?.innerText || 'Odeslat';
         if (btn) { btn.innerText='Nahrávám fotky…'; btn.disabled=true; }
         try {
-            const { data:{ user } } = await supabaseClient.auth.getUser();
-            if (!user) throw new Error('Pro vložení inzerátu musíte být přihlášeni.');
+            const user = window.currentUser;
+            if (!user) { navigate('login'); return; }
             const isAuction = document.querySelector('input[name="ad-type"]:checked')?.value === 'aukce';
             const title     = document.getElementById('ad-title').value.trim();
             const category  = document.getElementById('ad-category').value;
@@ -2456,6 +2456,7 @@
         let viewName = path;
         let idOrCategory = param;
         if (path.includes('/')) { const parts = path.split('/'); viewName = parts[0]; idOrCategory = parts[1]; }
+        if (viewName === 'novy-inzerat' && !window.currentUser) { viewName = 'login'; idOrCategory = null; }
         if (!views[viewName]) viewName = 'home';
         const app = document.getElementById('app');
         app.innerHTML = views[viewName](idOrCategory);
