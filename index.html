@@ -422,8 +422,13 @@
     let supabaseClient = null;
     let publicClient = null; // klient BEZ auth — nikdy nečeká na JWT refresh
     try {
-        // Vlastní fetch s timeoutem — zabrání věčnému visení JWT refresh
+        // Timeout jen pro DB dotazy (REST endpoint) — auth/token refresh NECHEJ bez timeoutu,
+        // aby interní Supabase refresh JWT nebyl přerušen a `getSession()` mohl správně fungovat.
         const _sbFetch = (url, opts = {}) => {
+            const urlStr = typeof url === 'string' ? url : url.toString();
+            // Auth endpointy (token refresh, signIn...) — bez naší interference
+            if (urlStr.includes('/auth/')) return fetch(url, opts);
+            // DB a ostatní endpointy — 10s timeout
             const ctrl = new AbortController();
             const tid  = setTimeout(() => ctrl.abort(), 10000);
             return fetch(url, { ...opts, signal: ctrl.signal }).finally(() => clearTimeout(tid));
