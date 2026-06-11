@@ -902,6 +902,11 @@
     // ──────────────────────────────────────────────────────────────
     window.fetchDatabaseItems = async function() {
         if (!supabaseClient) { window.dataLoaded = true; return; }
+        // Pokud fetch právě běží, počkej na něj (sdílený promise)
+        if (window._fetchDBPromise) return window._fetchDBPromise;
+        window._fetchDBPromise = _doFetch();
+        return window._fetchDBPromise;
+        async function _doFetch() {
 
         // Nouzový timeout: pokud DB neodpoví do 6s, odblokuj UI
         let _fallback = setTimeout(() => {
@@ -916,12 +921,13 @@
             const [r1, r2, r3, r4] = await Promise.all([
                 supabaseClient.from('aukce').select('*').eq('status','aktivní').order('is_top', { ascending:false }),
                 supabaseClient.from('pevna_cena').select('*').eq('status','aktivní').order('is_top', { ascending:false }),
-                supabaseClient.from('profiles').select('id,first_name,last_name,display_name,is_verified,rating'),
+                supabaseClient.from('profiles').select('id,first_name,last_name,display_name,is_verified,rating,avatar_url'),
                 supabaseClient.from('bids').select('auction_id,bidder_id,amount')
             ]);
 
             const profilesMap = {};
             if (r3.data) r3.data.forEach(p => { profilesMap[p.id] = p; });
+            window._profilesMap = profilesMap;
 
             let localBids = safeParse(localStorage.getItem('ft_local_bids'), {});
             window.auctionParticipants = {};
@@ -1013,7 +1019,9 @@
             window.dataLoaded = true;
         } finally {
             clearTimeout(_fallback);
+            window._fetchDBPromise = null;
         }
+        } // end _doFetch
     };
 
     // Navýšení počtu zobrazení (deduplikace per session)
@@ -1327,10 +1335,37 @@
     // ──────────────────────────────────────────────────────────────
     // PROFIL & DASHBOARD
     // ──────────────────────────────────────────────────────────────
+    // Pomocná funkce: render jméno/avatar/rating z dat profilu
+    function _applyProfileDisplay(data, user) {
+        const fullName    = `${data.first_name||''} ${data.last_name||''}`.trim();
+        const displayName = data.display_name || fullName || user?.email?.split('@')[0] || 'Uživatel';
+        const initial     = ((data.display_name||data.first_name||'?')[0]).toUpperCase();
+        const nameEl = document.getElementById('profile-name');
+        if (nameEl) nameEl.innerText = displayName;
+        const ratingEl = document.getElementById('profile-rating');
+        if (ratingEl) ratingEl.innerText = (data.rating||0).toFixed(1);
+        if (data.is_verified) {
+            const badge = document.getElementById('profile-verified-badge');
+            if (badge) { badge.classList.remove('hidden'); badge.classList.add('inline-flex'); }
+        }
+        const initEl = document.getElementById('profile-initials');
+        if (initEl) {
+            if (data.avatar_url) {
+                initEl.innerHTML = '';
+                const img = document.createElement('img');
+                img.src = data.avatar_url; img.alt = 'Avatar';
+                img.className = 'w-full h-full object-cover rounded-full';
+                img.onerror = () => { initEl.innerHTML = ''; initEl.innerText = initial; };
+                initEl.classList.add('overflow-hidden','p-0');
+                initEl.appendChild(img);
+            } else { initEl.innerText = initial; }
+        }
+    }
+
     window.loadProfileData = async function(activeTab = 'inzeraty') {
         if (!supabaseClient) return;
 
-        // getSession() čte z localStorage — žádný síťový request, nezamrzne při JWT refresh
+        // Použij window.currentUser (nastaven z onAuthStateChange) nebo přečti z localStorage
         let user = window.currentUser;
         if (!user) {
             const { data:{ session } } = await supabaseClient.auth.getSession();
@@ -1341,65 +1376,39 @@
 
         if (!window.dataLoaded) await fetchDatabaseItems();
 
+        // Počty inzerátů
         const myAdsCount = dataAukce.filter(i=>i.seller_id===user.id).length + dataPevnaCena.filter(i=>i.seller_id===user.id).length;
-        const el = document.getElementById('profile-active-ads-count');
-        if (el) el.innerText = myAdsCount;
+        const countEl = document.getElementById('profile-active-ads-count');
+        if (countEl) countEl.innerText = myAdsCount;
 
+        // Render obsahu tabu
         const tabContainer = document.getElementById('profile-tab-content');
         if (tabContainer) tabContainer.innerHTML = renderProfileTabContent(activeTab);
 
+        // Email vždy dostupný
         const emailEl = document.getElementById('profile-email');
         if (emailEl) emailEl.innerText = user.email;
 
-        // Statistiky transakcí — načti asynchronně, neblokuj zobrazení profilu
-        if (supabaseClient) {
-            supabaseClient.from('transactions').select('price,seller_id,buyer_id,status').eq('status','completed').or(`buyer_id.eq.${user.id},seller_id.eq.${user.id}`)
-            .then(({ data:txStats }) => {
-                const tx = txStats || [];
-                const sales     = tx.filter(t=>t.seller_id===user.id);
-                const purchases = tx.filter(t=>t.buyer_id===user.id);
-                const earned    = sales.reduce((s,t)=>s+t.price,0);
-                const spent     = purchases.reduce((s,t)=>s+t.price,0);
-                const earnedEl  = document.getElementById('profile-earned');
-                const spentEl   = document.getElementById('profile-spent');
-                const scEl      = document.getElementById('profile-sales-count');
-                const pcEl      = document.getElementById('profile-purchase-count');
-                if (earnedEl) earnedEl.innerHTML = `${earned.toLocaleString('cs-CZ')} <span class="text-xs text-gray-400 font-bold">Kč</span>`;
-                if (spentEl)  spentEl.innerHTML  = `${spent.toLocaleString('cs-CZ')} <span class="text-xs text-gray-400 font-bold">Kč</span>`;
-                if (scEl)     scEl.innerText     = sales.length;
-                if (pcEl)     pcEl.innerText     = purchases.length;
-                supabaseClient.from('profiles').update({ total_earned:earned, total_spent:spent }).eq('id',user.id).then();
-            }).catch(() => {});
+        // ── Okamžitý render jména/avataru z veřejné cache (bez auth) ──
+        const cached = window._profilesMap?.[user.id];
+        if (cached) {
+            _applyProfileDisplay(cached, user);
+        } else {
+            // Fallback: zobraz email jako jméno dokud nepřijdou data
+            const nameEl = document.getElementById('profile-name');
+            if (nameEl) nameEl.innerText = user.email?.split('@')[0] || 'Uživatel';
         }
 
-        // Profil — načti asynchronně, neblokuj stránku; jméno/avatar se doplní až data přijdou
-        supabaseClient.from('profiles').select('*').eq('id',user.id).single()
-        .then(({ data, error }) => {
+        // ── Soukromá data profilu s timeoutem 8s (čeká na JWT refresh) ──
+        const privateQuery = supabaseClient.from('profiles').select('*').eq('id',user.id).single();
+        const timeoutPromise = new Promise(resolve => setTimeout(() => resolve({ data: null, error: 'timeout' }), 8000));
+        Promise.race([privateQuery, timeoutPromise]).then(({ data, error }) => {
             if (!data || error) return;
-            const fullName    = `${data.first_name||''} ${data.last_name||''}`.trim();
-            const displayName = data.display_name || fullName || user.email?.split('@')[0] || 'Uživatel';
-            const initials    = (data.display_name?data.display_name[0]:(data.first_name?data.first_name[0]:'?')).toUpperCase();
-            const initEl      = document.getElementById('profile-initials');
-            if (initEl) {
-                if (data.avatar_url) {
-                    initEl.innerHTML = '';
-                    const img = document.createElement('img');
-                    img.src = data.avatar_url; img.alt = 'Avatar';
-                    img.className = 'w-full h-full object-cover rounded-full';
-                    img.onerror = () => { initEl.innerHTML = ''; initEl.innerText = initials; };
-                    initEl.classList.add('overflow-hidden','p-0');
-                    initEl.appendChild(img);
-                } else { initEl.innerText = initials; }
-            }
-            const nameEl = document.getElementById('profile-name');
-            if (nameEl) nameEl.innerText = displayName;
-            const ratingEl = document.getElementById('profile-rating');
-            if (ratingEl) ratingEl.innerText = (data.rating||0).toFixed(1);
-            if (data.is_verified) {
-                const badge = document.getElementById('profile-verified-badge');
-                if (badge) { badge.classList.remove('hidden'); badge.classList.add('inline-flex'); }
-            }
+            // Aktualizuj jméno/avatar znovu (může mít avatar_url nebo jiná data než cache)
+            _applyProfileDisplay(data, user);
+            // KYC záložka
             if (activeTab === 'kyc') {
+                const fullName = `${data.first_name||''} ${data.last_name||''}`.trim();
                 const kycFields = { 'kyc-display-dname': data.display_name||'Nezadáno', 'kyc-display-name': fullName||'Nezadáno', 'kyc-display-bank': data.bank_account||'Nezadáno' };
                 Object.entries(kycFields).forEach(([id,val]) => { const el=document.getElementById(id); if(el) el.innerText=val; });
                 if (data.birth_date) { const p=data.birth_date.split('-'); const el=document.getElementById('kyc-display-date'); if(el) el.innerText=`${p[2]}.${p[1]}.${p[0]}`; }
@@ -1412,6 +1421,27 @@
                     else { kycBadge.textContent='Neověřeno'; kycBadge.className='bg-red-100 text-red-800 text-xs px-3 py-1 rounded-full font-bold uppercase border border-red-200'; }
                 }
             }
+            // Aktualizuj cache lokálně
+            if (window._profilesMap) window._profilesMap[user.id] = { ...window._profilesMap[user.id], ...data };
+        }).catch(() => {});
+
+        // ── Statistiky transakcí — asynchronně, neblokují ──
+        supabaseClient.from('transactions').select('price,seller_id,buyer_id,status').eq('status','completed').or(`buyer_id.eq.${user.id},seller_id.eq.${user.id}`)
+        .then(({ data:txStats }) => {
+            const tx = txStats || [];
+            const sales     = tx.filter(t=>t.seller_id===user.id);
+            const purchases = tx.filter(t=>t.buyer_id===user.id);
+            const earned    = sales.reduce((s,t)=>s+t.price,0);
+            const spent     = purchases.reduce((s,t)=>s+t.price,0);
+            const earnedEl  = document.getElementById('profile-earned');
+            const spentEl   = document.getElementById('profile-spent');
+            const scEl      = document.getElementById('profile-sales-count');
+            const pcEl      = document.getElementById('profile-purchase-count');
+            if (earnedEl) earnedEl.innerHTML = `${earned.toLocaleString('cs-CZ')} <span class="text-xs text-gray-400 font-bold">Kč</span>`;
+            if (spentEl)  spentEl.innerHTML  = `${spent.toLocaleString('cs-CZ')} <span class="text-xs text-gray-400 font-bold">Kč</span>`;
+            if (scEl)     scEl.innerText     = sales.length;
+            if (pcEl)     pcEl.innerText     = purchases.length;
+            supabaseClient.from('profiles').update({ total_earned:earned, total_spent:spent }).eq('id',user.id).then();
         }).catch(() => {});
     };
 
