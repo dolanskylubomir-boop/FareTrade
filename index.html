@@ -1503,49 +1503,92 @@
         }
     }
 
+    // Získá platný access_token přímo z localStorage, v případě expirace obnoví přes refresh_token
+    async function _ensureValidToken() {
+        let stored = null;
+        let storedKey = null;
+        try {
+            for (let i = 0; i < localStorage.length; i++) {
+                const k = localStorage.key(i);
+                if (!k || !k.includes('auth-token')) continue;
+                const d = JSON.parse(localStorage.getItem(k) || 'null');
+                if (d?.access_token) { stored = d; storedKey = k; break; }
+            }
+        } catch(e) {}
+        if (!stored) return null;
+
+        const now = Math.floor(Date.now() / 1000);
+        // Token je stále platný (s 60s rezervou)
+        if (stored.expires_at && stored.expires_at > now + 60) return stored.access_token;
+
+        // Token expiroval — obnov přes refresh_token
+        if (!stored.refresh_token) return null;
+        try {
+            const r = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`, {
+                method: 'POST',
+                headers: { 'apikey': SUPABASE_ANON_KEY, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ refresh_token: stored.refresh_token })
+            });
+            if (!r.ok) return null;
+            const newData = await r.json();
+            if (!newData.access_token) return null;
+            // Ulož obnovený token zpět do localStorage
+            try { localStorage.setItem(storedKey, JSON.stringify({ ...stored, ...newData })); } catch(e) {}
+            return newData.access_token;
+        } catch(e) { return null; }
+    }
+
     window._loadPrivateProfileData = async function(user) {
-        if (!supabaseClient || !user) return;
+        if (!user) return;
         const uid = user.id;
         if (window._loadingPrivateProfile === uid) return;
         window._loadingPrivateProfile = uid;
 
         try {
-            // getSession() zajistí platný JWT — interně obnoví token pokud expiroval.
-            // Teprve potom jsou headers supabaseClient aktualizovány a dotazy mají platný token.
-            await supabaseClient.auth.getSession();
+            // Přímý REST call s explicitním tokenem — obchází Supabase klienta úplně
+            const token = await _ensureValidToken();
+            if (!token) { window._loadingPrivateProfile = null; return; }
 
-            const [profileRes, txRes] = await Promise.all([
-                supabaseClient.from('profiles').select('*').eq('id', uid).single(),
-                supabaseClient.from('transactions').select('price,seller_id,buyer_id,status')
-                    .eq('status','completed').or(`buyer_id.eq.${uid},seller_id.eq.${uid}`)
+            const h = {
+                'apikey': SUPABASE_ANON_KEY,
+                'Authorization': `Bearer ${token}`,
+                'Accept': 'application/json'
+            };
+
+            const [profileArr, txArr] = await Promise.all([
+                fetch(`${SUPABASE_URL}/rest/v1/profiles?id=eq.${uid}&select=*`, { headers: h }).then(r => r.json()),
+                fetch(`${SUPABASE_URL}/rest/v1/transactions?status=eq.completed&or=(buyer_id.eq.${uid},seller_id.eq.${uid})&select=price,seller_id,buyer_id,status`, { headers: h }).then(r => r.json())
             ]);
 
-            if (profileRes.data && !profileRes.error) {
-                const data = profileRes.data;
+            const data = Array.isArray(profileArr) && profileArr.length > 0 ? profileArr[0] : null;
+            if (data && data.id) {
                 _applyProfileDisplay(data, user);
                 window._privateProfileCache = { uid, data };
                 if (window._profilesMap) window._profilesMap[uid] = { ...(window._profilesMap[uid]||{}), ...data };
-                const h = window.location.hash.replace('#','');
-                if ((h.split('/')[1] || 'inzeraty') === 'kyc') _applyKycToDOM(data);
+                const hash = window.location.hash.replace('#','');
+                if ((hash.split('/')[1] || 'inzeraty') === 'kyc') _applyKycToDOM(data);
             }
 
-            if (txRes.data) {
-                const tx = txRes.data;
-                const sales     = tx.filter(t=>t.seller_id===uid);
-                const purchases = tx.filter(t=>t.buyer_id===uid);
-                const earned    = sales.reduce((s,t)=>s+t.price,0);
-                const spent     = purchases.reduce((s,t)=>s+t.price,0);
-                window._txStatsCache = { uid, sales: sales.length, purchases: purchases.length, earned, spent };
-                const earnedEl  = document.getElementById('profile-earned');
-                const spentEl   = document.getElementById('profile-spent');
-                const scEl      = document.getElementById('profile-sales-count');
-                const pcEl      = document.getElementById('profile-purchase-count');
-                if (earnedEl) earnedEl.innerHTML = `${earned.toLocaleString('cs-CZ')} <span class="text-xs text-gray-400 font-bold">Kč</span>`;
-                if (spentEl)  spentEl.innerHTML  = `${spent.toLocaleString('cs-CZ')} <span class="text-xs text-gray-400 font-bold">Kč</span>`;
-                if (scEl)     scEl.innerText     = sales.length;
-                if (pcEl)     pcEl.innerText     = purchases.length;
-                supabaseClient.from('profiles').update({ total_earned:earned, total_spent:spent }).eq('id',uid).then();
-            }
+            const tx = Array.isArray(txArr) ? txArr : [];
+            const sales     = tx.filter(t=>t.seller_id===uid);
+            const purchases = tx.filter(t=>t.buyer_id===uid);
+            const earned    = sales.reduce((s,t)=>s+(t.price||0),0);
+            const spent     = purchases.reduce((s,t)=>s+(t.price||0),0);
+            window._txStatsCache = { uid, sales: sales.length, purchases: purchases.length, earned, spent };
+            const earnedEl  = document.getElementById('profile-earned');
+            const spentEl   = document.getElementById('profile-spent');
+            const scEl      = document.getElementById('profile-sales-count');
+            const pcEl      = document.getElementById('profile-purchase-count');
+            if (earnedEl) earnedEl.innerHTML = `${earned.toLocaleString('cs-CZ')} <span class="text-xs text-gray-400 font-bold">Kč</span>`;
+            if (spentEl)  spentEl.innerHTML  = `${spent.toLocaleString('cs-CZ')} <span class="text-xs text-gray-400 font-bold">Kč</span>`;
+            if (scEl)     scEl.innerText     = sales.length;
+            if (pcEl)     pcEl.innerText     = purchases.length;
+            // Aktualizuj stats v DB
+            fetch(`${SUPABASE_URL}/rest/v1/profiles?id=eq.${uid}`, {
+                method: 'PATCH',
+                headers: { ...h, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+                body: JSON.stringify({ total_earned: earned, total_spent: spent })
+            }).catch(() => {});
         } catch(e) {}
 
         window._loadingPrivateProfile = null;
