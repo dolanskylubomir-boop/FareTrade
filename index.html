@@ -681,6 +681,15 @@
             btn.classList.toggle('text-red-500', isFav);
             btn.classList.toggle('text-white', !isFav);
         });
+        // Pokud je otevřena záložka Oblíbené, překresli ji s načtenými daty
+        const h = window.location.hash.replace('#','');
+        if (h === 'profil/oblibene') {
+            const cont = document.getElementById('oblibene-content');
+            if (cont) {
+                const tab = document.getElementById('profile-tab-content');
+                if (tab) tab.innerHTML = renderProfileTabContent('oblibene');
+            }
+        }
     };
     window.isFavorite = id => window._favCache.has(id);
 
@@ -1091,17 +1100,25 @@
             if (session?.user) {
                 window.currentUser = session.user;
                 if (btn) { btn.innerText='Můj Profil'; btn.setAttribute('onclick',"navigate('profil')"); }
+
                 if (event === 'SIGNED_IN') {
                     const isLoginScreen = window.location.hash.includes('login');
                     await checkUserProfileKYC(session.user, isLoginScreen);
-                    loadFavoritesFromDB(); // neblokující
+                    loadFavoritesFromDB();
                 } else if (event === 'INITIAL_SESSION') {
-                    loadFavoritesFromDB(); // neblokující
-                    // Po INITIAL_SESSION znovu renderuj profil s čerstvými daty
+                    // JWT refresh JE HOTOVÝ — teď je bezpečné načítat privátní data
+                    loadFavoritesFromDB();
                     const h = window.location.hash.replace('#','');
                     if (h.startsWith('profil')) {
                         const tab = h.split('/')[1] || 'inzeraty';
-                        if (window.dataLoaded) loadProfileData(tab);
+                        _loadPrivateProfileData(session.user, tab);
+                    }
+                } else if (event === 'TOKEN_REFRESHED') {
+                    // Token byl obnoven — aktualizuj privátní data profilu
+                    const h = window.location.hash.replace('#','');
+                    if (h.startsWith('profil')) {
+                        const tab = h.split('/')[1] || 'inzeraty';
+                        _loadPrivateProfileData(session.user, tab);
                     }
                 }
             } else {
@@ -1137,11 +1154,21 @@
         }
     };
 
-    window.handleLogout = async function() {
-        if (!supabaseClient) return;
-        await supabaseClient.auth.signOut();
+    window.handleLogout = function() {
+        // Okamžitě vymaž session z localStorage — bez čekání na síť
+        try {
+            for (let i = localStorage.length - 1; i >= 0; i--) {
+                const k = localStorage.key(i);
+                if (k && (k.includes('auth-token') || k.includes('supabase'))) localStorage.removeItem(k);
+            }
+        } catch(e) {}
+        window.currentUser = null;
+        const btn = document.getElementById('btn-register-top');
+        if (btn) { btn.innerText='Registrovat'; btn.setAttribute('onclick',"navigate('login')"); }
         showToast('Byli jste úspěšně odhlášeni.','success');
         navigate('home');
+        // Odhlášení ze serveru na pozadí (best effort)
+        try { supabaseClient?.auth.signOut(); } catch(e) {}
     };
 
     window.handleKYCSubmit = async function(e) {
@@ -1399,7 +1426,7 @@
         }
     }
 
-    window.loadProfileData = async function(activeTab = 'inzeraty') {
+    window.loadProfileData = function(activeTab = 'inzeraty') {
         if (!supabaseClient) return;
 
         // Synchronní čtení z localStorage — ŽÁDNÝ async, NIKDY nezamrzne
@@ -1407,7 +1434,7 @@
         if (!user) { navigate('login'); return; }
         window.currentUser = user;
 
-        // Počty inzerátů
+        // Počty inzerátů z veřejných dat
         const myAdsCount = dataAukce.filter(i=>i.seller_id===user.id).length + dataPevnaCena.filter(i=>i.seller_id===user.id).length;
         const countEl = document.getElementById('profile-active-ads-count');
         if (countEl) countEl.innerText = myAdsCount;
@@ -1416,29 +1443,35 @@
         const tabContainer = document.getElementById('profile-tab-content');
         if (tabContainer) tabContainer.innerHTML = renderProfileTabContent(activeTab);
 
-        // Email vždy dostupný
+        // Email vždy dostupný (z tokenu, bez DB)
         const emailEl = document.getElementById('profile-email');
         if (emailEl) emailEl.innerText = user.email;
 
-        // ── Okamžitý render jména/avataru z veřejné cache (bez auth) ──
+        // Jméno/avatar z veřejné cache (načtena bez auth přes publicClient)
         const cached = window._profilesMap?.[user.id];
         if (cached) {
             _applyProfileDisplay(cached, user);
         } else {
-            // Fallback: zobraz email jako jméno dokud nepřijdou data
             const nameEl = document.getElementById('profile-name');
             if (nameEl) nameEl.innerText = user.email?.split('@')[0] || 'Uživatel';
         }
+        // Privátní data (KYC, transakce) načte _loadPrivateProfileData po INITIAL_SESSION
+    };
 
-        // ── Soukromá data profilu s timeoutem 8s (čeká na JWT refresh) ──
-        const privateQuery = supabaseClient.from('profiles').select('*').eq('id',user.id).single();
-        const timeoutPromise = new Promise(resolve => setTimeout(() => resolve({ data: null, error: 'timeout' }), 8000));
-        Promise.race([privateQuery, timeoutPromise]).then(({ data, error }) => {
+    // Voláno z onAuthStateChange INITIAL_SESSION — JWT je teď platný
+    window._loadPrivateProfileData = function(user, activeTab) {
+        if (!supabaseClient || !user) return;
+        const uid = user.id;
+
+        // Privátní profil (KYC pole: banka, rodné číslo, adresa)
+        supabaseClient.from('profiles').select('*').eq('id', uid).single()
+        .then(({ data, error }) => {
             if (!data || error) return;
-            // Aktualizuj jméno/avatar znovu (může mít avatar_url nebo jiná data než cache)
             _applyProfileDisplay(data, user);
-            // KYC záložka
-            if (activeTab === 'kyc') {
+            if (window._profilesMap) window._profilesMap[uid] = { ...(window._profilesMap[uid]||{}), ...data };
+            const h = window.location.hash.replace('#','');
+            const currentTab = h.split('/')[1] || 'inzeraty';
+            if (currentTab === 'kyc') {
                 const fullName = `${data.first_name||''} ${data.last_name||''}`.trim();
                 const kycFields = { 'kyc-display-dname': data.display_name||'Nezadáno', 'kyc-display-name': fullName||'Nezadáno', 'kyc-display-bank': data.bank_account||'Nezadáno' };
                 Object.entries(kycFields).forEach(([id,val]) => { const el=document.getElementById(id); if(el) el.innerText=val; });
@@ -1452,16 +1485,14 @@
                     else { kycBadge.textContent='Neověřeno'; kycBadge.className='bg-red-100 text-red-800 text-xs px-3 py-1 rounded-full font-bold uppercase border border-red-200'; }
                 }
             }
-            // Aktualizuj cache lokálně
-            if (window._profilesMap) window._profilesMap[user.id] = { ...window._profilesMap[user.id], ...data };
         }).catch(() => {});
 
-        // ── Statistiky transakcí — asynchronně, neblokují ──
-        supabaseClient.from('transactions').select('price,seller_id,buyer_id,status').eq('status','completed').or(`buyer_id.eq.${user.id},seller_id.eq.${user.id}`)
+        // Statistiky transakcí
+        supabaseClient.from('transactions').select('price,seller_id,buyer_id,status').eq('status','completed').or(`buyer_id.eq.${uid},seller_id.eq.${uid}`)
         .then(({ data:txStats }) => {
             const tx = txStats || [];
-            const sales     = tx.filter(t=>t.seller_id===user.id);
-            const purchases = tx.filter(t=>t.buyer_id===user.id);
+            const sales     = tx.filter(t=>t.seller_id===uid);
+            const purchases = tx.filter(t=>t.buyer_id===uid);
             const earned    = sales.reduce((s,t)=>s+t.price,0);
             const spent     = purchases.reduce((s,t)=>s+t.price,0);
             const earnedEl  = document.getElementById('profile-earned');
@@ -1472,7 +1503,7 @@
             if (spentEl)  spentEl.innerHTML  = `${spent.toLocaleString('cs-CZ')} <span class="text-xs text-gray-400 font-bold">Kč</span>`;
             if (scEl)     scEl.innerText     = sales.length;
             if (pcEl)     pcEl.innerText     = purchases.length;
-            supabaseClient.from('profiles').update({ total_earned:earned, total_spent:spent }).eq('id',user.id).then();
+            supabaseClient.from('profiles').update({ total_earned:earned, total_spent:spent }).eq('id',uid).then();
         }).catch(() => {});
     };
 
