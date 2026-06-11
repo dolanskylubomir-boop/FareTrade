@@ -411,6 +411,19 @@
         </div>
     </div>
 
+    <!-- ===== MODAL: POPIS INZERÁTU ===== -->
+    <div id="modal-desc" class="hidden fixed inset-0 z-50 bg-black/70 modal-backdrop flex items-center justify-center p-4" onclick="closeDescModal(event)">
+        <div class="modal-panel bg-white rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden" onclick="event.stopPropagation()">
+            <div class="p-5 border-b border-gray-100 flex justify-between items-center gap-3">
+                <h3 id="desc-modal-title" class="font-extrabold text-base text-gray-800 leading-snug flex-grow min-w-0"></h3>
+                <button onclick="closeDescModal()" class="text-gray-400 hover:text-red-500 transition-colors p-2 rounded-lg hover:bg-red-50 shrink-0">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+            <div id="desc-modal-body" class="p-5 text-gray-600 text-sm leading-relaxed overflow-y-auto" style="max-height:65vh;white-space:pre-wrap"></div>
+        </div>
+    </div>
+
     <script>
 
 
@@ -483,6 +496,29 @@
         el._checkOnClose = !!checkAfterClose;
         el.classList.remove('hidden');
         document.body.style.overflow = 'hidden';
+    };
+
+    window.showDescModal = function(e, itemId) {
+        e.stopPropagation();
+        const item = [...dataAukce, ...dataPevnaCena].find(i => i.id === itemId);
+        if (!item) return;
+        const modal = document.getElementById('modal-desc');
+        const titleEl = document.getElementById('desc-modal-title');
+        const bodyEl  = document.getElementById('desc-modal-body');
+        // title je HTML-escaped — dekóduj zpět na čistý text
+        const tmp = document.createElement('div');
+        tmp.innerHTML = item.title;
+        titleEl.textContent = tmp.textContent;
+        tmp.innerHTML = item.description || '';
+        bodyEl.textContent = tmp.textContent || 'Popis není uveden.';
+        modal.classList.remove('hidden');
+        document.body.style.overflow = 'hidden';
+    };
+    window.closeDescModal = function(e) {
+        const modal = document.getElementById('modal-desc');
+        if (e && e.target !== modal) return;
+        modal.classList.add('hidden');
+        document.body.style.overflow = '';
     };
 
     window.closeVopModal = function(eOrAgree) {
@@ -1444,8 +1480,9 @@
                 </button>
             </div>
             <div class="text-[11px] font-bold ${catCls} mb-0.5 uppercase tracking-wide">${item.category}</div>
-            <h3 class="text-sm sm:text-base font-bold text-gray-800 line-clamp-2 leading-tight flex-grow">${item.title}</h3>
-            <div class="mt-2 flex items-center justify-between text-[10px] text-gray-400">
+            <h3 class="text-sm sm:text-base font-bold text-gray-800 line-clamp-2 leading-tight">${item.title}</h3>
+            ${item.description ? `<p onclick="event.stopPropagation();showDescModal(event,'${item.id}')" class="text-[11px] text-gray-400 mt-0.5 truncate cursor-pointer hover:text-sky-500 transition-colors leading-snug" title="Zobrazit celý popis">${item.description}</p>` : '<div class="mt-0.5 h-4"></div>'}
+            <div class="mt-1 flex items-center justify-between text-[10px] text-gray-400">
                 <span class="${timeInfo.urgent ? 'countdown-urgent text-red-500 font-bold' : ''}">${isAukce ? '⏱ ' + timeInfo.text : ''}</span>
                 <span class="views-badge"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>${item.views_count || 0}</span>
             </div>
