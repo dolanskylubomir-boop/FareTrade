@@ -1106,14 +1106,17 @@
                     const isLoginScreen = window.location.hash.includes('login');
                     await checkUserProfileKYC(session.user, isLoginScreen);
                     loadFavoritesFromDB();
-                } else if (event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED') {
-                    // JWT je platný — teď je bezpečné načítat privátní data
+                } else if (event === 'INITIAL_SESSION') {
                     window._jwtReady = true;
                     loadFavoritesFromDB();
-                    // Pokud jsme na profilu a cache je prázdná, načti privátní data
+                } else if (event === 'TOKEN_REFRESHED') {
+                    window._jwtReady = true;
+                    // Token je čerstvý — resetuj dedup flag a zkus znovu načíst privátní data
+                    window._loadingPrivateProfile = null;
+                    loadFavoritesFromDB();
                     const h = window.location.hash.replace('#','');
                     if (h.startsWith('profil') && !window._privateProfileCache) {
-                        _loadPrivateProfileData(session.user);
+                        window._loadPrivateProfileData(session.user);
                     }
                 }
             } else {
@@ -1168,10 +1171,10 @@
         window.currentUser = null;
         window._privateProfileCache = null;
         window._txStatsCache = null;
-        window._profilesMap = null;
+        window._loadingPrivateProfile = null;
         window._jwtReady = false;
-        window.dataLoaded = false;
-        window._fetchDBPromise = null;
+        window._favCache = new Set();
+        // NEZRUŠUJ dataLoaded/_profilesMap/_fetchDBPromise — veřejná data zůstávají platná
         const btn = document.getElementById('btn-register-top');
         if (btn) { btn.innerText='Registrovat'; btn.setAttribute('onclick',"navigate('login')"); }
         showToast('Byli jste úspěšně odhlášeni.','success');
@@ -1480,9 +1483,9 @@
             if (pcEl)     pcEl.innerText     = c.purchases;
         }
 
-        // JWT je připraveno (INITIAL_SESSION/SIGNED_IN proběhl) a cache je prázdná → načti privátní data
-        if (window._jwtReady && (!window._privateProfileCache || window._privateProfileCache.uid !== user.id)) {
-            _loadPrivateProfileData(user);
+        // Načti privátní data pokud cache je prázdná (deduplikace je uvnitř _loadPrivateProfileData)
+        if (!window._privateProfileCache || window._privateProfileCache.uid !== user.id) {
+            window._loadPrivateProfileData(user);
         }
     };
 
@@ -1502,23 +1505,24 @@
         }
     }
 
-    // Voláno z onAuthStateChange INITIAL_SESSION — JWT je teď platný
-    window._loadPrivateProfileData = function(user, activeTab) {
+    window._loadPrivateProfileData = function(user) {
         if (!supabaseClient || !user) return;
         const uid = user.id;
+        // Deduplikace — pokud dotaz pro tohoto uživatele již běží, nespouštěj znovu
+        if (window._loadingPrivateProfile === uid) return;
+        window._loadingPrivateProfile = uid;
 
-        // Privátní profil — uloží do cache, aplikuje do DOM ihned a po každém re-renderu
         supabaseClient.from('profiles').select('*').eq('id', uid).single()
         .then(({ data, error }) => {
             if (!data || error) return;
             _applyProfileDisplay(data, user);
-            window._privateProfileCache = { uid, data }; // uloži do cache
+            window._privateProfileCache = { uid, data };
             if (window._profilesMap) window._profilesMap[uid] = { ...(window._profilesMap[uid]||{}), ...data };
             const h = window.location.hash.replace('#','');
             if ((h.split('/')[1] || 'inzeraty') === 'kyc') _applyKycToDOM(data);
-        }).catch(() => {});
+        }).catch(() => {})
+        .finally(() => { window._loadingPrivateProfile = null; });
 
-        // Statistiky transakcí
         supabaseClient.from('transactions').select('price,seller_id,buyer_id,status').eq('status','completed').or(`buyer_id.eq.${uid},seller_id.eq.${uid}`)
         .then(({ data:txStats }) => {
             const tx = txStats || [];
@@ -2602,5 +2606,4 @@
     });
     </script>
 </body>
-    
 </html>
