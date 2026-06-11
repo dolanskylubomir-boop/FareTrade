@@ -2,8 +2,8 @@
   "name": "FairTrade Tržiště",
   "short_name": "FairTrade",
   "description": "Moderní aukční a inzertní tržiště s ověřenými prodejci a escrow ochranou plateb.",
-  "start_url": "./fairtrade.html",
-  "scope": "./",
+  "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "orientation": "portrait-primary",
   "theme_color": "#0ea5e9",
@@ -48,14 +48,14 @@
       "name": "Aukce",
       "short_name": "Aukce",
       "description": "Zobrazit aktivní aukce",
-      "url": "./fairtrade.html#aukce",
+      "url": "/#aukce",
       "icons": [{ "src": "icon-192.png", "sizes": "192x192" }]
     },
     {
       "name": "Nový inzerát",
       "short_name": "Vložit",
       "description": "Přidat nový inzerát",
-      "url": "./fairtrade.html#novy-inzerat",
+      "url": "/#novy-inzerat",
       "icons": [{ "src": "icon-192.png", "sizes": "192x192" }]
     }
   ],

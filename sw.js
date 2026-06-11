@@ -1,10 +1,10 @@
 // FairTrade Service Worker v1.0
 const CACHE = 'fairtrade-v1';
-const OFFLINE_PAGE = './fairtrade.html';
+const OFFLINE_PAGE = './index.html';
 
 // Soubory ke cachování při instalaci
 const PRECACHE = [
-  './fairtrade.html',
+  './index.html',
   './manifest.json',
   './icon.svg',
   './icon-192.png',
@@ -95,7 +95,7 @@ self.addEventListener('push', event => {
       body: data.body || '',
       icon: './icon-192.png',
       badge: './icon-192.png',
-      data: { url: data.url || './fairtrade.html' },
+      data: { url: data.url || './' },
       vibrate: [200, 100, 200]
     })
   );
@@ -104,6 +104,6 @@ self.addEventListener('push', event => {
 self.addEventListener('notificationclick', event => {
   event.notification.close();
   event.waitUntil(
-    clients.openWindow(event.notification.data?.url || './fairtrade.html')
+    clients.openWindow(event.notification.data?.url || './')
   );
 });
