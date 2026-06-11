@@ -1859,16 +1859,44 @@
         if (!window.currentUser) { showToast('Pro nákup se musíte přihlásit.','warning'); navigate('login'); return; }
         const item = dataPevnaCena.find(i=>i.id==id);
         if (!item) return;
+        if (item.seller_id === window.currentUser.id) { showToast('Nemůžete koupit vlastní inzerát.','warning'); return; }
         if (!confirm(`Opravdu chcete zakoupit "${item.title}" za ${item.price.toLocaleString('cs-CZ')} Kč?\n\nVytvoří se objednávka a upozorní prodejce.`)) return;
+
+        const token = await _ensureValidToken();
+        if (!token) { showToast('Chyba ověření — přihlaste se znovu.','warning'); return; }
+        const uid = window.currentUser.id;
+        const hdrs = { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' };
+
+        // Zjisti jméno kupujícího
         let buyerName = window.currentUser.email;
-        try { const { data } = await supabaseClient.from('profiles').select('display_name,first_name').eq('id',window.currentUser.id).single(); if (data) buyerName = data.display_name||data.first_name||buyerName; } catch(e) {}
-        const newTx = { id:Date.now().toString(), item_id:item.id, item_title:item.title, item_image:item.img, seller_id:item.seller_id, seller_name:item.seller, buyer_id:window.currentUser.id, buyer_name:buyerName, price:item.price, status:'created', created_at:new Date().toISOString() };
-        const { error:txError } = await supabaseClient.from('transactions').insert([newTx]);
-        if (txError) { showToast('Chyba při vytváření objednávky: '+txError.message,'warning'); return; }
-        await supabaseClient.from('pevna_cena').update({ status:'prodáno' }).eq('id', item.id);
-        dataPevnaCena = dataPevnaCena.filter(i=>i.id!==item.id);
-        handleRealtimeTransactionUpdate(newTx,'INSERT');
-        showToast(`Položka "${item.title}" byla zakoupena!`,'success');
+        try {
+            const rp = await fetch(`${SUPABASE_URL}/rest/v1/profiles?id=eq.${uid}&select=display_name,first_name`, { headers: hdrs });
+            const pd = await rp.json();
+            if (Array.isArray(pd) && pd[0]) buyerName = pd[0].display_name || pd[0].first_name || buyerName;
+        } catch(e) {}
+
+        // Vytvoř transakci (DB generuje UUID)
+        const txPayload = { item_id: item.id, item_title: item.title, item_image: item.img, seller_id: item.seller_id, seller_name: item.seller, buyer_id: uid, buyer_name: buyerName, price: item.price, status: 'created' };
+        const rTx = await fetch(`${SUPABASE_URL}/rest/v1/transactions`, {
+            method: 'POST',
+            headers: { ...hdrs, 'Prefer': 'return=representation' },
+            body: JSON.stringify(txPayload)
+        });
+        if (!rTx.ok) { const err = await rTx.json().catch(()=>{}); showToast('Chyba objednávky: ' + (err?.message||rTx.status), 'warning'); return; }
+        const txRows = await rTx.json();
+        const newTx = Array.isArray(txRows) ? txRows[0] : txRows;
+
+        // Deaktivuj inzerát v DB
+        await fetch(`${SUPABASE_URL}/rest/v1/pevna_cena?id=eq.${item.id}`, {
+            method: 'PATCH',
+            headers: { ...hdrs, 'Prefer': 'return=minimal' },
+            body: JSON.stringify({ status: 'prodáno' })
+        });
+
+        // Odstraň ihned z lokálního pole — zmizí bez refreshe
+        dataPevnaCena = dataPevnaCena.filter(i => i.id !== item.id);
+        if (newTx) handleRealtimeTransactionUpdate(newTx, 'INSERT');
+        showToast(`Položka "${item.title}" byla zakoupena!`, 'success');
         navigate('profil/transakce');
     };
 
