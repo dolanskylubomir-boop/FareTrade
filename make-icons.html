@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="UTF-8">
+<title>FairTrade — Generátor ikon pro PWA</title>
+<style>
+  body { font-family: system-ui, sans-serif; background: #f1f5f9; display: flex; flex-direction: column; align-items: center; padding: 40px 20px; }
+  h1 { color: #0369a1; margin-bottom: 8px; }
+  p { color: #64748b; margin-bottom: 32px; }
+  .cards { display: flex; gap: 24px; flex-wrap: wrap; justify-content: center; margin-bottom: 32px; }
+  .card { background: white; border-radius: 16px; padding: 24px; box-shadow: 0 4px 20px rgba(0,0,0,.08); text-align: center; }
+  canvas { display: block; margin: 0 auto 12px; border-radius: 20px; box-shadow: 0 2px 12px rgba(3,105,161,.2); }
+  button { background: #0ea5e9; color: white; border: none; padding: 10px 24px; border-radius: 10px; font-weight: 700; font-size: 14px; cursor: pointer; transition: background .15s; }
+  button:hover { background: #0284c7; }
+  .note { background: #e0f2fe; border: 1px solid #7dd3fc; border-radius: 12px; padding: 16px 20px; max-width: 500px; font-size: 13px; color: #0369a1; line-height: 1.6; }
+  .note strong { display: block; margin-bottom: 4px; }
+  .step { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px 20px; max-width: 500px; margin-top: 20px; font-size: 13px; color: #374151; }
+  .step ol { margin: 8px 0 0; padding-left: 20px; }
+  .step li { margin-bottom: 6px; }
+  code { background: #e2e8f0; padding: 1px 6px; border-radius: 4px; font-size: 12px; }
+</style>
+</head>
+<body>
+<h1>FairTrade PWA — Generátor ikon</h1>
+<p>Klikni na tlačítko pod každou ikonou a stáhni PNG soubor.</p>
+
+<div class="cards">
+  <div class="card">
+    <canvas id="c192" width="192" height="192"></canvas>
+    <div style="font-weight:700;color:#334155;margin-bottom:10px">icon-192.png<br><span style="font-size:12px;color:#94a3b8">192 × 192 px</span></div>
+    <button onclick="download('c192','icon-192.png')">Stáhnout</button>
+  </div>
+  <div class="card">
+    <canvas id="c512" width="512" height="512"></canvas>
+    <div style="font-weight:700;color:#334155;margin-bottom:10px">icon-512.png<br><span style="font-size:12px;color:#94a3b8">512 × 512 px</span></div>
+    <button onclick="download('c512','icon-512.png')">Stáhnout</button>
+  </div>
+</div>
+
+<div class="note">
+  <strong>Co s těmito soubory udělat?</strong>
+  Oba stažené soubory (<code>icon-192.png</code> a <code>icon-512.png</code>) přesuň
+  do stejné složky jako <code>index.html</code>.
+  To je vše — PWA je pak plně funkční.
+</div>
+
+<div class="step">
+  <strong>Jak nainstalovat app na mobil:</strong>
+  <ol>
+    <li><strong>Android (Chrome):</strong> Otevři app → menu (⋮) → <em>Přidat na plochu</em></li>
+    <li><strong>iOS (Safari):</strong> Otevři app → tlačítko Sdílet (□↑) → <em>Přidat na plochu</em></li>
+  </ol>
+</div>
+
+<script>
+function drawIcon(canvasId) {
+  const canvas = document.getElementById(canvasId);
+  const s = canvas.width;
+  const ctx = canvas.getContext('2d');
+  const r = s * 0.21;
+
+  // --- Pozadí s gradient ---
+  const grad = ctx.createLinearGradient(0, 0, s, s);
+  grad.addColorStop(0, '#38bdf8');
+  grad.addColorStop(1, '#0369a1');
+  ctx.fillStyle = grad;
+  roundRect(ctx, 0, 0, s, s, r);
+  ctx.fill();
+
+  // --- Lesk nahoře ---
+  const shine = ctx.createLinearGradient(0, 0, 0, s * 0.5);
+  shine.addColorStop(0, 'rgba(255,255,255,0.18)');
+  shine.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = shine;
+  roundRect(ctx, 0, 0, s, s * 0.5, r);
+  ctx.fill();
+
+  // --- Písmena FT ---
+  ctx.fillStyle = 'white';
+  ctx.shadowColor = 'rgba(0,0,0,0.15)';
+  ctx.shadowBlur = s * 0.03;
+  ctx.font = `900 ${s * 0.52}px Arial Black, Helvetica, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('FT', s * 0.48, s * 0.54);
+  ctx.shadowBlur = 0;
+
+  // --- Hvězdička ---
+  const cx = s * 0.84, cy = s * 0.19, sr = s * 0.078;
+  ctx.fillStyle = '#fbbf24';
+  ctx.beginPath();
+  ctx.arc(cx, cy, sr, 0, Math.PI * 2);
+  ctx.fill();
+  drawStar(ctx, cx, cy, 5, sr * 0.45, sr * 1.0, 'white');
+}
+
+function drawStar(ctx, cx, cy, spikes, innerR, outerR, color) {
+  let rot = (Math.PI / 2) * 3;
+  const step = Math.PI / spikes;
+  ctx.beginPath();
+  ctx.moveTo(cx, cy - outerR);
+  for (let i = 0; i < spikes; i++) {
+    ctx.lineTo(cx + Math.cos(rot) * outerR, cy + Math.sin(rot) * outerR);
+    rot += step;
+    ctx.lineTo(cx + Math.cos(rot) * innerR, cy + Math.sin(rot) * innerR);
+    rot += step;
+  }
+  ctx.lineTo(cx, cy - outerR);
+  ctx.closePath();
+  ctx.fillStyle = color;
+  ctx.fill();
+}
+
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.arcTo(x + w, y, x + w, y + r, r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
+  ctx.lineTo(x + r, y + h);
+  ctx.arcTo(x, y + h, x, y + h - r, r);
+  ctx.lineTo(x, y + r);
+  ctx.arcTo(x, y, x + r, y, r);
+  ctx.closePath();
+}
+
+function download(canvasId, filename) {
+  const a = document.createElement('a');
+  a.href = document.getElementById(canvasId).toDataURL('image/png');
+  a.download = filename;
+  a.click();
+}
+
+drawIcon('c192');
+drawIcon('c512');
+</script>
+</body>
+</html>
