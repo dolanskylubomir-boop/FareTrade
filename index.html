@@ -1111,11 +1111,17 @@
     // AUTH
     // ──────────────────────────────────────────────────────────────
     async function checkUserProfileKYC(user, redirectIfVerified = false) {
-        if (!supabaseClient) return;
         try {
-            const { data, error } = await supabaseClient.from('profiles').select('kyc_status').eq('id', user.id).single();
-            if (!error && data && data.kyc_status === 'unverified') { navigate('kyc'); return; }
-        } catch (e) { /* AbortError nebo jiná chyba — ignoruj, naviaguj dál */ }
+            const token = await _ensureValidToken();
+            if (token) {
+                const r = await fetch(`${SUPABASE_URL}/rest/v1/profiles?id=eq.${user.id}&select=kyc_status`, {
+                    headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${token}` }
+                });
+                const rows = await r.json();
+                const kyc = Array.isArray(rows) && rows.length > 0 ? rows[0].kyc_status : null;
+                if (kyc === 'unverified') { navigate('kyc'); return; }
+            }
+        } catch(e) {}
         if (redirectIfVerified) navigate('profil');
     }
 
@@ -1173,7 +1179,7 @@
         } else {
             const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
             if (error) showToast('Chyba přihlášení: ' + error.message, 'warning');
-            else { showToast('Úspěšně přihlášen!','success'); if (data?.user) await checkUserProfileKYC(data.user, true); else navigate('home'); }
+            else if (!data?.user) navigate('home');
         }
     };
 
@@ -2424,14 +2430,23 @@
     // ASYNC LOADER TRANSAKCÍ
     // ──────────────────────────────────────────────────────────────
     window.loadTransakceTab = async function() {
-        if (!supabaseClient || !window.currentUser) return;
+        if (!window.currentUser) return;
         const container = document.getElementById('transakce-content');
         if (!container) return;
-        const { data:dbTx, error } = await supabaseClient.from('transactions').select('*').or(`buyer_id.eq.${window.currentUser.id},seller_id.eq.${window.currentUser.id}`).order('created_at',{ ascending:false });
-        if (error) { if (container) container.innerHTML=`<p class="text-red-500 text-center py-8">Chyba: ${error.message}</p>`; return; }
-        window._txData = dbTx || [];
-        const html = renderProfileTabContent('_transakce_render');
-        if (container) container.innerHTML = html || '<p class="text-gray-500 text-center py-8 fade-in">Zatím žádné transakce.</p>';
+        const token = await _ensureValidToken();
+        if (!token) { container.innerHTML='<p class="text-red-500 text-center py-8">Chyba ověření — přihlaste se znovu.</p>'; return; }
+        const uid = window.currentUser.id;
+        const hdrs = { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${token}` };
+        try {
+            const r = await fetch(`${SUPABASE_URL}/rest/v1/transactions?or=(buyer_id.eq.${uid},seller_id.eq.${uid})&order=created_at.desc`, { headers: hdrs });
+            const dbTx = await r.json();
+            if (!Array.isArray(dbTx)) { container.innerHTML='<p class="text-red-500 text-center py-8">Chyba načítání transakcí.</p>'; return; }
+            window._txData = dbTx;
+            const html = renderProfileTabContent('_transakce_render');
+            container.innerHTML = html || '<p class="text-gray-500 text-center py-8 fade-in">Zatím žádné transakce.</p>';
+        } catch(e) {
+            container.innerHTML='<p class="text-gray-500 text-center py-8">Nepodařilo se načíst transakce.</p>';
+        }
     };
 
     // ──────────────────────────────────────────────────────────────
