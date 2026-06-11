@@ -1329,10 +1329,17 @@
     // ──────────────────────────────────────────────────────────────
     window.loadProfileData = async function(activeTab = 'inzeraty') {
         if (!supabaseClient) return;
-        const { data:{ user }, error:authErr } = await supabaseClient.auth.getUser();
-        if (authErr || !user) { navigate('login'); return; }
+
+        // getSession() čte z localStorage — žádný síťový request, nezamrzne při JWT refresh
+        let user = window.currentUser;
+        if (!user) {
+            const { data:{ session } } = await supabaseClient.auth.getSession();
+            user = session?.user || null;
+        }
+        if (!user) { navigate('login'); return; }
         window.currentUser = user;
-        await fetchDatabaseItems();
+
+        if (!window.dataLoaded) await fetchDatabaseItems();
 
         const myAdsCount = dataAukce.filter(i=>i.seller_id===user.id).length + dataPevnaCena.filter(i=>i.seller_id===user.id).length;
         const el = document.getElementById('profile-active-ads-count');
@@ -1344,22 +1351,25 @@
         const emailEl = document.getElementById('profile-email');
         if (emailEl) emailEl.innerText = user.email;
 
+        // Statistiky transakcí — načti asynchronně, neblokuj zobrazení profilu
         if (supabaseClient) {
-            const { data:txStats } = await supabaseClient.from('transactions').select('price,seller_id,buyer_id,status').eq('status','completed').or(`buyer_id.eq.${user.id},seller_id.eq.${user.id}`);
-            const tx = txStats || [];
-            const sales     = tx.filter(t=>t.seller_id===user.id);
-            const purchases = tx.filter(t=>t.buyer_id===user.id);
-            const earned    = sales.reduce((s,t)=>s+t.price,0);
-            const spent     = purchases.reduce((s,t)=>s+t.price,0);
-            const earnedEl  = document.getElementById('profile-earned');
-            const spentEl   = document.getElementById('profile-spent');
-            const scEl      = document.getElementById('profile-sales-count');
-            const pcEl      = document.getElementById('profile-purchase-count');
-            if (earnedEl) earnedEl.innerHTML = `${earned.toLocaleString('cs-CZ')} <span class="text-xs text-gray-400 font-bold">Kč</span>`;
-            if (spentEl)  spentEl.innerHTML  = `${spent.toLocaleString('cs-CZ')} <span class="text-xs text-gray-400 font-bold">Kč</span>`;
-            if (scEl)     scEl.innerText     = sales.length;
-            if (pcEl)     pcEl.innerText     = purchases.length;
-            supabaseClient.from('profiles').update({ total_earned:earned, total_spent:spent }).eq('id',user.id).then();
+            supabaseClient.from('transactions').select('price,seller_id,buyer_id,status').eq('status','completed').or(`buyer_id.eq.${user.id},seller_id.eq.${user.id}`)
+            .then(({ data:txStats }) => {
+                const tx = txStats || [];
+                const sales     = tx.filter(t=>t.seller_id===user.id);
+                const purchases = tx.filter(t=>t.buyer_id===user.id);
+                const earned    = sales.reduce((s,t)=>s+t.price,0);
+                const spent     = purchases.reduce((s,t)=>s+t.price,0);
+                const earnedEl  = document.getElementById('profile-earned');
+                const spentEl   = document.getElementById('profile-spent');
+                const scEl      = document.getElementById('profile-sales-count');
+                const pcEl      = document.getElementById('profile-purchase-count');
+                if (earnedEl) earnedEl.innerHTML = `${earned.toLocaleString('cs-CZ')} <span class="text-xs text-gray-400 font-bold">Kč</span>`;
+                if (spentEl)  spentEl.innerHTML  = `${spent.toLocaleString('cs-CZ')} <span class="text-xs text-gray-400 font-bold">Kč</span>`;
+                if (scEl)     scEl.innerText     = sales.length;
+                if (pcEl)     pcEl.innerText     = purchases.length;
+                supabaseClient.from('profiles').update({ total_earned:earned, total_spent:spent }).eq('id',user.id).then();
+            }).catch(() => {});
         }
 
         const { data, error } = await supabaseClient.from('profiles').select('*').eq('id',user.id).single();
