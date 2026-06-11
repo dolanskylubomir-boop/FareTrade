@@ -554,43 +554,55 @@
 
     function _censorCheck(text) {
         var t = text;
+        var tl = t.toLowerCase();
 
         // 1. Přímý email
         if (/[\w.+\-]+@[\w\-]+\.[a-z]{2,}/i.test(t)) return true;
 
-        // 2. Obfuskovaný zavináč — zavináč / [at] / (at) / ＠
-        if (/(zavináč|zavinac|zavinác|\[at\]|\(at\)|＠)/i.test(t)) return true;
-        // "user at domain" vzor (nikoliv jen standalone "at")
+        // 2. @ kdekoliv — s mezerami i bez (jokl @ sss, @handle, jan@gmail)
+        if (t.indexOf('@') !== -1) return true;
+
+        // 3. Obfuskovaný zavináč — s diakritikou i bez, různé závorky, fullwidth ＠
+        if (/(zavináč|zavinac|zavinác|zavinace|zavinacem|\[at\]|\(at\)|\{at\}|<at>|at-sign|atsign|＠)/i.test(t)) return true;
+        // "user at domain" vzor
         if (/\S+\s+at\s+\S+/i.test(t)) return true;
 
-        // 3. Obfuskovaná tečka před doménou — "tečka com", "dot cz", "bodka sk" apod.
-        if (/(tečka|tecka|tečku|tecku|bodka|\.|\[dot\]|\(dot\)|dot)\s*(com|cz|sk|eu|net|org|io|me|to)/i.test(t)) return true;
+        // 4. Obfuskovaná tečka před doménou — "tečka com", "dot cz", "bodka sk" apod.
+        if (/(tečka|tecka|tečku|tecku|bodka|\.|\[dot\]|\(dot\))\s*(com|cz|sk|eu|net|org|io|me|to|de|uk|fr)/i.test(t)) return true;
 
-        // 4. Známé emailové domény — i bez zavináče stačí zmínit gmail, seznam atd.
+        // 5. Známé emailové domény
         if (/(gmail|seznam\.?cz|yahoo|hotmail|outlook|icloud|protonmail|centrum\.?cz|atlas\.?cz|email\.?cz|post\.?cz|volny\.?cz)/i.test(t)) return true;
 
-        // 5. URL
+        // 6. URL
         if (/https?:\/\//i.test(t) || /www\.[a-z]/i.test(t)) return true;
 
-        // 6. Sociální sítě a IM
+        // 7. Sociální sítě a IM
         if (/(instagram|facebook|tiktok|twitter|whatsapp|telegram|signal|discord|messenger|snapchat|linkedin|viber)/i.test(t)) return true;
         if (/(skype|icq|zoom\.us)\s*:?\s*[\w.]+/i.test(t)) return true;
 
-        // 7. @handle
-        if (/@[a-zA-Z0-9_.]{3,}/.test(t)) return true;
+        // 8. Telefonní čísla — odstraň oddělovače a hledej 7+ číslic za sebou
+        var stripped = t.replace(/[\s\-\.\/\(\)\+]/g, '');
+        if (/\d{7}/.test(stripped)) return true;
 
-        // 8. Telefonní čísla — odstraň oddělovače a hledej 9+ číslic za sebou
-        var stripped = t.replace(/[\s\-\.\/\(\)]/g, '');
-        if (/\d{9}/.test(stripped)) return true;
+        // 9. Specifické formáty: "XX XX XX XX" nebo "XXX XXX XX"
+        if (/\d{2}[\s\-]\d{2}[\s\-]\d{2}[\s\-]\d{2}/.test(t)) return true;
+        if (/\d{3}[\s\-]\d{3}[\s\-]\d{2}/.test(t)) return true;
 
-        // 9. Číslice zapsané slovně — "sedm sedm sedm jedna dva tři čtyři pět šest"
-        var wordDigits = t
-            .replace(/\bnula\b/gi,'0').replace(/\bjedna\b/gi,'1').replace(/\bdva\b/gi,'2')
-            .replace(/\btři\b/gi,'3').replace(/\bčtyři\b/gi,'4').replace(/\bpět\b/gi,'5')
-            .replace(/\bšest\b/gi,'6').replace(/\bsedm\b/gi,'7').replace(/\bosm\b/gi,'8')
-            .replace(/\bdevět\b/gi,'9');
-        var strippedWords = wordDigits.replace(/[\s\-\.\/\(\)]/g, '');
-        if (/\d{9}/.test(strippedWords)) return true;
+        // 10. Číslice zapsané slovně — CZ/SK/EN/DE, s diakritikou i bez
+        //     Normalizuj na číslice, pak zkontroluj 7+ za sebou
+        var wt = tl
+            .replace(/nula|null|nul|zero/g, '0')
+            .replace(/jedna|jeden|one|ein|eins/g, '1')
+            .replace(/dvě|dve|dva|two|zwei/g, '2')
+            .replace(/tři|tri|three|drei/g, '3')
+            .replace(/čtyři|ctyri|štyri|styri|four|vier/g, '4')
+            .replace(/pět|pet|päť|pat|five|fünf|funf/g, '5')
+            .replace(/šest|sest|šesť|sesť|six|sechs/g, '6')
+            .replace(/sedm|sedem|seven|sieben/g, '7')
+            .replace(/osm|osem|eight|acht/g, '8')
+            .replace(/devět|devet|deväť|devät|devat|nine|neun/g, '9');
+        var strippedW = wt.replace(/[\s\-\.\/\(\)]/g, '');
+        if (/\d{7}/.test(strippedW)) return true;
 
         return false;
     }
