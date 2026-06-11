@@ -1372,10 +1372,12 @@
             }).catch(() => {});
         }
 
-        const { data, error } = await supabaseClient.from('profiles').select('*').eq('id',user.id).single();
-        if (data && !error) {
+        // Profil — načti asynchronně, neblokuj stránku; jméno/avatar se doplní až data přijdou
+        supabaseClient.from('profiles').select('*').eq('id',user.id).single()
+        .then(({ data, error }) => {
+            if (!data || error) return;
             const fullName    = `${data.first_name||''} ${data.last_name||''}`.trim();
-            const displayName = data.display_name || fullName || 'Nepojmenovaný uživatel';
+            const displayName = data.display_name || fullName || user.email?.split('@')[0] || 'Uživatel';
             const initials    = (data.display_name?data.display_name[0]:(data.first_name?data.first_name[0]:'?')).toUpperCase();
             const initEl      = document.getElementById('profile-initials');
             if (initEl) {
@@ -1410,7 +1412,7 @@
                     else { kycBadge.textContent='Neověřeno'; kycBadge.className='bg-red-100 text-red-800 text-xs px-3 py-1 rounded-full font-bold uppercase border border-red-200'; }
                 }
             }
-        }
+        }).catch(() => {});
     };
 
     window.renderProfileTabContent = function(tab) {
