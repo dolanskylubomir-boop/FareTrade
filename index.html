@@ -1102,27 +1102,23 @@
                 if (btn) { btn.innerText='Můj Profil'; btn.setAttribute('onclick',"navigate('profil')"); }
 
                 if (event === 'SIGNED_IN') {
+                    window._jwtReady = true;
                     const isLoginScreen = window.location.hash.includes('login');
                     await checkUserProfileKYC(session.user, isLoginScreen);
                     loadFavoritesFromDB();
-                } else if (event === 'INITIAL_SESSION') {
-                    // JWT refresh JE HOTOVÝ — teď je bezpečné načítat privátní data
+                } else if (event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED') {
+                    // JWT je platný — teď je bezpečné načítat privátní data
+                    window._jwtReady = true;
                     loadFavoritesFromDB();
+                    // Pokud jsme na profilu a cache je prázdná, načti privátní data
                     const h = window.location.hash.replace('#','');
-                    if (h.startsWith('profil')) {
-                        const tab = h.split('/')[1] || 'inzeraty';
-                        _loadPrivateProfileData(session.user, tab);
-                    }
-                } else if (event === 'TOKEN_REFRESHED') {
-                    // Token byl obnoven — aktualizuj privátní data profilu
-                    const h = window.location.hash.replace('#','');
-                    if (h.startsWith('profil')) {
-                        const tab = h.split('/')[1] || 'inzeraty';
-                        _loadPrivateProfileData(session.user, tab);
+                    if (h.startsWith('profil') && !window._privateProfileCache) {
+                        _loadPrivateProfileData(session.user);
                     }
                 }
             } else {
                 window.currentUser = null;
+                window._jwtReady = false;
                 if (btn) { btn.innerText='Registrovat'; btn.setAttribute('onclick',"navigate('login')"); }
             }
         });
@@ -1173,6 +1169,7 @@
         window._privateProfileCache = null;
         window._txStatsCache = null;
         window._profilesMap = null;
+        window._jwtReady = false;
         window.dataLoaded = false;
         window._fetchDBPromise = null;
         const btn = document.getElementById('btn-register-top');
@@ -1466,7 +1463,7 @@
             if (nameEl) nameEl.innerText = user.email?.split('@')[0] || 'Uživatel';
         }
 
-        // Pokud jsou privátní data již v cache (z INITIAL_SESSION), aplikuj ihned
+        // Pokud jsou privátní data již v cache, aplikuj ihned
         if (window._privateProfileCache?.uid === user.id) {
             _applyProfileDisplay(window._privateProfileCache.data, user);
             if (activeTab === 'kyc') _applyKycToDOM(window._privateProfileCache.data);
@@ -1481,6 +1478,11 @@
             if (spentEl)  spentEl.innerHTML  = `${c.spent.toLocaleString('cs-CZ')} <span class="text-xs text-gray-400 font-bold">Kč</span>`;
             if (scEl)     scEl.innerText     = c.sales;
             if (pcEl)     pcEl.innerText     = c.purchases;
+        }
+
+        // JWT je připraveno (INITIAL_SESSION/SIGNED_IN proběhl) a cache je prázdná → načti privátní data
+        if (window._jwtReady && (!window._privateProfileCache || window._privateProfileCache.uid !== user.id)) {
+            _loadPrivateProfileData(user);
         }
     };
 
