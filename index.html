@@ -790,7 +790,17 @@
     // NAČÍTÁNÍ Z DATABÁZE
     // ──────────────────────────────────────────────────────────────
     window.fetchDatabaseItems = async function() {
-        if (!supabaseClient) return;
+        if (!supabaseClient) { window.dataLoaded = true; return; }
+
+        // Nouzový timeout: pokud DB neodpoví do 12s, odblokuj UI
+        let _fallback = setTimeout(() => {
+            if (!window.dataLoaded) {
+                window.dataLoaded = true;
+                const h = window.location.hash.replace('#','');
+                navigate(h || 'home');
+            }
+        }, 12000);
+
         try {
             const [r1, r2, r3, r4, r5] = await Promise.all([
                 supabaseClient.from('aukce').select('*').eq('status','aktivní').order('is_top', { ascending:false }),
@@ -893,20 +903,27 @@
         } catch (e) {
             console.error('Kritická chyba načítání:', e);
             window.dataLoaded = true;
+        } finally {
+            clearTimeout(_fallback);
         }
     };
 
-    // Navýšení počtu zobrazení
+    // Navýšení počtu zobrazení (deduplikace per session)
     window.incrementViewCount = async function(id, type) {
-        if (!supabaseClient || !id) return;
-        const table = type === 'aukce' ? 'aukce' : 'pevna_cena';
-        // RPC increment_views musí existovat, nebo použijeme přímý update
+        if (!id) return;
+        const sessionKey = `ft_view_${id}`;
+        if (sessionStorage.getItem(sessionKey)) return; // Již počítáno v této session
+        sessionStorage.setItem(sessionKey, '1');
+
         const arr  = type === 'aukce' ? dataAukce : dataPevnaCena;
         const item = arr.find(i => i.id === id);
-        if (item) {
-            item.views_count = (item.views_count || 0) + 1;
-            supabaseClient.from(table).update({ views_count: item.views_count }).eq('id', id).then();
-        }
+        if (item) item.views_count = (item.views_count || 0) + 1;
+
+        if (!supabaseClient) return;
+        const table = type === 'aukce' ? 'aukce' : 'pevna_cena';
+        try {
+            await supabaseClient.from(table).update({ views_count: item?.views_count || 1 }).eq('id', id);
+        } catch(e) { /* RLS může blokovat anon – tiché selhání */ }
     };
 
     // ──────────────────────────────────────────────────────────────
@@ -927,9 +944,11 @@
             if (session?.user) {
                 window.currentUser = session.user;
                 if (btn) { btn.innerText='Můj Profil'; btn.setAttribute('onclick',"navigate('profil')"); }
-                if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
+                if (event === 'SIGNED_IN') {
                     const isLoginScreen = window.location.hash.includes('login');
                     await checkUserProfileKYC(session.user, isLoginScreen);
+                    await loadFavoritesFromDB();
+                } else if (event === 'INITIAL_SESSION') {
                     await loadFavoritesFromDB();
                 }
             } else {
@@ -952,6 +971,8 @@
         const action   = e.submitter?.getAttribute('data-action') || 'signin';
         if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return showToast('Zadejte platnou e-mailovou adresu.','warning');
         if (action === 'signup' && password.length < 8) return showToast('Heslo musí mít alespoň 8 znaků.','warning');
+        if (action === 'signup' && !document.getElementById('vop-consent')?.checked)
+            return showToast('Pro registraci musíte být starší 18 let a souhlasit s obchodními podmínkami.','warning');
         if (action === 'signup') {
             const { data, error } = await supabaseClient.auth.signUp({ email, password });
             if (error) showToast('Chyba registrace: ' + error.message, 'warning');
@@ -987,7 +1008,13 @@
                 if (!check.ok) throw new Error(check.error);
                 const fileName = `avatar-${user.id}-${Date.now()}.${check.ext}`;
                 const { data:sd, error:se } = await supabaseClient.storage.from('avatary').upload(fileName, file, { cacheControl:'3600', upsert:true });
-                if (!se && sd) { const { data:pu } = supabaseClient.storage.from('avatary').getPublicUrl(fileName); avatarUrl = pu?.publicUrl || null; }
+                if (se) {
+                    console.warn('Avatar upload selhal:', se.message);
+                    showToast('Fotografie se nepodařilo nahrát (' + se.message + ') – profil bude uložen bez avataru.', 'warning');
+                } else if (sd) {
+                    const { data:pu } = supabaseClient.storage.from('avatary').getPublicUrl(fileName);
+                    avatarUrl = pu?.publicUrl || null;
+                }
             }
             const profileData = {
                 display_name: document.getElementById('kyc-dname').value,
@@ -1472,7 +1499,178 @@
         </div>`,
 
         kontakt: () => `<div class="w-full bg-white/90 backdrop-blur-xl p-10 rounded-[2rem] shadow-xl fade-in min-h-[500px] border border-white/50 flex flex-col items-center justify-center relative"><button onclick="navigate('home')" class="absolute top-8 left-8 text-sky-500 font-bold hover:text-sky-600 flex items-center gap-2">← Zpět</button><h2 class="text-4xl font-extrabold mb-4 text-pastel-text">Kontakt</h2><p class="text-gray-500">Kontaktní formulář a adresa provozovatele tržiště.</p></div>`,
-        vop:     () => `<div class="w-full bg-white/90 backdrop-blur-xl p-10 rounded-[2rem] shadow-xl fade-in min-h-[500px] border border-white/50 flex flex-col items-center justify-center relative"><button onclick="navigate('home')" class="absolute top-8 left-8 text-sky-500 font-bold hover:text-sky-600 flex items-center gap-2">← Zpět</button><h2 class="text-4xl font-extrabold mb-4 text-pastel-text">Obchodní podmínky</h2><p class="text-gray-500">Znění Všeobecných obchodních podmínek (VOP).</p></div>`,
+        vop: () => `
+        <div class="w-full max-w-4xl mx-auto bg-white/90 backdrop-blur-xl p-6 md:p-10 rounded-[2rem] shadow-xl fade-in border border-white/50 mb-10">
+            <button onclick="navigate('home')" class="mb-6 text-sky-500 font-bold hover:text-sky-600 flex items-center gap-2">← Zpět</button>
+            <div class="mb-8">
+                <h2 class="text-3xl md:text-4xl font-extrabold text-pastel-text mb-1">Všeobecné obchodní podmínky</h2>
+                <p class="text-gray-400 text-xs">Platné od 1. 1. 2025 · Verze 1.0</p>
+            </div>
+            <div class="space-y-8 text-gray-700 text-sm leading-relaxed">
+
+                <section>
+                    <h3 class="text-base font-extrabold text-gray-800 mb-2 pb-2 border-b border-gray-100">1. Provozovatel a kontaktní údaje</h3>
+                    <p>Provozovatelem tržiště FairTrade (dále „Tržiště") je fyzická nebo právnická osoba zapsaná v obchodním či živnostenském rejstříku ČR (dále „Provozovatel"). Kontakt: <strong>podpora@fairtrade-trziste.cz</strong>. Tržiště je provozováno prostřednictvím webové a mobilní aplikace dostupné na doméně provozovatele (dále „Platforma").</p>
+                </section>
+
+                <section>
+                    <h3 class="text-base font-extrabold text-gray-800 mb-2 pb-2 border-b border-gray-100">2. Definice pojmů</h3>
+                    <ul class="list-disc pl-5 space-y-1">
+                        <li><strong>Uživatel</strong> – fyzická nebo právnická osoba registrovaná na Platformě.</li>
+                        <li><strong>Prodávající</strong> – Uživatel nabízející zboží k prodeji nebo v aukci.</li>
+                        <li><strong>Kupující</strong> – Uživatel nakupující zboží nebo přihazující v aukci.</li>
+                        <li><strong>Inzerát</strong> – nabídka zboží za pevnou cenu zveřejněná na Platformě.</li>
+                        <li><strong>Aukce</strong> – veřejné nabídkové řízení, kde zboží získá Uživatel s nejvyšším příhozem.</li>
+                        <li><strong>Escrow</strong> – bezpečnostní úschova platby Provozovatelem do doby potvrzení přijetí zboží Kupujícím.</li>
+                        <li><strong>KYC</strong> – ověření totožnosti Uživatele (Know Your Customer).</li>
+                    </ul>
+                </section>
+
+                <section>
+                    <h3 class="text-base font-extrabold text-gray-800 mb-2 pb-2 border-b border-gray-100">3. Registrace a uživatelský účet</h3>
+                    <p class="mb-2">Používání Platformy vyžaduje registraci. Uživatel musí být starší <strong>18 let</strong>. Registrací Uživatel potvrzuje, že:</p>
+                    <ul class="list-disc pl-5 space-y-1 mb-2">
+                        <li>je plně svéprávnou fyzickou osobou starší 18 let nebo oprávněným zástupcem právnické osoby,</li>
+                        <li>zadané registrační údaje jsou pravdivé, aktuální a úplné,</li>
+                        <li>se seznámil s těmito VOP a souhlasí s nimi,</li>
+                        <li>souhlasí se zpracováním osobních údajů dle čl. 10 těchto VOP.</li>
+                    </ul>
+                    <p>Uživatel je povinen chránit přihlašovací údaje před zneužitím. Provozovatel nenese odpovědnost za škody vzniklé zneužitím přístupu třetí osobou. Jeden Uživatel může mít pouze jeden aktivní účet.</p>
+                </section>
+
+                <section>
+                    <h3 class="text-base font-extrabold text-gray-800 mb-2 pb-2 border-b border-gray-100">4. KYC – ověření totožnosti</h3>
+                    <p class="mb-2">Pro aktivní prodej je vyžadováno ověření totožnosti. Uživatel je povinen poskytnout:</p>
+                    <ul class="list-disc pl-5 space-y-1 mb-2">
+                        <li>jméno, příjmení a datum narození,</li>
+                        <li>adresu trvalého bydliště,</li>
+                        <li>číslo bankovního účtu pro výplatu výnosů.</li>
+                    </ul>
+                    <p>Platforma si vyhrazuje právo omezit nebo zablokovat účet bez dokončeného KYC. KYC údaje jsou zpracovávány výhradně pro účely ověření a bezpečnosti Tržiště.</p>
+                </section>
+
+                <section>
+                    <h3 class="text-base font-extrabold text-gray-800 mb-2 pb-2 border-b border-gray-100">5. Inzerování a aukce</h3>
+                    <p class="mb-2">Prodávající smí vkládat inzeráty a vyhlašovat aukce za těchto podmínek:</p>
+                    <ul class="list-disc pl-5 space-y-1 mb-2">
+                        <li>Popis a fotografie musí věrně zobrazovat skutečný stav zboží – jakékoli klamavé uvádění je zakázáno.</li>
+                        <li>Inzerát nesmí porušovat práva třetích osob (autorská práva, ochranné známky, patenty).</li>
+                        <li>Platforma inzeráty moderuje a může je bez náhrady kdykoli odstranit.</li>
+                        <li>Aukce je závazná: vítěz příhozu je povinen zboží zakoupit a uhradit.</li>
+                        <li>Prodávající je povinen odeslat zboží do <strong>5 pracovních dnů</strong> od potvrzení platby.</li>
+                        <li>Inzerát za pevnou cenu je aktivní po dobu <strong>20 dní</strong>, aukce po dobu zvolené Prodávajícím (7–20 dní).</li>
+                    </ul>
+                    <p>Prodávající smí inzerát kdykoli smazat, pokud neexistuje probíhající escrow transakce nebo aukce s příhozem.</p>
+                </section>
+
+                <section>
+                    <h3 class="text-base font-extrabold text-gray-800 mb-2 pb-2 border-b border-gray-100">6. Zakázané zboží a obsah</h3>
+                    <p class="mb-2">Na Platformě je přísně zakázáno inzerovat:</p>
+                    <ul class="list-disc pl-5 space-y-1">
+                        <li>střelné zbraně, munici a výbušniny (bez zákonného oprávnění),</li>
+                        <li>omamné a psychotropní látky,</li>
+                        <li>padělané, kradené nebo jinak nelegálně nabyté zboží,</li>
+                        <li>živá zvířata a exempláře chráněných druhů (CITES),</li>
+                        <li>léčivé přípravky bez příslušného oprávnění k prodeji,</li>
+                        <li>pornografický obsah a zboží sexuální povahy,</li>
+                        <li>zboží porušující práva duševního vlastnictví (falzifikáty, neoprávněné kopie),</li>
+                        <li>osobní údaje třetích osob.</li>
+                    </ul>
+                </section>
+
+                <section>
+                    <h3 class="text-base font-extrabold text-gray-800 mb-2 pb-2 border-b border-gray-100">7. Poplatky a platby</h3>
+                    <p class="mb-2">Platforma účtuje tyto poplatky, které hradí <strong>Kupující</strong>:</p>
+                    <div class="bg-gray-50 rounded-2xl p-4 border border-gray-100 mb-2">
+                        <div class="grid grid-cols-2 gap-2 text-xs">
+                            <div class="font-bold text-gray-500 uppercase tracking-wide">Poplatek</div><div class="font-bold text-gray-500 uppercase tracking-wide">Výše</div>
+                            <div>Provize z ceny</div><div class="font-bold text-sky-600">5 % z prodejní ceny</div>
+                            <div>Escrow ochrana</div><div class="font-bold text-sky-600">49 Kč / transakci</div>
+                            <div>TOP inzerát 1 den</div><div class="font-bold text-amber-600">29 Kč</div>
+                            <div>TOP inzerát 3 dny</div><div class="font-bold text-amber-600">59 Kč</div>
+                            <div>TOP inzerát 7 dní</div><div class="font-bold text-amber-600">99 Kč</div>
+                            <div>TOP inzerát 30 dní</div><div class="font-bold text-amber-600">299 Kč</div>
+                        </div>
+                    </div>
+                    <p>Platby za TOP inzeráty probíhají bankovním převodem nebo QR platbou. Provozovatel je oprávněn poplatky změnit s <strong>30denním předstihem</strong> oznámeným Uživateli.</p>
+                </section>
+
+                <section>
+                    <h3 class="text-base font-extrabold text-gray-800 mb-2 pb-2 border-b border-gray-100">8. Escrow ochrana plateb</h3>
+                    <p class="mb-2">Platforma využívá systém escrow pro bezpečnost obou stran:</p>
+                    <ol class="list-decimal pl-5 space-y-1 mb-2">
+                        <li>Kupující uhradí platbu na escrow účet Provozovatele.</li>
+                        <li>Prodávající obdrží oznámení a je povinen odeslat zboží do 5 pracovních dnů.</li>
+                        <li>Kupující po přijetí zboží potvrdí transakci v aplikaci.</li>
+                        <li>Provozovatel uvolní platbu Prodávajícímu (po odečtení poplatků) do 3 pracovních dnů.</li>
+                    </ol>
+                    <p>Pokud Kupující nepotvrdí příjem do <strong>14 dní</strong> od data odeslání, Provozovatel platbu uvolní automaticky. Escrow chrání Kupujícího před podvodným jednáním Prodávajícího.</p>
+                </section>
+
+                <section>
+                    <h3 class="text-base font-extrabold text-gray-800 mb-2 pb-2 border-b border-gray-100">9. Reklamace, vrácení zboží a práva spotřebitele</h3>
+                    <p class="mb-2">Kupující má právo reklamovat zboží, které:</p>
+                    <ul class="list-disc pl-5 space-y-1 mb-2">
+                        <li>prokazatelně neodpovídá popisu nebo fotografiím v inzerátu,</li>
+                        <li>bylo zasláno poškozené nebo neúplné (bez popsaných vad),</li>
+                        <li>nedorazilo ve lhůtě <strong>21 dní</strong> od potvrzení platby.</li>
+                    </ul>
+                    <p class="mb-2">Reklamaci je nutné uplatnit do <strong>14 dní od přijetí zboží</strong> prostřednictvím zákaznické podpory (podpora@fairtrade-trziste.cz). Platforma slouží jako mediátor sporu a rozhoduje o oprávněnosti reklamace.</p>
+                    <p>Spotřebitelé (fyzické osoby – nepodnikatelé) mají právo na mimosoudní řešení spotřebitelských sporů prostřednictvím České obchodní inspekce (<a href="https://www.coi.cz" class="text-sky-500 underline">www.coi.cz</a>) nebo evropské platformy ODR (<a href="https://ec.europa.eu/consumers/odr" class="text-sky-500 underline">ec.europa.eu/consumers/odr</a>).</p>
+                </section>
+
+                <section>
+                    <h3 class="text-base font-extrabold text-gray-800 mb-2 pb-2 border-b border-gray-100">10. Ochrana osobních údajů (GDPR)</h3>
+                    <p class="mb-2">Provozovatel zpracovává osobní údaje v souladu s Nařízením (EU) 2016/679 (GDPR) a zákonem č. 110/2019 Sb. o zpracování osobních údajů.</p>
+                    <div class="bg-sky-50 rounded-2xl p-4 border border-sky-100 mb-3 text-xs space-y-2">
+                        <p><strong>Identifikační údaje</strong> (jméno, datum nar.) – účel: KYC ověření · právní základ: plnění smlouvy (čl. 6 odst. 1 písm. b GDPR)</p>
+                        <p><strong>Kontaktní údaje</strong> (e-mail) – účel: komunikace, oznámení · právní základ: plnění smlouvy</p>
+                        <p><strong>Platební údaje</strong> (č. účtu) – účel: výplata výnosů · právní základ: plnění smlouvy</p>
+                        <p><strong>Adresní údaje</strong> – účel: KYC, doručení · právní základ: plnění smlouvy</p>
+                        <p><strong>Technická data</strong> (IP, cookies) – účel: bezpečnost · právní základ: oprávněný zájem (čl. 6 odst. 1 písm. f)</p>
+                    </div>
+                    <p class="mb-2"><strong>Práva subjektu údajů:</strong> Máte právo na přístup, opravu, výmaz (právo být zapomenut), omezení zpracování, přenositelnost údajů a námitku. Stížnost lze podat u Úřadu pro ochranu osobních údajů (<a href="https://www.uoou.cz" class="text-sky-500 underline">www.uoou.cz</a>).</p>
+                    <p class="mb-2"><strong>Doba uchovávání:</strong> Osobní údaje jsou uchovávány po dobu trvání účtu + 3 roky od jeho zrušení (pro případné právní nároky). Účetní doklady po dobu stanovenou zákonem (5–10 let).</p>
+                    <p><strong>Předávání dat:</strong> Data jsou uložena na serverech Supabase (EU – Frankfurt, certifikace ISO 27001). Provozovatel neprodává ani nepředává osobní údaje třetím stranám pro marketingové účely.</p>
+                </section>
+
+                <section>
+                    <h3 class="text-base font-extrabold text-gray-800 mb-2 pb-2 border-b border-gray-100">11. Cookies</h3>
+                    <p>Platforma používá výhradně technické cookies nezbytné pro provoz (přihlašovací session, bezpečnostní tokeny). Platforma nepoužívá analytické ani marketingové cookies třetích stran. Technické cookies jsou nezbytné pro funkčnost – jejich zablokování způsobí nefunkčnost přihlašování.</p>
+                </section>
+
+                <section>
+                    <h3 class="text-base font-extrabold text-gray-800 mb-2 pb-2 border-b border-gray-100">12. Odpovědnost Provozovatele</h3>
+                    <p class="mb-2">Provozovatel je zprostředkovatelem – není smluvní stranou transakce mezi Prodávajícím a Kupujícím. Provozovatel neodpovídá za:</p>
+                    <ul class="list-disc pl-5 space-y-1">
+                        <li>pravost, kvalitu, bezpečnost nebo zákonnost inzerovaného zboží,</li>
+                        <li>jednání Uživatelů v rozporu s VOP nebo právními předpisy,</li>
+                        <li>škody vzniklé výpadkem Platformy způsobeným vyšší mocí nebo kybernetickými útoky,</li>
+                        <li>ušlý zisk Prodávajícího v důsledku odstranění inzerátu při porušení VOP.</li>
+                    </ul>
+                </section>
+
+                <section>
+                    <h3 class="text-base font-extrabold text-gray-800 mb-2 pb-2 border-b border-gray-100">13. Porušení podmínek a sankce</h3>
+                    <p>Při porušení VOP je Provozovatel oprávněn: upozornit Uživatele, dočasně pozastavit nebo trvale zrušit účet, smazat inzeráty, zadržet nevyplacené prostředky jako zajištění pohledávky. V případě škody způsobené Uživatelem má Provozovatel nárok na náhradu škody dle platných právních předpisů.</p>
+                </section>
+
+                <section>
+                    <h3 class="text-base font-extrabold text-gray-800 mb-2 pb-2 border-b border-gray-100">14. Rozhodné právo a soudní příslušnost</h3>
+                    <p>Tyto VOP se řídí právním řádem <strong>České republiky</strong>, zejména zákonem č. 89/2012 Sb. (občanský zákoník) a zákonem č. 634/1992 Sb. (zákon o ochraně spotřebitele). Spory budou řešeny věcně a místně příslušnými soudy ČR. Spotřebitelé mají právo na mimosoudní řešení sporů dle § 20d zák. č. 634/1992 Sb.</p>
+                </section>
+
+                <section>
+                    <h3 class="text-base font-extrabold text-gray-800 mb-2 pb-2 border-b border-gray-100">15. Závěrečná ustanovení</h3>
+                    <p>Provozovatel si vyhrazuje právo tyto VOP jednostranně změnit. O změně informuje Uživatele e-mailem nebo oznámením na Platformě nejméně <strong>14 dní</strong> před účinností změn. Pokračuje-li Uživatel v užívání Platformy po nabytí účinnosti změn, považuje se to za souhlas se změněnými VOP. Je-li některé ustanovení VOP neplatné, ostatní ustanovení zůstávají v platnosti. Tyto VOP nabývají účinnosti dnem <strong>1. 1. 2025</strong>.</p>
+                </section>
+
+            </div>
+            <div class="mt-8 p-4 bg-sky-50 border border-sky-100 rounded-2xl text-xs text-sky-700 flex items-center gap-3">
+                <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                Dotazy k obchodním podmínkám? Napište na <strong class="ml-1">podpora@fairtrade-trziste.cz</strong>
+            </div>
+        </div>`,
 
         login: () => `
         <div class="w-full max-w-md mx-auto bg-white/90 backdrop-blur-xl p-8 md:p-10 rounded-[2.5rem] shadow-2xl fade-in border border-white/50 relative overflow-hidden">
@@ -1494,9 +1692,13 @@
                 <form onsubmit="handleEmailAuth(event)" class="flex flex-col gap-3">
                     <input type="email" id="email-input" placeholder="Váš e-mail" required autocomplete="email" maxlength="254" class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-sky-400 bg-white/60">
                     <input type="password" id="password-input" placeholder="Heslo (min. 8 znaků)" required autocomplete="current-password" minlength="8" maxlength="128" class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-sky-400 bg-white/60">
+                    <label class="flex items-start gap-2.5 text-xs text-gray-500 cursor-pointer p-3 bg-gray-50 rounded-xl border border-gray-100 hover:border-sky-200 transition-colors">
+                        <input type="checkbox" id="vop-consent" class="w-4 h-4 rounded mt-0.5 accent-sky-500 shrink-0">
+                        <span>Je mi více než <strong>18 let</strong>, přečetl(a) jsem si <button type="button" onclick="event.preventDefault();event.stopPropagation();navigate('vop')" class="text-sky-500 font-bold hover:underline">Obchodní podmínky</button> a souhlasím se zpracováním osobních údajů dle <strong>GDPR</strong>. <span class="text-gray-400">(Povinné pro registraci)</span></span>
+                    </label>
                     <div class="flex gap-2 mt-1">
                         <button type="submit" data-action="signin" class="flex-1 bg-gray-800 text-white font-bold py-3 rounded-xl text-sm hover:bg-gray-900 transition-colors">Přihlásit</button>
-                        <button type="submit" data-action="signup" class="flex-1 bg-white border border-gray-300 text-gray-700 font-bold py-3 rounded-xl text-sm hover:bg-gray-50 transition-colors">Registrovat</button>
+                        <button type="submit" data-action="signup" class="flex-1 bg-sky-500 hover:bg-sky-600 text-white font-bold py-3 rounded-xl text-sm transition-colors shadow-sm">Registrovat</button>
                     </div>
                 </form>
             </div>
