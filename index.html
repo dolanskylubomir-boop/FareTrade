@@ -553,19 +553,44 @@
     let _msgContext = null; // { itemId, sellerId, itemTitle, itemType }
 
     function _censorCheck(text) {
-        // Email
-        if (/[\w.+\-]+@[\w\-]+\.[a-z]{2,}/i.test(text)) return true;
-        // URL
-        if (/https?:\/\//i.test(text) || /www\.[a-z]/i.test(text)) return true;
-        // Sociální sítě a IM
-        if (/(instagram|facebook|tiktok|twitter|whatsapp|telegram|signal|discord|messenger|snapchat|linkedin)/i.test(text)) return true;
-        if (/(skype|icq|viber|zoom\.us)\s*:?\s*[\w.]+/i.test(text)) return true;
-        // @handle
-        if (/@[a-zA-Z0-9_.]{3,}/.test(text)) return true;
-        // Telefonní čísla — odstraň oddělovače typické pro tel. čísla a hledej 9+ číslic za sebou
-        // Zachytí: 777123456 / 777 123 456 / 777-123-456 / (777) 123 456 / +420 777 123 456 / 7 7 7 1 2 3 4 5 6
-        var stripped = text.replace(/[\s\-\.\/\(\)]/g, '');
+        var t = text;
+
+        // 1. Přímý email
+        if (/[\w.+\-]+@[\w\-]+\.[a-z]{2,}/i.test(t)) return true;
+
+        // 2. Obfuskovaný zavináč — zavináč / [at] / (at) / " at " / ＠ / @
+        if (/(zavináč|zavinac|zavinác|\[at\]|\(at\)|＠)/i.test(t)) return true;
+        if (/\bat\b/.test(t)) return true; // " at " jako samostatné slovo
+
+        // 3. Obfuskovaná tečka před doménou — "tečka com", "dot cz", "bodka sk" apod.
+        if (/(tečka|tecka|tečku|tecku|bodka|\.|\[dot\]|\(dot\)|dot)\s*(com|cz|sk|eu|net|org|io|me|to)/i.test(t)) return true;
+
+        // 4. Známé emailové domény — i bez zavináče stačí zmínit gmail, seznam atd.
+        if (/(gmail|seznam\.?cz|yahoo|hotmail|outlook|icloud|protonmail|centrum\.?cz|atlas\.?cz|email\.?cz|post\.?cz|volny\.?cz)/i.test(t)) return true;
+
+        // 5. URL
+        if (/https?:\/\//i.test(t) || /www\.[a-z]/i.test(t)) return true;
+
+        // 6. Sociální sítě a IM
+        if (/(instagram|facebook|tiktok|twitter|whatsapp|telegram|signal|discord|messenger|snapchat|linkedin|viber)/i.test(t)) return true;
+        if (/(skype|icq|zoom\.us)\s*:?\s*[\w.]+/i.test(t)) return true;
+
+        // 7. @handle
+        if (/@[a-zA-Z0-9_.]{3,}/.test(t)) return true;
+
+        // 8. Telefonní čísla — odstraň oddělovače a hledej 9+ číslic za sebou
+        var stripped = t.replace(/[\s\-\.\/\(\)]/g, '');
         if (/\d{9}/.test(stripped)) return true;
+
+        // 9. Číslice zapsané slovně — "sedm sedm sedm jedna dva tři čtyři pět šest"
+        var wordDigits = t
+            .replace(/\bnula\b/gi,'0').replace(/\bjedna\b/gi,'1').replace(/\bdva\b/gi,'2')
+            .replace(/\btři\b/gi,'3').replace(/\bčtyři\b/gi,'4').replace(/\bpět\b/gi,'5')
+            .replace(/\bšest\b/gi,'6').replace(/\bsedm\b/gi,'7').replace(/\bosm\b/gi,'8')
+            .replace(/\bdevět\b/gi,'9');
+        var strippedWords = wordDigits.replace(/[\s\-\.\/\(\)]/g, '');
+        if (/\d{9}/.test(strippedWords)) return true;
+
         return false;
     }
 
