@@ -100,6 +100,7 @@
         .search-wrap { position:relative; }
         .search-wrap svg { position:absolute; left:14px; top:50%; transform:translateY(-50%); pointer-events:none; color:#94a3b8; }
         .search-wrap input { padding-left:42px; }
+        .search-hidden { display:none !important; }
 
         /* === Sort select === */
         select.sort-select { appearance:none; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right 12px center; padding-right:32px; }
@@ -141,7 +142,7 @@
             </div>
 
             <!-- Search bar (md+) -->
-            <div class="hidden md:flex flex-1 search-wrap max-w-sm">
+            <div id="search-wrap-desktop" class="hidden md:flex flex-1 search-wrap max-w-sm search-hidden">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M17 11A6 6 0 115 11a6 6 0 0112 0z"/></svg>
                 <input id="header-search" type="search" placeholder="Hledat inzeráty…" autocomplete="off" maxlength="120"
                     class="w-full px-4 py-2 rounded-xl border border-gray-200 text-sm focus:outline-sky-400 bg-white/70"
@@ -164,7 +165,7 @@
             </div>
         </div>
         <!-- Mobile search bar -->
-        <div class="md:hidden mt-2 search-wrap">
+        <div id="search-wrap-mobile" class="md:hidden mt-2 search-wrap search-hidden">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M17 11A6 6 0 115 11a6 6 0 0112 0z"/></svg>
             <input type="search" placeholder="Hledat…" autocomplete="off" maxlength="120"
                 class="w-full px-4 py-2 rounded-xl border border-gray-200 text-sm focus:outline-sky-400 bg-white/70"
@@ -2563,6 +2564,18 @@
         const fullUrl = idOrCategory && !vsechnyKategorie.includes(idOrCategory) ? `${viewName}/${idOrCategory}` : viewName;
         if (fullUrl !== 'home') history.pushState({ view:fullUrl, param:idOrCategory }, '', '#'+fullUrl);
         else history.pushState({ view:'home' }, '', window.location.pathname);
+        // Vyhledávání jen v sekcích aukce a pevná cena
+        const searchSections = ['aukce', 'pevna-cena'];
+        const showSearch = searchSections.includes(viewName);
+        const sd = document.getElementById('search-wrap-desktop');
+        const sm = document.getElementById('search-wrap-mobile');
+        if (sd) sd.classList.toggle('search-hidden', !showSearch);
+        if (sm) sm.classList.toggle('search-hidden', !showSearch);
+        if (!showSearch) {
+            const inp = document.getElementById('header-search');
+            if (inp) inp.value = '';
+            _listState.search = '';
+        }
     }
 
     window.toggleDesc = function(id) {
