@@ -558,9 +558,10 @@
         // 1. Přímý email
         if (/[\w.+\-]+@[\w\-]+\.[a-z]{2,}/i.test(t)) return true;
 
-        // 2. Obfuskovaný zavináč — zavináč / [at] / (at) / " at " / ＠ / @
+        // 2. Obfuskovaný zavináč — zavináč / [at] / (at) / ＠
         if (/(zavináč|zavinac|zavinác|\[at\]|\(at\)|＠)/i.test(t)) return true;
-        if (/\bat\b/.test(t)) return true; // " at " jako samostatné slovo
+        // "user at domain" vzor (nikoliv jen standalone "at")
+        if (/\S+\s+at\s+\S+/i.test(t)) return true;
 
         // 3. Obfuskovaná tečka před doménou — "tečka com", "dot cz", "bodka sk" apod.
         if (/(tečka|tecka|tečku|tecku|bodka|\.|\[dot\]|\(dot\)|dot)\s*(com|cz|sk|eu|net|org|io|me|to)/i.test(t)) return true;
@@ -625,7 +626,9 @@
     };
 
     async function _sendMsgApi(token, payload) {
-        // 1. pokus — Edge Function (server-side cenzura)
+        const hdrs = { 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' };
+        const msgId = crypto.randomUUID ? crypto.randomUUID() : ([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g,function(c){return(c^crypto.getRandomValues(new Uint8Array(1))[0]&15>>c/4).toString(16);});
+        // Zkus Edge Function — pokud neexistuje, padni na REST (obě cesty blokuje DB trigger)
         try {
             const r = await fetch(SUPABASE_URL + '/functions/v1/send-message', {
                 method: 'POST',
@@ -633,20 +636,19 @@
                 body: JSON.stringify(payload)
             });
             const res = await r.json().catch(function(){return{};});
-            if (r.status === 422) return { error: res.error || 'Zakázaný obsah.' }; // cenzura serveru
-            if (!r.ok) throw new Error(res.error || 'ef_' + r.status);
+            if (!r.ok) throw new Error('ef');
             return { ok: true };
-        } catch(efErr) {
-            // 2. fallback — přímé REST API (klientská cenzura platí)
-            const hdrs = { 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' };
-            const msgId = crypto.randomUUID ? crypto.randomUUID() : ([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g,function(c){return(c^crypto.getRandomValues(new Uint8Array(1))[0]&15>>c/4).toString(16);});
-            const r2 = await fetch(SUPABASE_URL + '/rest/v1/messages', {
-                method: 'POST', headers: hdrs,
-                body: JSON.stringify(Object.assign({ id: msgId, sender_id: window.currentUser.id, is_read: false, parent_id: null }, payload, { text: undefined, body: payload.text }))
-            });
-            if (!r2.ok) { const e2 = await r2.json().catch(function(){return{};}); return { error: e2.message || e2.error || e2.hint || e2.msg || ('Chyba REST ' + r2.status) }; }
-            return { ok: true };
+        } catch(efErr) {}
+        // REST fallback — DB trigger zastaví zakázaný obsah
+        const body = Object.assign({ id: msgId, sender_id: window.currentUser.id, is_read: false, parent_id: null }, payload, { text: undefined, body: payload.text });
+        const r2 = await fetch(SUPABASE_URL + '/rest/v1/messages', { method: 'POST', headers: hdrs, body: JSON.stringify(body) });
+        if (!r2.ok) {
+            const e2 = await r2.json().catch(function(){return{};});
+            // DB trigger vrací zprávu v e2.message (RAISE EXCEPTION)
+            const msg = e2.message || e2.error || e2.hint || '';
+            return { error: msg || ('Chyba ' + r2.status) };
         }
+        return { ok: true };
     }
 
     window.submitMessage = async function() {
