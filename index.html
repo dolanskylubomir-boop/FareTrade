@@ -1376,8 +1376,34 @@
                 const exp = new Date(); exp.setDate(exp.getDate()+20);
                 adData.expires_at = exp.toISOString();
             }
-            const { error } = await supabaseClient.from(tableName).insert([adData]);
+            const { data: inserted, error } = await supabaseClient.from(tableName).insert([adData]).select('id,created_at').single();
             if (error) throw new Error(error.message);
+
+            // Přidej okamžitě do lokálního pole — žádný refresh
+            const sellerProfile = (window._profilesMap?.[user.id]) || (window._privateProfileCache?.data) || {};
+            const localItem = {
+                id: esc(String(inserted?.id || '')),
+                seller_id: user.id,
+                type: isAuction ? 'aukce' : 'pevna_cena',
+                title: esc(adData.title),
+                price: isAuction ? (adData.current_price || adData.starting_price || 0) : (adData.price || 0),
+                category: esc(adData.category),
+                img: safeUrl(uploadedImages[0]),
+                images: uploadedImages.map(u => safeUrl(u)),
+                condition: esc(adData.condition),
+                brand: esc(adData.brand || ''),
+                has360: adData.has_360 || false,
+                seller: esc(sellerProfile.display_name || user.email?.split('@')[0] || ''),
+                verified: sellerProfile.kyc_status === 'verified',
+                rating: sellerProfile.rating || 0,
+                description: esc(adData.description || ''),
+                endTime: isAuction ? adData.end_time : adData.expires_at,
+                last_bidder_id: null, last_bidder_name: null,
+                is_top: false, top_expires_at: null, top_paid_kc: 0, views_count: 0, status: 'aktivní'
+            };
+            if (isAuction) dataAukce.unshift(localItem);
+            else dataPevnaCena.unshift(localItem);
+
             showToast('Inzerát byl úspěšně zveřejněn!','success');
             navigate('profil');
         } catch (err) {
