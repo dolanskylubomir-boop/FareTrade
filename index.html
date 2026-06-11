@@ -603,31 +603,27 @@
         const text    = (bodyEl ? bodyEl.value : '').trim();
         const showErr = function(msg) { if (errEl) { errEl.textContent = msg; errEl.classList.remove('hidden'); } };
         if (!text) { showErr('Zpráva nesmí být prázdná.'); return; }
-        if (text.length < 5) { showErr('Zpráva je příliš krátká.'); return; }
+        if (text.length < 2) { showErr('Zpráva je příliš krátká.'); return; }
+        // Klientská cenzura jako rychlá UX kontrola (server ji zopakuje nezávisle)
         if (_censorCheck(text)) { showErr('Zpráva obsahuje zakázaný obsah (kontaktní údaje).'); return; }
         if (btn) { btn.disabled = true; btn.textContent = 'Odesílám…'; }
         try {
             const token = await _ensureValidToken();
             if (!token) { showErr('Chyba ověření. Zkuste se znovu přihlásit.'); return; }
-            const hdrs = { 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' };
-            const msgId = crypto.randomUUID ? crypto.randomUUID() : ([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g, function(c){return(c^crypto.getRandomValues(new Uint8Array(1))[0]&15>>c/4).toString(16);});
-            const payload = {
-                id: msgId,
-                item_id: _msgContext.itemId,
-                item_title: _msgContext.itemTitle,
-                item_type: _msgContext.itemType,
-                sender_id: window.currentUser.id,
-                receiver_id: _msgContext.sellerId,
-                body: text,
-                parent_id: null,
-                is_read: false
-            };
-            const r = await fetch(SUPABASE_URL + '/rest/v1/messages', { method: 'POST', headers: hdrs, body: JSON.stringify(payload) });
-            if (!r.ok) {
-                const err = await r.json().catch(function(){return {};});
-                showErr('Chyba: ' + (err.message || r.status));
-                return;
-            }
+            const r = await fetch(SUPABASE_URL + '/functions/v1/send-message', {
+                method: 'POST',
+                headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    item_id: _msgContext.itemId,
+                    item_title: _msgContext.itemTitle,
+                    item_type: _msgContext.itemType,
+                    receiver_id: _msgContext.sellerId,
+                    text: text,
+                    parent_id: null
+                })
+            });
+            const res = await r.json().catch(function(){return {};});
+            if (!r.ok) { showErr(res.error || ('Chyba ' + r.status)); return; }
             window.closeMessageModal();
             showToast('Zpráva byla odeslána prodejci.', 'success');
         } catch(e) {
@@ -2769,11 +2765,13 @@
         const token = await _ensureValidToken();
         if (!token) { showToast('Chyba ověření.', 'warning'); return; }
         try {
-            const hdrs = { 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' };
-            const msgId = crypto.randomUUID ? crypto.randomUUID() : ([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g, function(c){return(c^crypto.getRandomValues(new Uint8Array(1))[0]&15>>c/4).toString(16);});
-            const payload = { id: msgId, item_id: itemId, item_title: itemTitle, item_type: itemType, sender_id: window.currentUser.id, receiver_id: receiverId, body: text, parent_id: parentId, is_read: false };
-            const r = await fetch(SUPABASE_URL + '/rest/v1/messages', { method: 'POST', headers: hdrs, body: JSON.stringify(payload) });
-            if (!r.ok) { const err = await r.json().catch(function(){return{};}); showToast('Chyba: ' + (err.message || r.status), 'warning'); return; }
+            const r = await fetch(SUPABASE_URL + '/functions/v1/send-message', {
+                method: 'POST',
+                headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ item_id: itemId, item_title: itemTitle, item_type: itemType, receiver_id: receiverId, text: text, parent_id: parentId })
+            });
+            const res = await r.json().catch(function(){return{};});
+            if (!r.ok) { showToast(res.error || ('Chyba ' + r.status), 'warning'); return; }
             input.value = '';
             showToast('Odpověď odeslána.', 'success');
             loadZpravyTab();
