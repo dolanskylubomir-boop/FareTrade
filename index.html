@@ -553,16 +553,20 @@
     let _msgContext = null; // { itemId, sellerId, itemTitle, itemType }
 
     function _censorCheck(text) {
-        const patterns = [
-            /[\w.+\-]+@[\w\-]+\.[a-z]{2,}/i,
-            /(\+?[\d][\s\-.]?){9,14}/,
-            /https?:\/\//i,
-            /www\.[a-z]/i,
-            /(instagram|facebook|tiktok|twitter|whatsapp|telegram|signal|discord|messenger|snapchat|linkedin)/i,
-            /(skype|icq|viber|zoom\.us)\s*:?\s*[\w.]+/i,
-            /@[a-zA-Z0-9_.]{3,}/,
-        ];
-        return patterns.some(function(p) { return p.test(text); });
+        // Email
+        if (/[\w.+\-]+@[\w\-]+\.[a-z]{2,}/i.test(text)) return true;
+        // URL
+        if (/https?:\/\//i.test(text) || /www\.[a-z]/i.test(text)) return true;
+        // Sociální sítě a IM
+        if (/(instagram|facebook|tiktok|twitter|whatsapp|telegram|signal|discord|messenger|snapchat|linkedin)/i.test(text)) return true;
+        if (/(skype|icq|viber|zoom\.us)\s*:?\s*[\w.]+/i.test(text)) return true;
+        // @handle
+        if (/@[a-zA-Z0-9_.]{3,}/.test(text)) return true;
+        // Telefonní čísla — odstraň oddělovače typické pro tel. čísla a hledej 9+ číslic za sebou
+        // Zachytí: 777123456 / 777 123 456 / 777-123-456 / (777) 123 456 / +420 777 123 456 / 7 7 7 1 2 3 4 5 6
+        var stripped = text.replace(/[\s\-\.\/\(\)]/g, '');
+        if (/\d{9}/.test(stripped)) return true;
+        return false;
     }
 
     window.showMessageModal = function(itemId, sellerId, itemTitle, itemType) {
