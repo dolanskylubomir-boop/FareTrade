@@ -50,8 +50,6 @@
             html { scroll-behavior:auto; }
         }
 
-        
-
         /* === Typografie === */
         html { scroll-behavior:smooth; -webkit-text-size-adjust:100%; }
         h1,h2,h3 { font-family:"Sora","Plus Jakarta Sans",sans-serif; }
@@ -1231,12 +1229,14 @@
                 if (k && (k.includes('auth-token') || k.includes('supabase'))) localStorage.removeItem(k);
             }
         } catch(e) {}
+        try { localStorage.removeItem('ft_local_bids'); } catch(e) {}
         window.currentUser = null;
         window._privateProfileCache = null;
         window._txStatsCache = null;
         window._loadingPrivateProfile = null;
         window._jwtReady = false;
         window._favCache = new Set();
+        window.auctionParticipants = {};
         const btn = document.getElementById('btn-register-top');
         if (btn) { btn.innerText='Registrovat'; btn.setAttribute('onclick',"navigate('login')"); }
         showToast('Byli jste úspěšně odhlášeni.','success');
@@ -2357,7 +2357,10 @@
                                 <p class="text-xs ${timeInfo.urgent?'text-red-600 font-bold countdown-urgent':timeInfo.urgent?'text-red-500':'text-gray-500'}">⏱ ${timeInfo.text} · ⭐ ${item.rating}/5 · 👁 ${item.views_count||0} zobrazení</p>
                             </div>
                         </div>
-                        <p class="text-gray-600 mb-6 text-sm leading-relaxed line-clamp-4">${item.description}</p>
+                        <div class="mb-6">
+                            <p id="desc-text-${item.id}" class="text-gray-600 text-sm leading-relaxed ${item.description&&item.description.length>160?'line-clamp-4':''}" style="white-space:pre-wrap">${item.description||'<span class="text-gray-400 italic">Popis nebyl uveden.</span>'}</p>
+                            ${item.description&&item.description.length>160?`<button id="desc-btn-${item.id}" onclick="toggleDesc('${item.id}')" class="mt-2 text-sky-500 hover:text-sky-600 text-xs font-bold flex items-center gap-1 transition-colors">Zobrazit celý popis <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg></button>`:''}
+                        </div>
                         <div class="bg-sky-50 border border-sky-100 p-5 rounded-3xl mb-5">
                             <p class="text-gray-400 text-xs font-semibold uppercase tracking-wider mb-1">Aktuální cena</p>
                             <div class="text-3xl font-black text-gray-800 mb-3" id="price-${item.id}" data-price="${item.price}">${item.price.toLocaleString('cs-CZ')} Kč</div>
@@ -2446,7 +2449,10 @@
                                 <p class="text-xs text-gray-400">⭐ ${item.rating}/5 · 👁 ${item.views_count||0} zobrazení</p>
                             </div>
                         </div>
-                        <p class="text-gray-600 mb-5 text-sm leading-relaxed line-clamp-4">${item.description}</p>
+                        <div class="mb-5">
+                            <p id="desc-text-${item.id}" class="text-gray-600 text-sm leading-relaxed ${item.description&&item.description.length>160?'line-clamp-4':''}" style="white-space:pre-wrap">${item.description||'<span class="text-gray-400 italic">Popis nebyl uveden.</span>'}</p>
+                            ${item.description&&item.description.length>160?`<button id="desc-btn-${item.id}" onclick="toggleDesc('${item.id}')" class="mt-2 text-pink-500 hover:text-pink-600 text-xs font-bold flex items-center gap-1 transition-colors">Zobrazit celý popis <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg></button>`:''}
+                        </div>
                         <div class="bg-pink-50 border border-pink-100 p-5 rounded-3xl mb-5">
                             <p class="text-gray-400 text-xs font-semibold uppercase tracking-wider mb-1">Cena prodejce</p>
                             <div class="text-3xl font-black text-gray-800 mb-3">${item.price.toLocaleString('cs-CZ')} Kč</div>
@@ -2529,6 +2535,16 @@
         if (fullUrl !== 'home') history.pushState({ view:fullUrl, param:idOrCategory }, '', '#'+fullUrl);
         else history.pushState({ view:'home' }, '', window.location.pathname);
     }
+
+    window.toggleDesc = function(id) {
+        const p   = document.getElementById('desc-text-' + id);
+        const btn = document.getElementById('desc-btn-' + id);
+        if (!p || !btn) return;
+        const expanded = p.classList.toggle('line-clamp-4');
+        btn.innerHTML = expanded
+            ? 'Zobrazit celý popis <svg class="w-3.5 h-3.5 inline -mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>'
+            : 'Skrýt <svg class="w-3.5 h-3.5 inline -mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 15l7-7 7 7"/></svg>';
+    };
 
     window.toggleBidMenu = function(id) {
         document.getElementById('bid-menu-'+id).classList.toggle('hidden');
