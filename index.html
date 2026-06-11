@@ -420,7 +420,21 @@
     const SUPABASE_URL      = 'https://mpioazyvtgcpxjrhbflp.supabase.co';
     const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1waW9henl2dGdjcHhqcmhiZmxwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEwMDM1MjksImV4cCI6MjA5NjU3OTUyOX0.pNgPqE1aOrsA2efj5H5FIkNjdcKxo7MVycEjfyEVc4s';
     let supabaseClient = null;
-    try { supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY); } catch(e) { console.error('Supabase init error:', e); }
+    let publicClient = null; // klient BEZ auth — nikdy nečeká na JWT refresh
+    try {
+        // Vlastní fetch s timeoutem — zabrání věčnému visení JWT refresh
+        const _sbFetch = (url, opts = {}) => {
+            const ctrl = new AbortController();
+            const tid  = setTimeout(() => ctrl.abort(), 10000);
+            return fetch(url, { ...opts, signal: ctrl.signal }).finally(() => clearTimeout(tid));
+        };
+        supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { global: { fetch: _sbFetch } });
+        // Veřejný klient — anon přístup, ŽÁDNÉ auth, ŽÁDNÉ čekání na JWT
+        publicClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+            auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+            global: { fetch: _sbFetch }
+        });
+    } catch(e) { console.error('Supabase init error:', e); }
 
     const ESCROW_FEE    = 49;
     const PAYMENT_IBAN  = 'CZ6508000000192000145399'; // ← NAHRAĎTE skutečným IBAN
@@ -923,21 +937,23 @@
         return window._fetchDBPromise;
         async function _doFetch() {
 
-        // Nouzový timeout: pokud DB neodpoví do 6s, odblokuj UI
+        // Nouzový timeout: pokud DB neodpoví do 12s, odblokuj UI
         let _fallback = setTimeout(() => {
             if (!window.dataLoaded) {
                 window.dataLoaded = true;
                 const h = window.location.hash.replace('#','');
                 navigate(h || 'home');
             }
-        }, 6000);
+        }, 12000);
 
         try {
+            // publicClient NIKDY nečeká na JWT refresh — zaručeně rychlé načtení
+            const db = publicClient || supabaseClient;
             const [r1, r2, r3, r4] = await Promise.all([
-                supabaseClient.from('aukce').select('*').eq('status','aktivní').order('is_top', { ascending:false }),
-                supabaseClient.from('pevna_cena').select('*').eq('status','aktivní').order('is_top', { ascending:false }),
-                supabaseClient.from('profiles').select('id,first_name,last_name,display_name,is_verified,rating,avatar_url'),
-                supabaseClient.from('bids').select('auction_id,bidder_id,amount')
+                db.from('aukce').select('*').eq('status','aktivní').order('is_top', { ascending:false }),
+                db.from('pevna_cena').select('*').eq('status','aktivní').order('is_top', { ascending:false }),
+                db.from('profiles').select('id,first_name,last_name,display_name,is_verified,rating,avatar_url'),
+                db.from('bids').select('auction_id,bidder_id,amount')
             ]);
 
             const profilesMap = {};
@@ -1078,9 +1094,15 @@
                 if (event === 'SIGNED_IN') {
                     const isLoginScreen = window.location.hash.includes('login');
                     await checkUserProfileKYC(session.user, isLoginScreen);
-                    await loadFavoritesFromDB();
+                    loadFavoritesFromDB(); // neblokující
                 } else if (event === 'INITIAL_SESSION') {
-                    await loadFavoritesFromDB();
+                    loadFavoritesFromDB(); // neblokující
+                    // Po INITIAL_SESSION znovu renderuj profil s čerstvými daty
+                    const h = window.location.hash.replace('#','');
+                    if (h.startsWith('profil')) {
+                        const tab = h.split('/')[1] || 'inzeraty';
+                        if (window.dataLoaded) loadProfileData(tab);
+                    }
                 }
             } else {
                 window.currentUser = null;
