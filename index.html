@@ -1153,15 +1153,10 @@
         }
     };
 
-    window.handleLogout = async function() {
-        // Nejprve odhlásit ze serveru (max 1.5s), aby SIGNED_OUT nepřišel po novém přihlášení
-        try {
-            await Promise.race([
-                supabaseClient?.auth.signOut(),
-                new Promise(resolve => setTimeout(resolve, 1500))
-            ]);
-        } catch(e) {}
-        // Pak vymaž localStorage
+    window.handleLogout = function() {
+        // POZOR: NEvoláme supabaseClient.auth.signOut() — ta běží na pozadí a po dokončení
+        // volá removeSession() která smaže z localStorage i session nově přihlášeného uživatele.
+        // Lokální vymazání tokenu je dostatečné; JWT expiruje na serveru do 1 hodiny.
         try {
             for (let i = localStorage.length - 1; i >= 0; i--) {
                 const k = localStorage.key(i);
@@ -1174,7 +1169,6 @@
         window._loadingPrivateProfile = null;
         window._jwtReady = false;
         window._favCache = new Set();
-        // NEZRUŠUJ dataLoaded/_profilesMap/_fetchDBPromise — veřejná data zůstávají platná
         const btn = document.getElementById('btn-register-top');
         if (btn) { btn.innerText='Registrovat'; btn.setAttribute('onclick',"navigate('login')"); }
         showToast('Byli jste úspěšně odhlášeni.','success');
@@ -1505,27 +1499,14 @@
         }
     }
 
-    window._loadPrivateProfileData = function(user) {
+    window._loadPrivateProfileData = async function(user) {
         if (!supabaseClient || !user) return;
         const uid = user.id;
-        // Deduplikace — pokud dotaz pro tohoto uživatele již běží, nespouštěj znovu
         if (window._loadingPrivateProfile === uid) return;
         window._loadingPrivateProfile = uid;
 
-        supabaseClient.from('profiles').select('*').eq('id', uid).single()
-        .then(({ data, error }) => {
-            if (!data || error) return;
-            _applyProfileDisplay(data, user);
-            window._privateProfileCache = { uid, data };
-            if (window._profilesMap) window._profilesMap[uid] = { ...(window._profilesMap[uid]||{}), ...data };
-            const h = window.location.hash.replace('#','');
-            if ((h.split('/')[1] || 'inzeraty') === 'kyc') _applyKycToDOM(data);
-        }).catch(() => {})
-        .finally(() => { window._loadingPrivateProfile = null; });
-
-        supabaseClient.from('transactions').select('price,seller_id,buyer_id,status').eq('status','completed').or(`buyer_id.eq.${uid},seller_id.eq.${uid}`)
-        .then(({ data:txStats }) => {
-            const tx = txStats || [];
+        const _applyTx = (txData) => {
+            const tx = txData || [];
             const sales     = tx.filter(t=>t.seller_id===uid);
             const purchases = tx.filter(t=>t.buyer_id===uid);
             const earned    = sales.reduce((s,t)=>s+t.price,0);
@@ -1540,7 +1521,39 @@
             if (scEl)     scEl.innerText     = sales.length;
             if (pcEl)     pcEl.innerText     = purchases.length;
             supabaseClient.from('profiles').update({ total_earned:earned, total_spent:spent }).eq('id',uid).then();
-        }).catch(() => {});
+        };
+
+        const _tryLoad = async () => {
+            try {
+                const [profileRes, txRes] = await Promise.all([
+                    supabaseClient.from('profiles').select('*').eq('id', uid).single(),
+                    supabaseClient.from('transactions').select('price,seller_id,buyer_id,status').eq('status','completed').or(`buyer_id.eq.${uid},seller_id.eq.${uid}`)
+                ]);
+                if (profileRes.data && !profileRes.error) {
+                    const data = profileRes.data;
+                    _applyProfileDisplay(data, user);
+                    window._privateProfileCache = { uid, data };
+                    if (window._profilesMap) window._profilesMap[uid] = { ...(window._profilesMap[uid]||{}), ...data };
+                    const h = window.location.hash.replace('#','');
+                    if ((h.split('/')[1] || 'inzeraty') === 'kyc') _applyKycToDOM(data);
+                }
+                if (txRes.data) _applyTx(txRes.data);
+                return !!(profileRes.data && !profileRes.error);
+            } catch(e) { return false; }
+        };
+
+        // Pokus 1 — může selhat pokud JWT právě expiroval
+        const ok = await _tryLoad();
+
+        // Pokus 2 po 3.5s — do té doby TOKEN_REFRESHED obnoví JWT
+        if (!ok && !window._privateProfileCache) {
+            await new Promise(r => setTimeout(r, 3500));
+            if (!window._privateProfileCache || window._privateProfileCache.uid !== uid) {
+                await _tryLoad();
+            }
+        }
+
+        window._loadingPrivateProfile = null;
     };
 
     window.renderProfileTabContent = function(tab) {
