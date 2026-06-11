@@ -9,6 +9,13 @@
     <meta name="theme-color" content="#0ea5e9">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="FairTrade">
+    <meta name="mobile-web-app-capable" content="yes">
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="icon-192.png">
+    <link rel="apple-touch-icon" sizes="192x192" href="icon-192.png">
+    <link rel="icon" type="image/svg+xml" href="icon.svg">
+    <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
     <title>FairTrade Tržiště</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -2020,6 +2027,52 @@
         });
 
         setupRealtime();
+    });
+
+    // === PWA Service Worker ===
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('./sw.js', { scope: './' })
+                .then(reg => {
+                    // Zkontroluj aktualizaci každých 60 minut
+                    setInterval(() => reg.update(), 3600000);
+                })
+                .catch(err => console.warn('SW registrace selhala:', err));
+        });
+    }
+
+    // === PWA Install prompt (Android) ===
+    let _deferredInstall = null;
+    window.addEventListener('beforeinstallprompt', e => {
+        e.preventDefault();
+        _deferredInstall = e;
+        // Zobraz toast s výzvou k instalaci po 3 sekundách
+        setTimeout(() => {
+            if (_deferredInstall) {
+                const container = document.getElementById('toast-container');
+                if (!container) return;
+                const toast = document.createElement('div');
+                toast.className = 'flex items-start gap-3 px-4 py-3.5 rounded-2xl bg-white border-l-4 border-sky-500 shadow-xl max-w-[320px] pointer-events-auto cursor-pointer';
+                toast.innerHTML = `
+                    <svg class="w-5 h-5 text-sky-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                    <div>
+                        <div class="font-bold text-sm text-gray-800">Nainstalovat FairTrade</div>
+                        <div class="text-xs text-gray-500 mt-0.5">Přidat na plochu jako app — klikni pro instalaci</div>
+                    </div>`;
+                toast.addEventListener('click', () => {
+                    _deferredInstall?.prompt();
+                    _deferredInstall?.userChoice.then(() => { _deferredInstall = null; });
+                    toast.remove();
+                });
+                container.appendChild(toast);
+                setTimeout(() => toast.remove(), 15000);
+            }
+        }, 3000);
+    });
+
+    window.addEventListener('appinstalled', () => {
+        _deferredInstall = null;
+        if (typeof showToast === 'function') showToast('FairTrade byla úspěšně nainstalována!', 'success');
     });
     </script>
 </body>
