@@ -1875,8 +1875,9 @@
             if (Array.isArray(pd) && pd[0]) buyerName = pd[0].display_name || pd[0].first_name || buyerName;
         } catch(e) {}
 
-        // Vytvoř transakci (DB generuje UUID)
-        const txPayload = { item_id: item.id, item_title: item.title, item_image: item.img, seller_id: item.seller_id, seller_name: item.seller, buyer_id: uid, buyer_name: buyerName, price: item.price, status: 'created' };
+        // Vytvoř transakci
+        const txId = crypto.randomUUID ? crypto.randomUUID() : ([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g,c=>(c^crypto.getRandomValues(new Uint8Array(1))[0]&15>>c/4).toString(16));
+        const txPayload = { id: txId, item_id: item.id, item_title: item.title, item_image: item.img, seller_id: item.seller_id, seller_name: item.seller, buyer_id: uid, buyer_name: buyerName, price: item.price, status: 'created' };
         const rTx = await fetch(`${SUPABASE_URL}/rest/v1/transactions`, {
             method: 'POST',
             headers: { ...hdrs, 'Prefer': 'return=representation' },
@@ -2362,7 +2363,7 @@
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8">
                     <div>
                         <div class="bg-white rounded-3xl p-4 border border-gray-100 shadow-inner relative overflow-hidden group">
-                            <img id="main-img-${item.id}" src="${item.img}" onerror="this.onerror=null;this.src='${FALLBACK_IMG}';" class="rounded-2xl object-cover w-full h-[280px] md:h-[420px] transition-all duration-300">
+                            <img id="main-img-${item.id}" src="${item.img}" onerror="this.onerror=null;this.src='${FALLBACK_IMG}';" class="rounded-2xl object-contain w-full h-[280px] md:h-[420px] transition-all duration-300 bg-gray-50">
                             ${item.has360 ? `<div class="absolute bottom-5 left-1/2 -translate-x-1/2"><button onclick="open360('${item.img}')" class="bg-white/95 backdrop-blur-md text-gray-800 px-5 py-2.5 rounded-full shadow-lg font-bold text-sm flex items-center gap-2 hover:scale-105 transition-all"><svg class="w-5 h-5 text-sky-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>360° pohled</button></div>` : ''}
                         </div>
                         ${item.images&&item.images.length>1 ? `<div class="flex gap-2 mt-3 overflow-x-auto scrollbar-hide">${item.images.map(u=>`<div class="w-16 h-16 rounded-xl border-2 border-transparent hover:border-sky-500 cursor-pointer overflow-hidden shrink-0" onclick="document.getElementById('main-img-${item.id}').src='${u}'"><img src="${u}" class="w-full h-full object-cover"></div>`).join('')}</div>` : ''}
@@ -2456,7 +2457,7 @@
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8">
                     <div>
                         <div class="bg-white rounded-3xl p-4 border border-gray-100 shadow-inner overflow-hidden">
-                            <img id="main-img-${item.id}" src="${item.img}" onerror="this.onerror=null;this.src='${FALLBACK_IMG}';" class="rounded-2xl object-cover w-full h-[280px] md:h-[420px] transition-all duration-300">
+                            <img id="main-img-${item.id}" src="${item.img}" onerror="this.onerror=null;this.src='${FALLBACK_IMG}';" class="rounded-2xl object-contain w-full h-[280px] md:h-[420px] transition-all duration-300 bg-gray-50">
                         </div>
                         ${item.images&&item.images.length>1 ? `<div class="flex gap-2 mt-3 overflow-x-auto scrollbar-hide">${item.images.map(u=>`<div class="w-16 h-16 rounded-xl border-2 border-transparent hover:border-pink-500 cursor-pointer overflow-hidden shrink-0" onclick="document.getElementById('main-img-${item.id}').src='${u}'"><img src="${u}" class="w-full h-full object-cover"></div>`).join('')}</div>` : ''}
                     </div>
