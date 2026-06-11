@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#38bdf8;stop-opacity:1"/>
+      <stop offset="100%" style="stop-color:#0369a1;stop-opacity:1"/>
+    </linearGradient>
+    <linearGradient id="shine" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#ffffff;stop-opacity:0.15"/>
+      <stop offset="100%" style="stop-color:#ffffff;stop-opacity:0"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Pozadí s kulatými rohy -->
+  <rect width="512" height="512" rx="108" ry="108" fill="url(#bg)"/>
+
+  <!-- Světlý lesk nahoře -->
+  <rect width="512" height="256" rx="108" ry="108" fill="url(#shine)"/>
+
+  <!-- Písmeno F -->
+  <rect x="90" y="130" width="52" height="252" rx="16" fill="white"/>
+  <rect x="90" y="130" width="180" height="52" rx="16" fill="white"/>
+  <rect x="90" y="236" width="148" height="48" rx="16" fill="white"/>
+
+  <!-- Písmeno T -->
+  <rect x="290" y="130" width="180" height="52" rx="16" fill="white" opacity="0.95"/>
+  <rect x="354" y="182" width="52" height="200" rx="16" fill="white" opacity="0.95"/>
+
+  <!-- Tečka dekorativní — zlatá hvězdička nahoře vpravo -->
+  <circle cx="430" cy="100" r="22" fill="#fbbf24" opacity="0.9"/>
+  <polygon points="430,82 434,93 447,93 437,101 441,113 430,105 419,113 423,101 413,93 426,93"
+           fill="white"/>
+</svg>
