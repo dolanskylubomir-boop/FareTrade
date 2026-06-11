@@ -384,52 +384,7 @@
     </div>
 
     <script>
-    /*
-     * ════════════════════════════════════════════════════════════════
-     *  SUPABASE SQL – spusťte v SQL editoru (Settings → SQL Editor):
-     * ════════════════════════════════════════════════════════════════
-     *
-     * -- TOP sloupce pro aukce a pevnou cenu
-     * ALTER TABLE aukce      ADD COLUMN IF NOT EXISTS is_top        BOOLEAN   DEFAULT FALSE;
-     * ALTER TABLE aukce      ADD COLUMN IF NOT EXISTS top_expires_at TIMESTAMPTZ;
-     * ALTER TABLE aukce      ADD COLUMN IF NOT EXISTS top_paid_kc   INTEGER   DEFAULT 0;
-     * ALTER TABLE aukce      ADD COLUMN IF NOT EXISTS views_count   INTEGER   DEFAULT 0;
-     *
-     * ALTER TABLE pevna_cena ADD COLUMN IF NOT EXISTS is_top        BOOLEAN   DEFAULT FALSE;
-     * ALTER TABLE pevna_cena ADD COLUMN IF NOT EXISTS top_expires_at TIMESTAMPTZ;
-     * ALTER TABLE pevna_cena ADD COLUMN IF NOT EXISTS top_paid_kc   INTEGER   DEFAULT 0;
-     * ALTER TABLE pevna_cena ADD COLUMN IF NOT EXISTS views_count   INTEGER   DEFAULT 0;
-     *
-     * -- Tabulka TOP plateb
-     * CREATE TABLE IF NOT EXISTS top_payments (
-     *   id         UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-     *   user_id    UUID REFERENCES auth.users NOT NULL,
-     *   item_id    TEXT NOT NULL,
-     *   item_type  TEXT NOT NULL CHECK (item_type IN ('aukce','pevna_cena')),
-     *   amount_kc  INTEGER NOT NULL,
-     *   days       INTEGER NOT NULL,
-     *   vs         TEXT NOT NULL,
-     *   status     TEXT DEFAULT 'pending' CHECK (status IN ('pending','confirmed','expired')),
-     *   created_at TIMESTAMPTZ DEFAULT now(),
-     *   top_until  TIMESTAMPTZ
-     * );
-     * ALTER TABLE top_payments ENABLE ROW LEVEL SECURITY;
-     * CREATE POLICY "top_payments_owner" ON top_payments FOR ALL USING (auth.uid() = user_id);
-     *
-     * -- Optimalizace indexů pro rychlé načítání
-     * CREATE INDEX IF NOT EXISTS idx_aukce_status_top   ON aukce(status, is_top DESC, created_at DESC);
-     * CREATE INDEX IF NOT EXISTS idx_pevna_status_top   ON pevna_cena(status, is_top DESC, created_at DESC);
-     * CREATE INDEX IF NOT EXISTS idx_aukce_category     ON aukce(category, status);
-     * CREATE INDEX IF NOT EXISTS idx_pevna_category     ON pevna_cena(category, status);
-     * CREATE INDEX IF NOT EXISTS idx_bids_auction       ON bids(auction_id, amount DESC);
-     *
-     * -- Automatické vypnutí TOP po expiraci (volitelně jako cron / pg_cron)
-     * -- CREATE EXTENSION IF NOT EXISTS pg_cron;
-     * -- SELECT cron.schedule('expire-top', '*/10 * * * *',
-     * --   $$UPDATE aukce SET is_top=false WHERE is_top=true AND top_expires_at < now();
-     * --     UPDATE pevna_cena SET is_top=false WHERE is_top=true AND top_expires_at < now();$$);
-     * ════════════════════════════════════════════════════════════════
-     */
+
 
     // ──────────────────────────────────────────────────────────────
     // KONFIGURACE
