@@ -595,6 +595,31 @@
         _msgContext = null;
     };
 
+    async function _sendMsgApi(token, payload) {
+        // 1. pokus — Edge Function (server-side cenzura)
+        try {
+            const r = await fetch(SUPABASE_URL + '/functions/v1/send-message', {
+                method: 'POST',
+                headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const res = await r.json().catch(function(){return{};});
+            if (r.status === 422) return { error: res.error || 'Zakázaný obsah.' }; // cenzura serveru
+            if (!r.ok) throw new Error(res.error || 'ef_' + r.status);
+            return { ok: true };
+        } catch(efErr) {
+            // 2. fallback — přímé REST API (klientská cenzura platí)
+            const hdrs = { 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' };
+            const msgId = crypto.randomUUID ? crypto.randomUUID() : ([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g,function(c){return(c^crypto.getRandomValues(new Uint8Array(1))[0]&15>>c/4).toString(16);});
+            const r2 = await fetch(SUPABASE_URL + '/rest/v1/messages', {
+                method: 'POST', headers: hdrs,
+                body: JSON.stringify(Object.assign({ id: msgId, sender_id: window.currentUser.id, is_read: false, parent_id: null }, payload, { text: undefined, body: payload.text }))
+            });
+            if (!r2.ok) { const e2 = await r2.json().catch(function(){return{};}); return { error: e2.message || e2.error || e2.hint || e2.msg || ('Chyba REST ' + r2.status) }; }
+            return { ok: true };
+        }
+    }
+
     window.submitMessage = async function() {
         if (!window.currentUser || !_msgContext) return;
         const bodyEl  = document.getElementById('msg-modal-body');
@@ -604,26 +629,13 @@
         const showErr = function(msg) { if (errEl) { errEl.textContent = msg; errEl.classList.remove('hidden'); } };
         if (!text) { showErr('Zpráva nesmí být prázdná.'); return; }
         if (text.length < 2) { showErr('Zpráva je příliš krátká.'); return; }
-        // Klientská cenzura jako rychlá UX kontrola (server ji zopakuje nezávisle)
         if (_censorCheck(text)) { showErr('Zpráva obsahuje zakázaný obsah (kontaktní údaje).'); return; }
         if (btn) { btn.disabled = true; btn.textContent = 'Odesílám…'; }
         try {
             const token = await _ensureValidToken();
             if (!token) { showErr('Chyba ověření. Zkuste se znovu přihlásit.'); return; }
-            const r = await fetch(SUPABASE_URL + '/functions/v1/send-message', {
-                method: 'POST',
-                headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    item_id: _msgContext.itemId,
-                    item_title: _msgContext.itemTitle,
-                    item_type: _msgContext.itemType,
-                    receiver_id: _msgContext.sellerId,
-                    text: text,
-                    parent_id: null
-                })
-            });
-            const res = await r.json().catch(function(){return {};});
-            if (!r.ok) { showErr(res.error || ('Chyba ' + r.status)); return; }
+            const res = await _sendMsgApi(token, { item_id: _msgContext.itemId, item_title: _msgContext.itemTitle, item_type: _msgContext.itemType, receiver_id: _msgContext.sellerId, text: text, parent_id: null });
+            if (res.error) { showErr(res.error); return; }
             window.closeMessageModal();
             showToast('Zpráva byla odeslána prodejci.', 'success');
         } catch(e) {
@@ -2496,7 +2508,7 @@
                             <span class="bg-gray-100 text-gray-600 text-sm px-3 py-1 rounded-full font-bold">${item.category}</span>
                             ${item.condition?`<span class="bg-purple-100 text-purple-800 text-sm px-3 py-1 rounded-full font-bold">${item.condition}</span>`:''}
                             ${item.brand?`<span class="bg-indigo-100 text-indigo-800 text-sm px-3 py-1 rounded-full font-bold">${item.brand}</span>`:''}
-                            <button onclick="navigate('seller-inzeraty','${item.seller_id}')" class="inline-flex items-center gap-1 bg-white border border-gray-200 hover:border-sky-400 hover:text-sky-600 text-gray-500 text-xs px-3 py-1 rounded-full font-bold transition-colors"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>Další inzeráty</button>
+                            <button onclick="navigate('seller-inzeraty','${item.seller_id}')" class="inline-flex items-center gap-1 bg-white border border-gray-200 hover:border-sky-400 hover:text-sky-600 text-gray-500 text-xs px-3 py-1 rounded-full font-bold transition-colors"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>Další inzeráty prodejce</button>
                         </div>
                         <h2 class="text-2xl md:text-4xl font-extrabold mb-3 text-pastel-text">${item.title}</h2>
                         <div class="flex items-center gap-3 ${timeInfo.urgent?'bg-red-50 border-red-200':'bg-gray-50'} p-3 rounded-2xl mb-4 border">
@@ -2591,7 +2603,7 @@
                             <span class="bg-gray-100 text-gray-600 text-sm px-3 py-1 rounded-full font-bold">${item.category}</span>
                             ${item.condition?`<span class="bg-purple-100 text-purple-800 text-sm px-3 py-1 rounded-full font-bold">${item.condition}</span>`:''}
                             ${item.brand?`<span class="bg-indigo-100 text-indigo-800 text-sm px-3 py-1 rounded-full font-bold">${item.brand}</span>`:''}
-                            <button onclick="navigate('seller-inzeraty','${item.seller_id}')" class="inline-flex items-center gap-1 bg-white border border-gray-200 hover:border-pink-400 hover:text-pink-600 text-gray-500 text-xs px-3 py-1 rounded-full font-bold transition-colors"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>Další inzeráty</button>
+                            <button onclick="navigate('seller-inzeraty','${item.seller_id}')" class="inline-flex items-center gap-1 bg-white border border-gray-200 hover:border-pink-400 hover:text-pink-600 text-gray-500 text-xs px-3 py-1 rounded-full font-bold transition-colors"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>Další inzeráty prodejce</button>
                         </div>
                         <h2 class="text-2xl md:text-4xl font-extrabold mb-3 text-pastel-text">${item.title}</h2>
                         <div class="flex items-center gap-3 bg-gray-50 p-3 rounded-2xl mb-4 border border-gray-100">
@@ -2765,13 +2777,8 @@
         const token = await _ensureValidToken();
         if (!token) { showToast('Chyba ověření.', 'warning'); return; }
         try {
-            const r = await fetch(SUPABASE_URL + '/functions/v1/send-message', {
-                method: 'POST',
-                headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
-                body: JSON.stringify({ item_id: itemId, item_title: itemTitle, item_type: itemType, receiver_id: receiverId, text: text, parent_id: parentId })
-            });
-            const res = await r.json().catch(function(){return{};});
-            if (!r.ok) { showToast(res.error || ('Chyba ' + r.status), 'warning'); return; }
+            const res = await _sendMsgApi(token, { item_id: itemId, item_title: itemTitle, item_type: itemType, receiver_id: receiverId, text: text, parent_id: parentId });
+            if (res.error) { showToast(res.error, 'warning'); return; }
             input.value = '';
             showToast('Odpověď odeslána.', 'success');
             loadZpravyTab();
