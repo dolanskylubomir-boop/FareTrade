@@ -1089,9 +1089,9 @@
         if (!supabaseClient) return;
         try {
             const { data, error } = await supabaseClient.from('profiles').select('kyc_status').eq('id', user.id).single();
-            if (!error && data && data.kyc_status === 'unverified') navigate('kyc');
-            else if (redirectIfVerified) navigate('profil');
-        } catch (e) { console.error('Chyba kontroly KYC:', e); }
+            if (!error && data && data.kyc_status === 'unverified') { navigate('kyc'); return; }
+        } catch (e) { /* AbortError nebo jiná chyba — ignoruj, naviaguj dál */ }
+        if (redirectIfVerified) navigate('profil');
     }
 
     if (supabaseClient) {
@@ -1154,8 +1154,15 @@
         }
     };
 
-    window.handleLogout = function() {
-        // Okamžitě vymaž session z localStorage — bez čekání na síť
+    window.handleLogout = async function() {
+        // Nejprve odhlásit ze serveru (max 1.5s), aby SIGNED_OUT nepřišel po novém přihlášení
+        try {
+            await Promise.race([
+                supabaseClient?.auth.signOut(),
+                new Promise(resolve => setTimeout(resolve, 1500))
+            ]);
+        } catch(e) {}
+        // Pak vymaž localStorage
         try {
             for (let i = localStorage.length - 1; i >= 0; i--) {
                 const k = localStorage.key(i);
@@ -1163,12 +1170,15 @@
             }
         } catch(e) {}
         window.currentUser = null;
+        window._privateProfileCache = null;
+        window._txStatsCache = null;
+        window._profilesMap = null;
+        window.dataLoaded = false;
+        window._fetchDBPromise = null;
         const btn = document.getElementById('btn-register-top');
         if (btn) { btn.innerText='Registrovat'; btn.setAttribute('onclick',"navigate('login')"); }
         showToast('Byli jste úspěšně odhlášeni.','success');
         navigate('home');
-        // Odhlášení ze serveru na pozadí (best effort)
-        try { supabaseClient?.auth.signOut(); } catch(e) {}
     };
 
     window.handleKYCSubmit = async function(e) {
@@ -1455,36 +1465,55 @@
             const nameEl = document.getElementById('profile-name');
             if (nameEl) nameEl.innerText = user.email?.split('@')[0] || 'Uživatel';
         }
-        // Privátní data (KYC, transakce) načte _loadPrivateProfileData po INITIAL_SESSION
+
+        // Pokud jsou privátní data již v cache (z INITIAL_SESSION), aplikuj ihned
+        if (window._privateProfileCache?.uid === user.id) {
+            _applyProfileDisplay(window._privateProfileCache.data, user);
+            if (activeTab === 'kyc') _applyKycToDOM(window._privateProfileCache.data);
+        }
+        if (window._txStatsCache?.uid === user.id) {
+            const c = window._txStatsCache;
+            const earnedEl = document.getElementById('profile-earned');
+            const spentEl  = document.getElementById('profile-spent');
+            const scEl     = document.getElementById('profile-sales-count');
+            const pcEl     = document.getElementById('profile-purchase-count');
+            if (earnedEl) earnedEl.innerHTML = `${c.earned.toLocaleString('cs-CZ')} <span class="text-xs text-gray-400 font-bold">Kč</span>`;
+            if (spentEl)  spentEl.innerHTML  = `${c.spent.toLocaleString('cs-CZ')} <span class="text-xs text-gray-400 font-bold">Kč</span>`;
+            if (scEl)     scEl.innerText     = c.sales;
+            if (pcEl)     pcEl.innerText     = c.purchases;
+        }
     };
+
+    // Aplikuj KYC data do DOM (voláno po načtení i po re-renderu)
+    function _applyKycToDOM(data) {
+        const fullName = `${data.first_name||''} ${data.last_name||''}`.trim();
+        const kycFields = { 'kyc-display-dname': data.display_name||'Nezadáno', 'kyc-display-name': fullName||'Nezadáno', 'kyc-display-bank': data.bank_account||'Nezadáno' };
+        Object.entries(kycFields).forEach(([id,val]) => { const el=document.getElementById(id); if(el) el.innerText=val; });
+        if (data.birth_date) { const p=data.birth_date.split('-'); const el=document.getElementById('kyc-display-date'); if(el) el.innerText=`${p[2]}.${p[1]}.${p[0]}`; }
+        const kycAddr = document.getElementById('kyc-display-address');
+        if (kycAddr) kycAddr.innerText = (data.street||data.city) ? `${data.street||''} ${data.building_number||''}${data.orientation_number?'/'+data.orientation_number:''}, ${data.zip_code||''} ${data.city||''}` : 'Nezadáno';
+        const kycBadge = document.getElementById('kyc-status-badge');
+        if (kycBadge) {
+            if (data.kyc_status==='submitted') { kycBadge.textContent='Čeká na schválení'; kycBadge.className='bg-amber-100 text-amber-800 text-xs px-3 py-1 rounded-full font-bold uppercase border border-amber-200'; }
+            else if (data.kyc_status==='approved'||data.is_verified) { kycBadge.textContent='Schváleno / Ověřeno'; kycBadge.className='bg-green-100 text-green-800 text-xs px-3 py-1 rounded-full font-bold uppercase border border-green-200'; }
+            else { kycBadge.textContent='Neověřeno'; kycBadge.className='bg-red-100 text-red-800 text-xs px-3 py-1 rounded-full font-bold uppercase border border-red-200'; }
+        }
+    }
 
     // Voláno z onAuthStateChange INITIAL_SESSION — JWT je teď platný
     window._loadPrivateProfileData = function(user, activeTab) {
         if (!supabaseClient || !user) return;
         const uid = user.id;
 
-        // Privátní profil (KYC pole: banka, rodné číslo, adresa)
+        // Privátní profil — uloží do cache, aplikuje do DOM ihned a po každém re-renderu
         supabaseClient.from('profiles').select('*').eq('id', uid).single()
         .then(({ data, error }) => {
             if (!data || error) return;
             _applyProfileDisplay(data, user);
+            window._privateProfileCache = { uid, data }; // uloži do cache
             if (window._profilesMap) window._profilesMap[uid] = { ...(window._profilesMap[uid]||{}), ...data };
             const h = window.location.hash.replace('#','');
-            const currentTab = h.split('/')[1] || 'inzeraty';
-            if (currentTab === 'kyc') {
-                const fullName = `${data.first_name||''} ${data.last_name||''}`.trim();
-                const kycFields = { 'kyc-display-dname': data.display_name||'Nezadáno', 'kyc-display-name': fullName||'Nezadáno', 'kyc-display-bank': data.bank_account||'Nezadáno' };
-                Object.entries(kycFields).forEach(([id,val]) => { const el=document.getElementById(id); if(el) el.innerText=val; });
-                if (data.birth_date) { const p=data.birth_date.split('-'); const el=document.getElementById('kyc-display-date'); if(el) el.innerText=`${p[2]}.${p[1]}.${p[0]}`; }
-                const kycAddr = document.getElementById('kyc-display-address');
-                if (kycAddr) kycAddr.innerText = (data.street||data.city) ? `${data.street||''} ${data.building_number||''}${data.orientation_number?'/'+data.orientation_number:''}, ${data.zip_code||''} ${data.city||''}` : 'Nezadáno';
-                const kycBadge = document.getElementById('kyc-status-badge');
-                if (kycBadge) {
-                    if (data.kyc_status==='submitted') { kycBadge.textContent='Čeká na schválení'; kycBadge.className='bg-amber-100 text-amber-800 text-xs px-3 py-1 rounded-full font-bold uppercase border border-amber-200'; }
-                    else if (data.kyc_status==='approved'||data.is_verified) { kycBadge.textContent='Schváleno / Ověřeno'; kycBadge.className='bg-green-100 text-green-800 text-xs px-3 py-1 rounded-full font-bold uppercase border border-green-200'; }
-                    else { kycBadge.textContent='Neověřeno'; kycBadge.className='bg-red-100 text-red-800 text-xs px-3 py-1 rounded-full font-bold uppercase border border-red-200'; }
-                }
-            }
+            if ((h.split('/')[1] || 'inzeraty') === 'kyc') _applyKycToDOM(data);
         }).catch(() => {});
 
         // Statistiky transakcí
@@ -1495,6 +1524,7 @@
             const purchases = tx.filter(t=>t.buyer_id===uid);
             const earned    = sales.reduce((s,t)=>s+t.price,0);
             const spent     = purchases.reduce((s,t)=>s+t.price,0);
+            window._txStatsCache = { uid, sales: sales.length, purchases: purchases.length, earned, spent };
             const earnedEl  = document.getElementById('profile-earned');
             const spentEl   = document.getElementById('profile-spent');
             const scEl      = document.getElementById('profile-sales-count');
