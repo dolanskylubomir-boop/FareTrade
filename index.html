@@ -1111,11 +1111,10 @@
                     loadFavoritesFromDB();
                 } else if (event === 'TOKEN_REFRESHED') {
                     window._jwtReady = true;
-                    // Token je čerstvý — resetuj dedup flag a zkus znovu načíst privátní data
-                    window._loadingPrivateProfile = null;
                     loadFavoritesFromDB();
+                    // Spusť načtení privátních dat jen pokud ještě neběží a nejsou v cache
                     const h = window.location.hash.replace('#','');
-                    if (h.startsWith('profil') && !window._privateProfileCache) {
+                    if (h.startsWith('profil') && !window._privateProfileCache && !window._loadingPrivateProfile) {
                         window._loadPrivateProfileData(session.user);
                     }
                 }
@@ -1505,53 +1504,44 @@
         if (window._loadingPrivateProfile === uid) return;
         window._loadingPrivateProfile = uid;
 
-        const _applyTx = (txData) => {
-            const tx = txData || [];
-            const sales     = tx.filter(t=>t.seller_id===uid);
-            const purchases = tx.filter(t=>t.buyer_id===uid);
-            const earned    = sales.reduce((s,t)=>s+t.price,0);
-            const spent     = purchases.reduce((s,t)=>s+t.price,0);
-            window._txStatsCache = { uid, sales: sales.length, purchases: purchases.length, earned, spent };
-            const earnedEl  = document.getElementById('profile-earned');
-            const spentEl   = document.getElementById('profile-spent');
-            const scEl      = document.getElementById('profile-sales-count');
-            const pcEl      = document.getElementById('profile-purchase-count');
-            if (earnedEl) earnedEl.innerHTML = `${earned.toLocaleString('cs-CZ')} <span class="text-xs text-gray-400 font-bold">Kč</span>`;
-            if (spentEl)  spentEl.innerHTML  = `${spent.toLocaleString('cs-CZ')} <span class="text-xs text-gray-400 font-bold">Kč</span>`;
-            if (scEl)     scEl.innerText     = sales.length;
-            if (pcEl)     pcEl.innerText     = purchases.length;
-            supabaseClient.from('profiles').update({ total_earned:earned, total_spent:spent }).eq('id',uid).then();
-        };
+        try {
+            // getSession() zajistí platný JWT — interně obnoví token pokud expiroval.
+            // Teprve potom jsou headers supabaseClient aktualizovány a dotazy mají platný token.
+            await supabaseClient.auth.getSession();
 
-        const _tryLoad = async () => {
-            try {
-                const [profileRes, txRes] = await Promise.all([
-                    supabaseClient.from('profiles').select('*').eq('id', uid).single(),
-                    supabaseClient.from('transactions').select('price,seller_id,buyer_id,status').eq('status','completed').or(`buyer_id.eq.${uid},seller_id.eq.${uid}`)
-                ]);
-                if (profileRes.data && !profileRes.error) {
-                    const data = profileRes.data;
-                    _applyProfileDisplay(data, user);
-                    window._privateProfileCache = { uid, data };
-                    if (window._profilesMap) window._profilesMap[uid] = { ...(window._profilesMap[uid]||{}), ...data };
-                    const h = window.location.hash.replace('#','');
-                    if ((h.split('/')[1] || 'inzeraty') === 'kyc') _applyKycToDOM(data);
-                }
-                if (txRes.data) _applyTx(txRes.data);
-                return !!(profileRes.data && !profileRes.error);
-            } catch(e) { return false; }
-        };
+            const [profileRes, txRes] = await Promise.all([
+                supabaseClient.from('profiles').select('*').eq('id', uid).single(),
+                supabaseClient.from('transactions').select('price,seller_id,buyer_id,status')
+                    .eq('status','completed').or(`buyer_id.eq.${uid},seller_id.eq.${uid}`)
+            ]);
 
-        // Pokus 1 — může selhat pokud JWT právě expiroval
-        const ok = await _tryLoad();
-
-        // Pokus 2 po 3.5s — do té doby TOKEN_REFRESHED obnoví JWT
-        if (!ok && !window._privateProfileCache) {
-            await new Promise(r => setTimeout(r, 3500));
-            if (!window._privateProfileCache || window._privateProfileCache.uid !== uid) {
-                await _tryLoad();
+            if (profileRes.data && !profileRes.error) {
+                const data = profileRes.data;
+                _applyProfileDisplay(data, user);
+                window._privateProfileCache = { uid, data };
+                if (window._profilesMap) window._profilesMap[uid] = { ...(window._profilesMap[uid]||{}), ...data };
+                const h = window.location.hash.replace('#','');
+                if ((h.split('/')[1] || 'inzeraty') === 'kyc') _applyKycToDOM(data);
             }
-        }
+
+            if (txRes.data) {
+                const tx = txRes.data;
+                const sales     = tx.filter(t=>t.seller_id===uid);
+                const purchases = tx.filter(t=>t.buyer_id===uid);
+                const earned    = sales.reduce((s,t)=>s+t.price,0);
+                const spent     = purchases.reduce((s,t)=>s+t.price,0);
+                window._txStatsCache = { uid, sales: sales.length, purchases: purchases.length, earned, spent };
+                const earnedEl  = document.getElementById('profile-earned');
+                const spentEl   = document.getElementById('profile-spent');
+                const scEl      = document.getElementById('profile-sales-count');
+                const pcEl      = document.getElementById('profile-purchase-count');
+                if (earnedEl) earnedEl.innerHTML = `${earned.toLocaleString('cs-CZ')} <span class="text-xs text-gray-400 font-bold">Kč</span>`;
+                if (spentEl)  spentEl.innerHTML  = `${spent.toLocaleString('cs-CZ')} <span class="text-xs text-gray-400 font-bold">Kč</span>`;
+                if (scEl)     scEl.innerText     = sales.length;
+                if (pcEl)     pcEl.innerText     = purchases.length;
+                supabaseClient.from('profiles').update({ total_earned:earned, total_spent:spent }).eq('id',uid).then();
+            }
+        } catch(e) {}
 
         window._loadingPrivateProfile = null;
     };
