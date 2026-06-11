@@ -569,6 +569,20 @@
     // Stav pro vyhledávání/řazení
     let _listState = { search:'', sort:'top' };
 
+    // Synchronní čtení uložené Supabase session z localStorage — žádný async, nemůže zamrznout
+    function _getLocalUser() {
+        if (window.currentUser) return window.currentUser;
+        try {
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (!key || !key.includes('auth-token')) continue;
+                const data = JSON.parse(localStorage.getItem(key) || 'null');
+                if (data?.user?.id) return data.user;
+            }
+        } catch(e) {}
+        return null;
+    }
+
     // ──────────────────────────────────────────────────────────────
     // POMOCNÉ FUNKCE
     // ──────────────────────────────────────────────────────────────
@@ -902,6 +916,7 @@
     // ──────────────────────────────────────────────────────────────
     window.fetchDatabaseItems = async function() {
         if (!supabaseClient) { window.dataLoaded = true; return; }
+        if (window.dataLoaded) return;
         // Pokud fetch právě běží, počkej na něj (sdílený promise)
         if (window._fetchDBPromise) return window._fetchDBPromise;
         window._fetchDBPromise = _doFetch();
@@ -1365,16 +1380,10 @@
     window.loadProfileData = async function(activeTab = 'inzeraty') {
         if (!supabaseClient) return;
 
-        // Použij window.currentUser (nastaven z onAuthStateChange) nebo přečti z localStorage
-        let user = window.currentUser;
-        if (!user) {
-            const { data:{ session } } = await supabaseClient.auth.getSession();
-            user = session?.user || null;
-        }
+        // Synchronní čtení z localStorage — ŽÁDNÝ async, NIKDY nezamrzne
+        const user = _getLocalUser();
         if (!user) { navigate('login'); return; }
         window.currentUser = user;
-
-        if (!window.dataLoaded) await fetchDatabaseItems();
 
         // Počty inzerátů
         const myAdsCount = dataAukce.filter(i=>i.seller_id===user.id).length + dataPevnaCena.filter(i=>i.seller_id===user.id).length;
