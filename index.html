@@ -142,6 +142,18 @@
         .subcat-filter { transition:all .12s; }
         .subcat-filter.active { background:#e0f2fe; border-color:#38bdf8; color:#0369a1; }
 
+        /* === Zoom obrázku === */
+        .img-zoomable { cursor:zoom-in; transition:transform .4s cubic-bezier(.25,.46,.45,.94); }
+        .img-zoomable:hover { transform:scale(1.04); }
+        #img-lightbox { display:none; }
+        #img-lightbox.open { display:flex; }
+        #img-lightbox-img {
+            transform:scale(.88);
+            opacity:0;
+            transition:transform .32s cubic-bezier(.34,1.56,.64,1), opacity .22s ease;
+        }
+        #img-lightbox.open #img-lightbox-img { transform:scale(1); opacity:1; }
+
         /* === Mobilní menu sheet === */
         #mob-sheet-overlay { display:none; }
         #mob-sheet-overlay.open { display:flex; }
@@ -320,6 +332,16 @@
                 <p class="text-[11px] text-gray-400 text-center">FairTrade Tržiště s.r.o. &nbsp;·&nbsp; <span class="text-sky-500">podpora@fairtrade-trziste.cz</span></p>
             </div>
         </div>
+    </div>
+
+    <!-- ===== LIGHTBOX — zoom obrázku ===== -->
+    <div id="img-lightbox" class="fixed inset-0 z-[70] items-center justify-center bg-black/92 backdrop-blur-md cursor-zoom-out"
+         onclick="closeImgZoom()">
+        <button onclick="closeImgZoom()" class="absolute top-4 right-4 w-10 h-10 bg-white/15 hover:bg-white/30 text-white rounded-full flex items-center justify-center transition-colors z-10" aria-label="Zavřít">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+        <p class="absolute bottom-5 left-0 right-0 text-center text-white/40 text-xs pointer-events-none">Kliknutím zavřete</p>
+        <img id="img-lightbox-img" src="" alt="" class="max-w-[95vw] max-h-[92vh] object-contain rounded-2xl shadow-2xl select-none" onclick="event.stopPropagation(); closeImgZoom()">
     </div>
 
     <!-- ===== TOAST KONTEJNER ===== -->
@@ -2975,7 +2997,7 @@
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8">
                     <div>
                         <div class="bg-white rounded-3xl p-4 border border-gray-100 shadow-inner relative overflow-hidden group">
-                            <img id="main-img-${item.id}" src="${item.img}" onerror="this.onerror=null;this.src='${FALLBACK_IMG}';" class="rounded-2xl object-contain w-full h-[280px] md:h-[420px] transition-all duration-300 bg-gray-50">
+                            <img id="main-img-${item.id}" src="${item.img}" onerror="this.onerror=null;this.src='${FALLBACK_IMG}';" onclick="openImgZoom(this.src)" class="img-zoomable rounded-2xl object-contain w-full h-[280px] md:h-[420px] transition-all duration-300 bg-gray-50">
                             ${item.has360 ? `<div class="absolute bottom-5 left-1/2 -translate-x-1/2"><button onclick="open360('${item.img}')" class="bg-white/95 backdrop-blur-md text-gray-800 px-5 py-2.5 rounded-full shadow-lg font-bold text-sm flex items-center gap-2 hover:scale-105 transition-all"><svg class="w-5 h-5 text-sky-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>360° pohled</button></div>` : ''}
                         </div>
                         ${item.images&&item.images.length>1 ? `<div class="flex gap-2 mt-3 overflow-x-auto scrollbar-hide">${item.images.map(u=>`<div class="w-16 h-16 rounded-xl border-2 border-transparent hover:border-sky-500 cursor-pointer overflow-hidden shrink-0" onclick="document.getElementById('main-img-${item.id}').src='${u}'"><img src="${u}" class="w-full h-full object-cover"></div>`).join('')}</div>` : ''}
@@ -3076,8 +3098,8 @@
                 <button onclick="navigate('${backNav}')" class="mb-6 text-pink-500 font-bold hover:text-pink-600 flex items-center gap-2">← ${backText}</button>
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8">
                     <div>
-                        <div class="bg-white rounded-3xl p-4 border border-gray-100 shadow-inner overflow-hidden">
-                            <img id="main-img-${item.id}" src="${item.img}" onerror="this.onerror=null;this.src='${FALLBACK_IMG}';" class="rounded-2xl object-contain w-full h-[280px] md:h-[420px] transition-all duration-300 bg-gray-50">
+                        <div class="bg-white rounded-3xl p-4 border border-gray-100 shadow-inner overflow-hidden group">
+                            <img id="main-img-${item.id}" src="${item.img}" onerror="this.onerror=null;this.src='${FALLBACK_IMG}';" onclick="openImgZoom(this.src)" class="img-zoomable rounded-2xl object-contain w-full h-[280px] md:h-[420px] transition-all duration-300 bg-gray-50">
                         </div>
                         ${item.images&&item.images.length>1 ? `<div class="flex gap-2 mt-3 overflow-x-auto scrollbar-hide">${item.images.map(u=>`<div class="w-16 h-16 rounded-xl border-2 border-transparent hover:border-pink-500 cursor-pointer overflow-hidden shrink-0" onclick="document.getElementById('main-img-${item.id}').src='${u}'"><img src="${u}" class="w-full h-full object-cover"></div>`).join('')}</div>` : ''}
                     </div>
@@ -3365,6 +3387,29 @@
     window.closeMobileMenu = function(e) {
         if (e.target === document.getElementById('mob-sheet-overlay')) _sheetClose();
     };
+
+    // ──────────────────────────────────────────────────────────────
+    // LIGHTBOX — zoom obrázku
+    // ──────────────────────────────────────────────────────────────
+    window.openImgZoom = function(src) {
+        const lb = document.getElementById('img-lightbox');
+        const img = document.getElementById('img-lightbox-img');
+        if (!lb || !img) return;
+        img.src = src;
+        lb.style.display = 'flex';
+        requestAnimationFrame(() => lb.classList.add('open'));
+        document.body.style.overflow = 'hidden';
+    };
+    window.closeImgZoom = function() {
+        const lb = document.getElementById('img-lightbox');
+        if (!lb) return;
+        lb.classList.remove('open');
+        document.body.style.overflow = '';
+        setTimeout(() => { lb.style.display = 'none'; }, 340);
+    };
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') closeImgZoom();
+    });
 
     // ──────────────────────────────────────────────────────────────
     // TOAST NOTIFIKACE
