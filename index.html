@@ -129,6 +129,18 @@
         /* === Edit modal inputs === */
         .edit-input { width:100%; padding:12px 16px; border-radius:.75rem; border:1px solid #e5e7eb; font-size:.875rem; background:#fff; transition:border-color .15s, box-shadow .15s; }
         .edit-input:focus { outline:none; border-color:#38bdf8; box-shadow:0 0 0 3px rgba(56,189,248,.15); }
+
+        /* === Kategorie picker (formulář) === */
+        .cat-card { cursor:pointer; transition:all .15s; }
+        .cat-card.cat-selected { border-color:#38bdf8 !important; background:#eff6ff !important; }
+        .cat-card.cat-selected .cat-icon { transform:scale(1.15); }
+        .cat-card.cat-selected .cat-label { color:#0369a1 !important; }
+        .subcat-chip { cursor:pointer; transition:all .12s; }
+        .subcat-chip.subcat-selected { border-color:#38bdf8 !important; color:#0369a1 !important; background:#eff6ff !important; font-weight:800; }
+
+        /* === Podkategorie na stránce výpisu === */
+        .subcat-filter { transition:all .12s; }
+        .subcat-filter.active { background:#e0f2fe; border-color:#38bdf8; color:#0369a1; }
     </style>
 </head>
 <body class="bg-animated text-pastel-text font-sans min-h-screen flex flex-col selection:bg-sky-200">
@@ -492,7 +504,19 @@
         { days:30, amount:299, label:'30 dní',  popular:false }
     ];
 
-    const vsechnyKategorie = ['Vše','Elektronika','Šperky','Sběratelství','Móda','Domácnost'];
+    const KATEGORIE = [
+        { id:'elektronika',  name:'Elektronika',      icon:'💻', sub:['Telefony a tablety','Počítače a příslušenství','Foto a video','Herní konzole','Audio','TV a projekce','Ostatní elektronika'] },
+        { id:'moda',         name:'Móda',             icon:'👗', sub:['Dámské oblečení','Pánské oblečení','Dětské oblečení','Boty dámské','Boty pánské','Boty dětské','Tašky a kabelky','Doplňky'] },
+        { id:'sperky',       name:'Šperky a hodinky', icon:'💍', sub:['Náramky','Náhrdelníky','Prsteny','Náušnice','Hodinky','Brože','Ostatní šperky'] },
+        { id:'sberatelstvi', name:'Sběratelství',      icon:'🏅', sub:['Mince a bankovky','Poštovní známky','Trading cards','Figurky a modely','Starožitnosti','Ostatní sběratelství'] },
+        { id:'domacnost',    name:'Domácnost',         icon:'🏠', sub:['Nábytek','Kuchyně a jídelna','Dekorace','Zahrada','Nářadí','Bytový textil','Osvětlení','Ostatní domácnost'] },
+        { id:'sport',        name:'Sport a outdoor',   icon:'⚽', sub:['Kola','Zimní sporty','Letní sporty','Fitness','Outdoor a turistika','Ostatní sport'] },
+        { id:'knihy',        name:'Knihy a média',     icon:'📚', sub:['Knihy','Filmy a DVD','Hudba a LP','Videohry'] },
+        { id:'hracky',       name:'Hračky a hry',      icon:'🧸', sub:['LEGO a stavebnice','Panenky a figurky','Společenské hry','Vzdělávací hračky','Ostatní hračky'] },
+        { id:'auta',         name:'Auta a moto',       icon:'🚗', sub:['Autodoplňky','Motodoplňky','Náhradní díly'] },
+        { id:'ostatni',      name:'Ostatní',           icon:'📦', sub:[] },
+    ];
+    const vsechnyKategorie = ['Vše', ...KATEGORIE.map(k => k.name)];
     const FALLBACK_IMG     = 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?q=80&w=800&auto=format&fit=crop';
 
     // ──────────────────────────────────────────────────────────────
@@ -825,9 +849,22 @@
         return { text:`${mins} min`, urgent:true };
     };
 
-    window.renderCategories = function(view, currentFilter) {
-        return `<div class="flex gap-2 overflow-x-auto pb-3 mb-4 scrollbar-hide">
-            ${vsechnyKategorie.map(kat => `<button onclick="navigate('${view}','${kat}')" class="whitespace-nowrap px-4 py-1.5 rounded-full font-bold text-sm transition-all ${currentFilter===kat ? (view==='aukce'?'bg-sky-500 text-white shadow-sm':'bg-pink-500 text-white shadow-sm') : 'bg-white text-gray-500 border border-gray-200 hover:bg-gray-50'}">${kat}</button>`).join('')}
+    window.renderCategories = function(view, currentFilter, currentSub) {
+        const isAukce = view === 'aukce';
+        const activeMainCls = isAukce ? 'bg-sky-500 text-white shadow-sm' : 'bg-pink-500 text-white shadow-sm';
+        const inactiveMainCls = 'bg-white text-gray-500 border border-gray-200 hover:bg-gray-50';
+        const mainPills = vsechnyKategorie.map(kat =>
+            `<button onclick="navigate('${view}','${kat}')" class="whitespace-nowrap px-4 py-1.5 rounded-full font-bold text-sm transition-all ${currentFilter===kat ? activeMainCls : inactiveMainCls}">${kat}</button>`
+        ).join('');
+
+        const katObj = KATEGORIE.find(k => k.name === currentFilter);
+        const subRow = (katObj && katObj.sub.length) ? `
+            <div class="flex gap-2 overflow-x-auto pb-2 scrollbar-hide mt-2">
+                ${katObj.sub.map(s => `<button onclick="setSubcategory('${view}','${currentFilter}','${s}')" class="subcat-filter whitespace-nowrap px-3 py-1 rounded-full text-xs font-bold border border-gray-200 bg-white text-gray-500 hover:bg-gray-100 transition-all ${currentSub===s?'active':''}">${s}</button>`).join('')}
+            </div>` : '';
+
+        return `<div class="mb-4">
+            <div class="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">${mainPills}</div>${subRow}
         </div>`;
     };
 
@@ -873,7 +910,13 @@
         if (hash.startsWith('aukce') && !hash.includes('detail')) navigate('aukce', _currentCategory || 'Vše');
         else if (hash.startsWith('pevna-cena') && !hash.includes('detail')) navigate('pevna-cena', _currentCategory || 'Vše');
     };
-    let _currentCategory = 'Vše';
+    let _currentCategory    = 'Vše';
+    let _currentSubcategory = null;
+
+    window.setSubcategory = function(view, cat, sub) {
+        _currentSubcategory = (_currentSubcategory === sub) ? null : sub; // toggle
+        navigate(view, cat);
+    };
 
     // ──────────────────────────────────────────────────────────────
     // OBLÍBENÉ
@@ -1250,7 +1293,7 @@
                     return {
                         id: esc(item.id), seller_id: item.seller_id, type:'aukce',
                         title: esc(item.title), price: Number(currentPrice)||0,
-                        category: esc(item.category), img: safeImage(item),
+                        category: esc(item.category), subcategory: esc(item.subcategory || ''), img: safeImage(item),
                         images: (item.images || [safeImage(item)]).map(u => safeUrl(u)),
                         condition: esc(item.condition), brand: esc(item.brand),
                         has360: item.has_360 || false, seller: seller.name,
@@ -1269,7 +1312,7 @@
                     return {
                         id: esc(item.id), seller_id: item.seller_id, type:'pevna_cena',
                         title: esc(item.title), price: Number(item.price)||0,
-                        category: esc(item.category), img: safeImage(item),
+                        category: esc(item.category), subcategory: esc(item.subcategory || ''), img: safeImage(item),
                         images: (item.images || [safeImage(item)]).map(u => safeUrl(u)),
                         condition: esc(item.condition), brand: esc(item.brand),
                         has360: item.has_360 || false, seller: seller.name,
@@ -1485,6 +1528,45 @@
     };
 
     // ──────────────────────────────────────────────────────────────
+    // VLOŽENÍ INZERÁTU — kategorie picker
+    // ──────────────────────────────────────────────────────────────
+    window.selectAdCategory = function(name) {
+        // Odznač všechny, vyber kliknutou
+        document.querySelectorAll('.cat-card').forEach(b => b.classList.remove('cat-selected'));
+        const kat = KATEGORIE.find(k => k.name === name);
+        if (!kat) return;
+        const btn = document.getElementById('cat-btn-' + kat.id);
+        if (btn) btn.classList.add('cat-selected');
+        document.getElementById('ad-category').value = name;
+        document.getElementById('ad-subcategory').value = '';
+        document.getElementById('ad-cat-error')?.classList.add('hidden');
+        // Zobraz podkategorie
+        const row = document.getElementById('ad-subcat-row');
+        if (!row) return;
+        if (kat.sub.length) {
+            row.innerHTML = `<p class="text-xs text-gray-400 font-semibold w-full mb-1">Upřesnit:</p>` +
+                kat.sub.map(s =>
+                    `<button type="button" onclick="selectAdSubcat(this,'${s}')" class="subcat-chip px-3 py-1.5 rounded-full text-xs font-bold border-2 border-gray-200 text-gray-500 bg-white hover:border-sky-300 hover:text-sky-600 transition-all">${s}</button>`
+                ).join('');
+            row.className = 'flex flex-wrap gap-2 mt-1';
+        } else {
+            row.className = 'hidden';
+            row.innerHTML = '';
+        }
+    };
+
+    window.selectAdSubcat = function(el, name) {
+        document.querySelectorAll('.subcat-chip').forEach(c => c.classList.remove('subcat-selected'));
+        const alreadySelected = document.getElementById('ad-subcategory').value === name;
+        if (alreadySelected) {
+            document.getElementById('ad-subcategory').value = '';
+        } else {
+            el.classList.add('subcat-selected');
+            document.getElementById('ad-subcategory').value = name;
+        }
+    };
+
+    // ──────────────────────────────────────────────────────────────
     // VLOŽENÍ INZERÁTU
     // ──────────────────────────────────────────────────────────────
     window.toggleAuctionFields = function(isAuction) {
@@ -1535,12 +1617,18 @@
         try {
             const user = window.currentUser;
             if (!user) { navigate('login'); return; }
-            const isAuction = document.querySelector('input[name="ad-type"]:checked')?.value === 'aukce';
-            const title     = document.getElementById('ad-title').value.trim();
-            const category  = document.getElementById('ad-category').value;
-            const condition = document.getElementById('ad-condition').value;
-            const descVal   = (document.getElementById('ad-description').value||'').trim();
-            if (!title||!category||!condition) throw new Error('Vyplňte název, kategorii a stav.');
+            const isAuction  = document.querySelector('input[name="ad-type"]:checked')?.value === 'aukce';
+            const title      = document.getElementById('ad-title').value.trim();
+            const category   = document.getElementById('ad-category').value;
+            const subcategory= document.getElementById('ad-subcategory')?.value || null;
+            const condition  = document.getElementById('ad-condition').value;
+            const descVal    = (document.getElementById('ad-description').value||'').trim();
+            if (!category) {
+                const err = document.getElementById('ad-cat-error');
+                if (err) { err.classList.remove('hidden'); setTimeout(()=>err.classList.add('hidden'),3000); }
+                throw new Error('Vyberte kategorii.');
+            }
+            if (!title||!condition) throw new Error('Vyplňte název a stav zboží.');
             if (title.length > 120) throw new Error('Název může mít max. 120 znaků.');
             if (descVal.length > 5000) throw new Error('Popis může mít max. 5000 znaků.');
             if (!vsechnyKategorie.includes(category)) throw new Error('Neplatná kategorie.');
@@ -1561,7 +1649,7 @@
             if (!uploadedImages.length) uploadedImages.push(FALLBACK_IMG);
 
             const adData = {
-                seller_id: user.id, title, description: descVal, category, condition,
+                seller_id: user.id, title, description: descVal, category, subcategory: subcategory || null, condition,
                 brand: document.getElementById('ad-brand').value || null,
                 weight: parseFloat(document.getElementById('ad-weight').value) || null,
                 dimensions: document.getElementById('ad-dimensions').value || null,
@@ -1595,6 +1683,7 @@
                 title: esc(adData.title),
                 price: isAuction ? (adData.current_price || adData.starting_price || 0) : (adData.price || 0),
                 category: esc(adData.category),
+                subcategory: esc(adData.subcategory || ''),
                 img: safeUrl(uploadedImages[0]),
                 images: uploadedImages.map(u => safeUrl(u)),
                 condition: esc(adData.condition),
@@ -2468,11 +2557,25 @@
                         ${['Zepředu','Zleva','Zezadu','Zprava'].map(side=>`<label class="border-2 border-dashed border-sky-200 bg-sky-50 hover:bg-sky-100 rounded-2xl h-28 flex flex-col items-center justify-center cursor-pointer transition-colors group"><input type="file" accept="image/*" class="hidden" onchange="previewImage(this)"><svg class="w-7 h-7 text-sky-400 group-hover:scale-110 transition-transform mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg><span class="text-xs font-bold text-sky-700">${side}</span></label>`).join('')}
                     </div>
                 </div>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div class="flex flex-col gap-1 md:col-span-2"><label class="text-xs font-bold text-gray-500 pl-1">Název zboží</label><input type="text" id="ad-title" required maxlength="120" placeholder="Např. Zlaté hodinky Omega" class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-sky-400"></div>
-                    <div class="flex flex-col gap-1"><label class="text-xs font-bold text-gray-500 pl-1">Kategorie</label><select id="ad-category" required class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-sky-400 bg-white"><option value="" disabled selected>Vyberte…</option>${vsechnyKategorie.filter(k=>k!=='Vše').map(k=>`<option value="${k}">${k}</option>`).join('')}</select></div>
-                    <div class="flex flex-col gap-1"><label class="text-xs font-bold text-gray-500 pl-1">Stav zboží</label><select id="ad-condition" required class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-sky-400 bg-white"><option value="" disabled selected>Vyberte…</option><option value="Nové">Nové</option><option value="Rozbalené">Rozbalené</option><option value="Použité">Použité</option><option value="Poškozené">Poškozené</option></select></div>
-                    <div class="flex flex-col gap-1 md:col-span-2"><label class="text-xs font-bold text-gray-500 pl-1">Značka (volitelně)</label><input type="text" id="ad-brand" maxlength="60" placeholder="Apple, Nike, Škoda…" class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-sky-400"></div>
+                <div class="flex flex-col gap-4">
+                    <div class="flex flex-col gap-1"><label class="text-xs font-bold text-gray-500 pl-1">Název zboží</label><input type="text" id="ad-title" required maxlength="120" placeholder="Např. Zlaté hodinky Omega" class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-sky-400"></div>
+
+                    <!-- Kategorie — vizuální picker -->
+                    <div class="flex flex-col gap-2">
+                        <label class="text-xs font-bold text-gray-500 pl-1">Kategorie <span class="text-red-400">*</span></label>
+                        <div class="grid grid-cols-5 sm:grid-cols-5 gap-2" id="cat-grid">
+                            ${KATEGORIE.map(k => `<button type="button" onclick="selectAdCategory('${k.name}')" id="cat-btn-${k.id}" class="cat-card flex flex-col items-center gap-1 p-2 sm:p-3 rounded-2xl border-2 border-gray-100 bg-gray-50 hover:border-sky-300 hover:bg-sky-50 text-center"><span class="cat-icon text-xl sm:text-2xl">${k.icon}</span><span class="cat-label text-[9px] sm:text-[10px] font-bold text-gray-500 leading-tight">${k.name}</span></button>`).join('')}
+                        </div>
+                        <div id="ad-subcat-row" class="hidden flex-wrap gap-2"></div>
+                        <input type="hidden" id="ad-category">
+                        <input type="hidden" id="ad-subcategory">
+                        <p id="ad-cat-error" class="text-xs text-red-500 hidden pl-1">Prosím vyberte kategorii</p>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div class="flex flex-col gap-1"><label class="text-xs font-bold text-gray-500 pl-1">Stav zboží</label><select id="ad-condition" required class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-sky-400 bg-white"><option value="" disabled selected>Vyberte…</option><option value="Nové">Nové</option><option value="Rozbalené">Rozbalené</option><option value="Použité">Použité</option><option value="Poškozené">Poškozené</option></select></div>
+                        <div class="flex flex-col gap-1"><label class="text-xs font-bold text-gray-500 pl-1">Značka (volitelně)</label><input type="text" id="ad-brand" maxlength="60" placeholder="Apple, Nike, Škoda…" class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-sky-400"></div>
+                    </div>
                 </div>
                 <div class="bg-gradient-to-r from-purple-50 to-pink-50 p-5 rounded-3xl border border-purple-100 flex flex-col md:flex-row items-center justify-between gap-4">
                     <div><h4 class="font-bold text-purple-800 flex items-center gap-2 text-sm"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>Nechte AI napsat inzerát za vás</h4><p class="text-xs text-purple-600 mt-1">Vyplňte Název, klikněte → AI vytvoří popis a odhadne cenu.</p></div>
@@ -2503,13 +2606,17 @@
         aukce: (kategorieFilter) => {
             kategorieFilter = kategorieFilter || 'Vše';
             _currentCategory = kategorieFilter;
-            const all = dataAukce.filter(i => kategorieFilter === 'Vše' || i.category === kategorieFilter);
+            const all = dataAukce.filter(i =>
+                (kategorieFilter === 'Vše' || i.category === kategorieFilter) &&
+                (!_currentSubcategory || i.subcategory === _currentSubcategory)
+            );
             const filteredData = sortAndFilterItems(all);
+            const subLabel = _currentSubcategory ? ` · ${_currentSubcategory}` : '';
             return `
             <div class="w-full bg-white/90 backdrop-blur-xl p-5 md:p-8 rounded-[2rem] shadow-xl fade-in min-h-[500px] border border-white/50">
                 <button onclick="navigate('home')" class="mb-4 text-sky-500 font-bold hover:text-sky-600 flex items-center gap-2 text-base">← Zpět na výběr</button>
-                <h2 class="text-2xl md:text-4xl font-extrabold mb-5 text-pastel-text">Aktivní aukce <span class="text-base text-gray-400 font-medium ml-1">(${filteredData.length})</span></h2>
-                ${renderCategories('aukce', kategorieFilter)}
+                <h2 class="text-2xl md:text-4xl font-extrabold mb-5 text-pastel-text">Aktivní aukce <span class="text-base text-gray-400 font-medium ml-1">(${filteredData.length})</span><span class="text-base text-sky-500 font-semibold ml-2">${subLabel}</span></h2>
+                ${renderCategories('aukce', kategorieFilter, _currentSubcategory)}
                 ${renderSearchSort('aukce', kategorieFilter)}
                 ${!window.dataLoaded ? `<div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">${Array(8).fill(0).map(()=>'<div class="bg-white rounded-2xl p-3 border border-gray-100"><div class="skeleton h-36 mb-3"></div><div class="skeleton h-4 w-2/3 mb-2"></div><div class="skeleton h-6 w-1/2"></div></div>').join('')}</div>` : (filteredData.length === 0 ? '<p class="text-gray-500 py-10 text-center">V této kategorii zatím nejsou žádné aukce.</p>' : '')}
                 <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
@@ -2548,7 +2655,8 @@
                         <div class="flex flex-wrap gap-2 mb-4">
                             ${item.is_top ? `<span class="top-badge" style="position:relative;top:auto;left:auto">⭐ TOP inzerát</span>` : ''}
                             <span class="bg-sky-100 text-sky-800 text-sm px-3 py-1 rounded-full font-bold uppercase">Aukce</span>
-                            <span class="bg-gray-100 text-gray-600 text-sm px-3 py-1 rounded-full font-bold">${item.category}</span>
+                            <button onclick="navigate('aukce','${item.category}')" class="bg-gray-100 text-gray-600 text-sm px-3 py-1 rounded-full font-bold hover:bg-sky-100 hover:text-sky-700 transition-colors">${item.category}</button>
+                            ${item.subcategory?`<button onclick="setSubcategory('aukce','${item.category}','${item.subcategory}')" class="bg-sky-50 text-sky-600 text-xs px-3 py-1 rounded-full font-bold hover:bg-sky-100 transition-colors">${item.subcategory}</button>`:''}
                             ${item.condition?`<span class="bg-purple-100 text-purple-800 text-sm px-3 py-1 rounded-full font-bold">${item.condition}</span>`:''}
                             ${item.brand?`<span class="bg-indigo-100 text-indigo-800 text-sm px-3 py-1 rounded-full font-bold">${item.brand}</span>`:''}
                             <button onclick="navigate('seller-inzeraty','${item.seller_id}')" class="inline-flex items-center gap-1 bg-white border border-gray-200 hover:border-sky-400 hover:text-sky-600 text-gray-500 text-xs px-3 py-1 rounded-full font-bold transition-colors"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>Další inzeráty prodejce</button>
@@ -2606,13 +2714,17 @@
         'pevna-cena': (kategorieFilter) => {
             kategorieFilter = kategorieFilter || 'Vše';
             _currentCategory = kategorieFilter;
-            const all = dataPevnaCena.filter(i => kategorieFilter === 'Vše' || i.category === kategorieFilter);
+            const all = dataPevnaCena.filter(i =>
+                (kategorieFilter === 'Vše' || i.category === kategorieFilter) &&
+                (!_currentSubcategory || i.subcategory === _currentSubcategory)
+            );
             const filteredData = sortAndFilterItems(all);
+            const subLabel = _currentSubcategory ? ` · ${_currentSubcategory}` : '';
             return `
             <div class="w-full bg-white/90 backdrop-blur-xl p-5 md:p-8 rounded-[2rem] shadow-xl fade-in min-h-[500px] border border-white/50">
                 <button onclick="navigate('home')" class="mb-4 text-pink-500 font-bold hover:text-pink-600 flex items-center gap-2 text-base">← Zpět na výběr</button>
-                <h2 class="text-2xl md:text-4xl font-extrabold mb-5 text-pastel-text">Pevná cena <span class="text-base text-gray-400 font-medium ml-1">(${filteredData.length})</span></h2>
-                ${renderCategories('pevna-cena', kategorieFilter)}
+                <h2 class="text-2xl md:text-4xl font-extrabold mb-5 text-pastel-text">Pevná cena <span class="text-base text-gray-400 font-medium ml-1">(${filteredData.length})</span><span class="text-base text-pink-500 font-semibold ml-2">${subLabel}</span></h2>
+                ${renderCategories('pevna-cena', kategorieFilter, _currentSubcategory)}
                 ${renderSearchSort('pevna-cena', kategorieFilter)}
                 ${!window.dataLoaded ? `<div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">${Array(8).fill(0).map(()=>'<div class="bg-white rounded-2xl p-3 border border-gray-100"><div class="skeleton h-36 mb-3"></div><div class="skeleton h-4 w-2/3 mb-2"></div><div class="skeleton h-6 w-1/2"></div></div>').join('')}</div>` : (filteredData.length === 0 ? '<p class="text-gray-500 py-10 text-center">V této kategorii zatím není žádné zboží.</p>' : '')}
                 <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
@@ -2643,7 +2755,8 @@
                         <div class="flex flex-wrap gap-2 mb-4">
                             ${item.is_top ? `<span class="top-badge" style="position:relative;top:auto;left:auto">⭐ TOP inzerát</span>` : ''}
                             <span class="bg-pink-100 text-pink-800 text-sm px-3 py-1 rounded-full font-bold uppercase">Kup teď</span>
-                            <span class="bg-gray-100 text-gray-600 text-sm px-3 py-1 rounded-full font-bold">${item.category}</span>
+                            <button onclick="navigate('pevna-cena','${item.category}')" class="bg-gray-100 text-gray-600 text-sm px-3 py-1 rounded-full font-bold hover:bg-pink-100 hover:text-pink-700 transition-colors">${item.category}</button>
+                            ${item.subcategory?`<button onclick="setSubcategory('pevna-cena','${item.category}','${item.subcategory}')" class="bg-pink-50 text-pink-600 text-xs px-3 py-1 rounded-full font-bold hover:bg-pink-100 transition-colors">${item.subcategory}</button>`:''}
                             ${item.condition?`<span class="bg-purple-100 text-purple-800 text-sm px-3 py-1 rounded-full font-bold">${item.condition}</span>`:''}
                             ${item.brand?`<span class="bg-indigo-100 text-indigo-800 text-sm px-3 py-1 rounded-full font-bold">${item.brand}</span>`:''}
                             <button onclick="navigate('seller-inzeraty','${item.seller_id}')" class="inline-flex items-center gap-1 bg-white border border-gray-200 hover:border-pink-400 hover:text-pink-600 text-gray-500 text-xs px-3 py-1 rounded-full font-bold transition-colors"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>Další inzeráty prodejce</button>
@@ -2859,6 +2972,10 @@
         if (path.includes('/')) { const parts = path.split('/'); viewName = parts[0]; idOrCategory = parts[1]; }
         if (viewName === 'novy-inzerat' && !window.currentUser) { viewName = 'login'; idOrCategory = null; }
         if (!views[viewName]) viewName = 'home';
+        // Reset podkategorie při přechodu na jinou hlavní kategorii
+        if (idOrCategory !== null && vsechnyKategorie.includes(idOrCategory) && idOrCategory !== _currentCategory) {
+            _currentSubcategory = null;
+        }
         const app = document.getElementById('app');
         app.innerHTML = views[viewName](idOrCategory);
         const fullUrl = idOrCategory && !vsechnyKategorie.includes(idOrCategory) ? `${viewName}/${idOrCategory}` : viewName;
