@@ -1532,12 +1532,17 @@
         try {
             const token = await _ensureValidToken();
             if (token) {
-                const r = await fetch(`${SUPABASE_URL}/rest/v1/profiles?id=eq.${user.id}&select=kyc_status`, {
+                const r = await fetch(`${SUPABASE_URL}/rest/v1/profiles?id=eq.${user.id}&select=kyc_status,is_banned,ban_reason,is_archived`, {
                     headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${token}` }
                 });
                 const rows = await r.json();
-                const kyc = Array.isArray(rows) && rows.length > 0 ? rows[0].kyc_status : null;
-                if (kyc === 'unverified') { navigate('kyc'); return; }
+                const profile = Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
+                if (!profile) { if (redirectIfVerified) navigate('profil'); return; }
+                if (profile.is_banned || profile.is_archived) {
+                    window._banInfo = { reason: profile.ban_reason || 'Porušení pravidel tržiště.', is_archived: !!profile.is_archived };
+                    navigate('banned'); return;
+                }
+                if (profile.kyc_status === 'unverified') { navigate('kyc'); return; }
             }
         } catch(e) {}
         if (redirectIfVerified) navigate('profil');
@@ -1574,6 +1579,7 @@
             } else {
                 window.currentUser = null;
                 window._jwtReady = false;
+                window._banInfo = null;
                 if (btn) { btn.innerText='Registrovat'; btn.setAttribute('onclick',"navigate('login')"); }
             }
         });
@@ -1617,6 +1623,7 @@
         } catch(e) {}
         try { localStorage.removeItem('ft_local_bids'); } catch(e) {}
         window.currentUser = null;
+        window._banInfo = null;
         window._privateProfileCache = null;
         window._txStatsCache = null;
         window._loadingPrivateProfile = null;
@@ -3410,6 +3417,26 @@
 
     // ── VIEWS ──────────────────────────────────────────────────────
 
+    views['banned'] = () => {
+        const info = window._banInfo || {};
+        return `<div class="w-full bg-white/90 backdrop-blur-xl p-8 rounded-[2rem] shadow-xl fade-in border border-white/50 min-h-[70vh] flex flex-col items-center justify-center text-center gap-6">
+            <div class="text-7xl">🚫</div>
+            <div class="max-w-md w-full">
+                <h2 class="text-2xl font-extrabold text-red-700 mb-1">Váš účet byl deaktivován</h2>
+                <p class="text-gray-500 text-sm mb-5">Pro porušení pravidel FairTrade tržiště</p>
+                <div class="bg-red-50 border border-red-200 rounded-2xl p-5 text-left mb-4">
+                    <p class="text-xs font-bold text-red-500 uppercase tracking-wide mb-1.5">Důvod deaktivace</p>
+                    <p class="text-red-800 font-semibold">${info.reason || 'Porušení pravidel tržiště.'}</p>
+                </div>
+                ${info.is_archived
+                    ? `<div class="bg-gray-50 border border-gray-200 rounded-2xl p-4 text-sm text-gray-500 mb-5">Váš účet byl po uplynutí 15denní lhůty trvale archivován. Data nelze obnovit.</div>`
+                    : `<div class="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-sm text-amber-700 mb-5">Všechny vaše inzeráty a aukce byly deaktivovány. Účet bude po <strong>15 dnech</strong> trvale archivován.</div>`}
+                <p class="text-gray-400 text-xs mb-6">Pokud si myslíte, že jde o chybu, kontaktujte nás na <a href="mailto:support@fairtrade.cz" class="text-sky-500 underline">support@fairtrade.cz</a></p>
+                <button onclick="handleLogout()" class="text-gray-400 text-sm hover:text-gray-600 transition-colors underline">Odhlásit se</button>
+            </div>
+        </div>`;
+    };
+
     views['kosik'] = () => {
         if (!window.currentUser) return `<div class="w-full bg-white/90 backdrop-blur-xl p-8 rounded-[2rem] shadow-xl fade-in border border-white/50 min-h-[300px] flex flex-col items-center justify-center gap-4 text-center"><p class="text-6xl mb-2">🛒</p><p class="text-gray-500 font-medium">Pro zobrazení košíku se přihlaste.</p><button onclick="navigate('login')" class="mt-2 bg-sky-500 hover:bg-sky-600 text-white font-bold px-6 py-3 rounded-2xl transition-all">Přihlásit se</button></div>`;
         const cart = window.Cart.get();
@@ -4054,6 +4081,7 @@
         let idOrCategory = param;
         if (path.includes('/')) { const parts = path.split('/'); viewName = parts[0]; idOrCategory = parts[1]; }
         if (viewName === 'novy-inzerat' && !window.currentUser) { viewName = 'login'; idOrCategory = null; }
+        if (window._banInfo && viewName !== 'banned') { viewName = 'banned'; idOrCategory = null; }
         if (!views[viewName]) viewName = 'home';
         // Reset podkategorie při přechodu na jinou hlavní kategorii
         if (idOrCategory !== null && vsechnyKategorie.includes(idOrCategory) && idOrCategory !== _currentCategory) {
