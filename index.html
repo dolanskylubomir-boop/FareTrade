@@ -1830,26 +1830,32 @@
         return Uint8Array.from([...atob(base)].map(c => c.charCodeAt(0)));
     }
 
-    async function _subscribeToPush() {
-        if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+    async function _subscribeToPush(manual) {
+        if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+            if (manual) showToast('Prohlížeč nepodporuje push notifikace.', 'warning');
+            return;
+        }
         if (!window.currentUser) return;
-        if (VAPID_PUBLIC_KEY.startsWith('REPLACE')) return; // klíč ještě nevyplněn
+        if (VAPID_PUBLIC_KEY.startsWith('REPLACE')) return;
         try {
             const perm = Notification.permission === 'granted'
                 ? 'granted'
                 : await Notification.requestPermission();
-            if (perm !== 'granted') return;
-            const reg = await navigator.serviceWorker.ready;
-            let sub   = await reg.pushManager.getSubscription();
-            if (!sub) {
-                sub = await reg.pushManager.subscribe({
-                    userVisibleOnly: true,
-                    applicationServerKey: _urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
-                });
+            if (perm !== 'granted') {
+                if (manual) showToast('Notifikace nejsou povoleny — povol je v nastavení Chrome.', 'warning');
+                return;
             }
+            const reg = await navigator.serviceWorker.ready;
+            // Vždy odhlásit starý subscription a vytvořit nový (zajistí správný VAPID klíč)
+            const old = await reg.pushManager.getSubscription();
+            if (old) await old.unsubscribe();
+            const sub = await reg.pushManager.subscribe({
+                userVisibleOnly: true,
+                applicationServerKey: _urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+            });
             const token = await _ensureValidToken();
             if (!token) return;
-            await fetch(SUPABASE_URL + '/rest/v1/push_subscriptions', {
+            const r = await fetch(SUPABASE_URL + '/rest/v1/push_subscriptions', {
                 method:  'POST',
                 headers: {
                     'apikey':        SUPABASE_ANON_KEY,
@@ -1859,10 +1865,17 @@
                 },
                 body: JSON.stringify({ user_id: window.currentUser.id, subscription: sub.toJSON() })
             });
+            if (manual) {
+                if (r.ok || r.status === 201 || r.status === 204) showToast('Notifikace zapnuty ✅', 'success');
+                else showToast('Chyba uložení subscription: ' + r.status, 'warning');
+            }
         } catch(e) {
+            if (manual) showToast('Chyba: ' + e.message, 'warning');
             console.warn('[push] subscribe failed:', e);
         }
     }
+
+    window.manualSubscribePush = function() { _subscribeToPush(true); };
     // ────────────────────────────────────────────────────────────────
 
     window.handleAdSubmit = async function(e) {
@@ -2216,6 +2229,10 @@
             <div class="flex items-center justify-between mb-6 fade-in">
                 <h3 class="text-xl font-bold text-gray-800">Osobní a KYC údaje</h3>
                 <span id="kyc-status-badge" class="bg-gray-100 text-gray-600 text-xs px-3 py-1 rounded-full font-bold uppercase tracking-wider">Načítám…</span>
+            </div>
+            <div class="bg-sky-50 border border-sky-200 rounded-2xl p-4 mb-5 flex items-center justify-between gap-3 fade-in">
+                <div><p class="font-bold text-sky-800 text-sm">🔔 Push notifikace</p><p class="text-xs text-sky-600 mt-0.5">Dostávej oznámení i při zavřené aplikaci.</p></div>
+                <button onclick="manualSubscribePush()" class="shrink-0 bg-sky-500 hover:bg-sky-600 active:scale-95 text-white font-bold text-sm px-4 py-2 rounded-xl transition-all">Zapnout</button>
             </div>
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-5 bg-gray-50/50 p-5 rounded-3xl border border-gray-100 mb-4 fade-in">
                 <div class="sm:col-span-2"><p class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Zobrazované jméno</p><p id="kyc-display-dname" class="font-bold text-sky-600 text-xl">⌛</p></div>
