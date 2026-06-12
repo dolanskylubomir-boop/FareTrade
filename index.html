@@ -3239,8 +3239,8 @@
                 const lastMsg = thread.messages[thread.messages.length - 1];
                 if (lastMsg.receiver_id === uid) {
                     html += '<div class="flex gap-2 mt-2">';
-                    html += '<input type="text" maxlength="800" id="reply-' + thread.itemId + '_' + thread.otherId + '" placeholder="Odpověď…" class="flex-grow px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-sky-400">';
-                    html += '<button onclick="sendReply(\'' + lastMsg.id + '\',\'' + thread.otherId + '\',\'' + thread.itemId + '\',\'' + (thread.itemTitle||'').replace(/'/g,'').replace(/</g,'').replace(/>/g,'') + '\',\'' + thread.itemType + '\')" class="bg-sky-500 hover:bg-sky-600 text-white font-bold px-4 py-2 rounded-xl text-sm transition-colors">Odpovědět</button>';
+                    html += '<input type="text" maxlength="800" id="reply-' + thread.itemId + '_' + thread.otherId + '" placeholder="Odpověď…" class="flex-1 min-w-0 px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-sky-400">';
+                    html += '<button onclick="sendReply(\'' + lastMsg.id + '\',\'' + thread.otherId + '\',\'' + thread.itemId + '\',\'' + (thread.itemTitle||'').replace(/'/g,'').replace(/</g,'').replace(/>/g,'') + '\',\'' + thread.itemType + '\')" class="shrink-0 bg-sky-500 hover:bg-sky-600 text-white font-bold px-4 py-2 rounded-xl text-sm transition-colors whitespace-nowrap">Odpovědět</button>';
                     html += '</div>';
                 }
                 html += '</div></div>';
