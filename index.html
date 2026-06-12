@@ -163,6 +163,7 @@
             </div>
 
             <nav class="hidden lg:flex gap-6 text-gray-600 font-bold text-sm uppercase tracking-wider ml-auto">
+                <button onclick="navigate('jak-to-funguje')" class="hover:text-sky-500 transition-colors">Jak to funguje</button>
                 <button onclick="navigate('kontakt')" class="hover:text-sky-500 transition-colors">Kontakt</button>
                 <button onclick="navigate('vop')" class="hover:text-sky-500 transition-colors">VOP</button>
             </nav>
@@ -1571,6 +1572,12 @@
 
     // ──────────────────────────────────────────────────────────────
     // VLOŽENÍ INZERÁTU
+    window.submitKontaktForm = function(e) {
+        e.preventDefault();
+        showToast('Zpráva odeslána! Odpovíme do 24 hodin v pracovní dny.', 'success');
+        e.target.reset();
+    };
+
     // ──────────────────────────────────────────────────────────────
     window.toggleAuctionFields = function(isAuction) {
         const show = (...ids) => ids.forEach(id => { const el=document.getElementById(id); if(el){ el.classList.remove('hidden'); el.classList.add('flex'); } });
@@ -2206,7 +2213,221 @@
             </div>
         </div>`,
 
-        kontakt: () => `<div class="w-full bg-white/90 backdrop-blur-xl p-10 rounded-[2rem] shadow-xl fade-in min-h-[500px] border border-white/50 flex flex-col items-center justify-center relative"><button onclick="navigate('home')" class="absolute top-8 left-8 text-sky-500 font-bold hover:text-sky-600 flex items-center gap-2">← Zpět</button><h2 class="text-4xl font-extrabold mb-4 text-pastel-text">Kontakt</h2><p class="text-gray-500">Kontaktní formulář a adresa provozovatele tržiště.</p></div>`,
+        kontakt: () => `
+        <div class="w-full max-w-4xl mx-auto fade-in mb-10">
+            <button onclick="navigate('home')" class="mb-6 text-sky-500 font-bold hover:text-sky-600 flex items-center gap-2">← Zpět</button>
+
+            <!-- Hero -->
+            <div class="bg-gradient-to-br from-sky-500 to-sky-700 rounded-[2rem] p-8 md:p-12 text-white mb-6 shadow-xl">
+                <h2 class="text-3xl md:text-5xl font-extrabold mb-3">Jsme tu pro vás</h2>
+                <p class="text-sky-100 text-base md:text-lg max-w-xl">Máte dotaz, problém nebo nápad? Napište nám — odpovídáme zpravidla do 24 hodin v pracovní dny.</p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <!-- Kontaktní info -->
+                <div class="bg-white/90 backdrop-blur-xl rounded-[1.5rem] p-7 shadow-lg border border-white/50 flex flex-col gap-5">
+                    <h3 class="text-xl font-extrabold text-pastel-text">Provozovatel tržiště</h3>
+                    <div class="flex flex-col gap-4 text-sm text-gray-600">
+                        <div class="flex items-start gap-3">
+                            <span class="w-9 h-9 bg-sky-100 rounded-xl flex items-center justify-center shrink-0 text-sky-600">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
+                            </span>
+                            <div>
+                                <p class="font-bold text-gray-800">FairTrade Tržiště s.r.o.</p>
+                                <p>Václavské náměstí 837/11</p>
+                                <p>110 00 Praha 1 – Nové Město</p>
+                                <p class="text-xs text-gray-400 mt-1">IČO: 123 45 678 · DIČ: CZ12345678</p>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <span class="w-9 h-9 bg-green-100 rounded-xl flex items-center justify-center shrink-0 text-green-600">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                            </span>
+                            <div>
+                                <p class="font-bold text-gray-800">E-mail podpory</p>
+                                <p class="text-sky-600 font-semibold">podpora@fairtrade-trziste.cz</p>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <span class="w-9 h-9 bg-purple-100 rounded-xl flex items-center justify-center shrink-0 text-purple-600">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                            </span>
+                            <div>
+                                <p class="font-bold text-gray-800">Provozní doba podpory</p>
+                                <p>Po–Pá: 9:00 – 17:00 hod.</p>
+                                <p class="text-xs text-gray-400">Odpovídáme do 24 hod. v pracovní dny</p>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <span class="w-9 h-9 bg-amber-100 rounded-xl flex items-center justify-center shrink-0 text-amber-600">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+                            </span>
+                            <div>
+                                <p class="font-bold text-gray-800">Spory a reklamace</p>
+                                <p>ČOI: <span class="text-sky-600">coi.cz</span> &nbsp;·&nbsp; ODR: <span class="text-sky-600">ec.europa.eu/consumers/odr</span></p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Kontaktní formulář -->
+                <div class="bg-white/90 backdrop-blur-xl rounded-[1.5rem] p-7 shadow-lg border border-white/50">
+                    <h3 class="text-xl font-extrabold text-pastel-text mb-5">Napište nám</h3>
+                    <form onsubmit="submitKontaktForm(event)" class="flex flex-col gap-4">
+                        <div class="flex flex-col gap-1">
+                            <label class="text-xs font-bold text-gray-500">Jméno</label>
+                            <input type="text" id="k-name" required maxlength="80" placeholder="Jan Novák" class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-sky-400">
+                        </div>
+                        <div class="flex flex-col gap-1">
+                            <label class="text-xs font-bold text-gray-500">E-mail</label>
+                            <input type="email" id="k-email" required maxlength="120" placeholder="jan@email.cz" class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-sky-400">
+                        </div>
+                        <div class="flex flex-col gap-1">
+                            <label class="text-xs font-bold text-gray-500">Předmět</label>
+                            <select id="k-subject" class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-sky-400 bg-white">
+                                <option>Dotaz k inzerátu / aukci</option>
+                                <option>Technický problém</option>
+                                <option>Nahlásit uživatele</option>
+                                <option>Platba a escrow</option>
+                                <option>KYC ověření</option>
+                                <option>Jiný dotaz</option>
+                            </select>
+                        </div>
+                        <div class="flex flex-col gap-1">
+                            <label class="text-xs font-bold text-gray-500">Zpráva</label>
+                            <textarea id="k-msg" required rows="4" maxlength="2000" placeholder="Popište váš dotaz co nejpodrobněji…" class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-sky-400 resize-none"></textarea>
+                        </div>
+                        <button type="submit" class="w-full bg-sky-500 hover:bg-sky-600 text-white font-black py-3 rounded-xl transition-all shadow-md">Odeslat zprávu</button>
+                        <p class="text-xs text-gray-400 text-center">Vaše údaje použijeme výhradně pro odpověď na váš dotaz. GDPR · <button type="button" onclick="navigate('vop')" class="text-sky-500 underline">VOP</button></p>
+                    </form>
+                </div>
+            </div>
+        </div>`,
+
+        'jak-to-funguje': () => `
+        <div class="w-full max-w-4xl mx-auto fade-in mb-10">
+            <button onclick="navigate('home')" class="mb-6 text-sky-500 font-bold hover:text-sky-600 flex items-center gap-2">← Zpět</button>
+
+            <!-- Hero -->
+            <div class="bg-gradient-to-br from-sky-400 via-sky-500 to-indigo-600 rounded-[2rem] p-8 md:p-14 text-white mb-8 shadow-2xl relative overflow-hidden">
+                <div class="absolute -top-10 -right-10 w-64 h-64 bg-white/10 rounded-full pointer-events-none"></div>
+                <div class="absolute -bottom-16 -left-8 w-48 h-48 bg-white/5 rounded-full pointer-events-none"></div>
+                <div class="relative z-10">
+                    <div class="inline-flex items-center gap-2 bg-white/20 backdrop-blur-sm px-4 py-1.5 rounded-full text-sm font-bold mb-5">🏆 Nejbezpečnější tržiště v ČR</div>
+                    <h2 class="text-3xl md:text-5xl font-extrabold mb-4 leading-tight">Kupujte a prodávejte<br>bez obav</h2>
+                    <p class="text-sky-100 text-base md:text-lg max-w-2xl leading-relaxed">FairTrade Tržiště spojuje ověřené prodejce s důvěryhodnými kupujícími. Každá koruna je v bezpečí díky systému escrow. Podvodníci nemají šanci — jsou okamžitě permanentně zakázáni.</p>
+                    <div class="flex flex-wrap gap-3 mt-7">
+                        <button onclick="navigate('login')" class="bg-white text-sky-600 font-black py-3 px-7 rounded-2xl shadow-lg hover:scale-105 transition-transform text-sm">Začít zdarma →</button>
+                        <button onclick="navigate('aukce','Vše')" class="bg-white/20 backdrop-blur-sm text-white font-bold py-3 px-6 rounded-2xl hover:bg-white/30 transition-colors text-sm">Procházet nabídku</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Klíčové výhody -->
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+                ${[
+                    ['🔒','Escrow ochrana','Peníze uvolněny až po potvrzení přijetí zboží'],
+                    ['✅','Ověřené profily','KYC identifikace každého prodejce'],
+                    ['⚡','Ban za podvod','Jediné porušení = trvalý zákaz přístupu'],
+                    ['💬','Bezpečná komunikace','Veškerá komunikace v aplikaci, bez sdílení kontaktů'],
+                ].map(([icon,title,desc]) => `
+                <div class="bg-white/90 backdrop-blur-xl rounded-2xl p-5 shadow-md border border-white/50 text-center">
+                    <div class="text-3xl mb-2">${icon}</div>
+                    <p class="font-extrabold text-gray-800 text-sm mb-1">${title}</p>
+                    <p class="text-xs text-gray-500 leading-snug">${desc}</p>
+                </div>`).join('')}
+            </div>
+
+            <!-- Jak to funguje — kroky -->
+            <div class="bg-white/90 backdrop-blur-xl rounded-[2rem] p-7 md:p-10 shadow-lg border border-white/50 mb-6">
+                <h3 class="text-2xl md:text-3xl font-extrabold text-pastel-text mb-8 text-center">Celý proces krok za krokem</h3>
+                <div class="flex flex-col gap-0">
+                    ${[
+                        ['sky','1','Registrace zdarma','Vytvořte si účet za 30 sekund. E-mail, heslo — hotovo. Pro prodej si snadno ověříte totožnost přes KYC (doklad + selfie). Jednou a navždy.'],
+                        ['indigo','2','Vložte inzerát nebo aukci','Přidejte fotky, popis a cenu. Naše AI vám pomůže napsat popis a odhadnout cenu. Inzerát je živý okamžitě.'],
+                        ['violet','3','Zájemce zaplatí přes escrow','Kupující zaplatí — ale peníze nekončí přímo u prodejce. Jsou bezpečně uloženy v úschově FairTrade, dokud vše neproběhne v pořádku.'],
+                        ['pink','4','Prodejce odešle zboží','Po přijetí platby do escrow má prodejce 5 pracovních dnů na odeslání. Zásilku lze sledovat přes zásilkovnu, PPL nebo Českou poštu.'],
+                        ['green','5','Kupující potvrdí přijetí','Dorazilo vše v pořádku? Kupující klikne na Potvrdit. Peníze jsou okamžitě uvolněny prodejci. Pokud kupující do 14 dní nepotvrdí, platba se uvolní automaticky.'],
+                        ['amber','6','Ohodnoťte se navzájem','Po dokončení transakce si kupující a prodejce vzájemně udělí hodnocení. Reputace je základ důvěry na FairTrade.'],
+                    ].map(([color,num,title,desc],i,arr) => `
+                    <div class="flex gap-5 ${i<arr.length-1?'pb-7':''}">
+                        <div class="flex flex-col items-center shrink-0">
+                            <div class="w-11 h-11 rounded-2xl bg-${color}-500 text-white font-extrabold text-lg flex items-center justify-center shadow-lg shadow-${color}-200">${num}</div>
+                            ${i<arr.length-1?`<div class="w-0.5 flex-grow bg-gradient-to-b from-${color}-300 to-gray-100 mt-2"></div>`:''}
+                        </div>
+                        <div class="pt-1 pb-2">
+                            <p class="font-extrabold text-gray-800 text-base mb-1">${title}</p>
+                            <p class="text-gray-500 text-sm leading-relaxed">${desc}</p>
+                        </div>
+                    </div>`).join('')}
+                </div>
+            </div>
+
+            <!-- Bezpečnost & pravidla -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-5 mb-6">
+                <div class="bg-gradient-to-br from-red-50 to-orange-50 border border-red-100 rounded-[1.5rem] p-7 shadow-sm">
+                    <h4 class="font-extrabold text-red-700 text-lg mb-4 flex items-center gap-2">
+                        <span class="w-8 h-8 bg-red-100 rounded-xl flex items-center justify-center text-red-600">🚫</span>
+                        Nulová tolerance podvodům
+                    </h4>
+                    <ul class="flex flex-col gap-2.5 text-sm text-gray-700">
+                        ${[
+                            'Falešný popis nebo fotografie → okamžitý BAN',
+                            'Neposlání zboží po přijetí platby → BAN + hlášení Policii ČR',
+                            'Sdílení kontaktních údajů mimo platformu → varování, opakování = BAN',
+                            'Prodej zakázaného zboží (zbraně, padělky, drogy) → trvalý BAN',
+                            'Manipulace s aukcemi nebo falešné účty → BAN všech propojených účtů',
+                        ].map(t=>`<li class="flex items-start gap-2"><span class="text-red-500 font-black mt-0.5 shrink-0">✕</span>${t}</li>`).join('')}
+                    </ul>
+                </div>
+                <div class="bg-gradient-to-br from-green-50 to-emerald-50 border border-green-100 rounded-[1.5rem] p-7 shadow-sm">
+                    <h4 class="font-extrabold text-green-700 text-lg mb-4 flex items-center gap-2">
+                        <span class="w-8 h-8 bg-green-100 rounded-xl flex items-center justify-center text-green-600">✅</span>
+                        Co vás chrání
+                    </h4>
+                    <ul class="flex flex-col gap-2.5 text-sm text-gray-700">
+                        ${[
+                            'Escrow: vaše peníze jsou v bezpečí až do potvrzení doručení',
+                            'KYC: každý prodejce má ověřenou totožnost — žádná anonymita',
+                            'Reklamace: 14 dní na uplatnění reklamace přes naši podporu',
+                            'GDPR: vaše osobní údaje nikdy neprodáme třetím stranám',
+                            'Hodnocení: reputační systém odkrývá nespolehlivé uživatele',
+                        ].map(t=>`<li class="flex items-start gap-2"><span class="text-green-500 font-black mt-0.5 shrink-0">✓</span>${t}</li>`).join('')}
+                    </ul>
+                </div>
+            </div>
+
+            <!-- FAQ -->
+            <div class="bg-white/90 backdrop-blur-xl rounded-[2rem] p-7 md:p-10 shadow-lg border border-white/50 mb-6">
+                <h3 class="text-2xl font-extrabold text-pastel-text mb-6">Nejčastější dotazy</h3>
+                <div class="flex flex-col gap-4">
+                    ${[
+                        ['Je registrace skutečně zdarma?','Ano, 100 % zdarma. Platíte pouze 5% provizi z úspěšně prodaného zboží a 49 Kč escrow poplatek. Žádné měsíční poplatky, žádné skryté náklady.'],
+                        ['Co když prodejce zboží nepošle?','Peníze jsou stále v escrow. Otevřete spor v aplikaci, naše podpora případ prošetří a peníze vám vrátíme do 5 pracovních dnů. Podvodný prodejce dostane permanentní BAN.'],
+                        ['Co když zboží nedorazí nebo je poškozené?','Do 14 dní od doručení máte právo reklamovat. Nepotvrďte přijetí a kontaktujte podporu — escrow platbu neztrácíte.'],
+                        ['Jak probíhá ověření totožnosti (KYC)?','Nahrajte fotku občanského průkazu nebo pasu a pořiďte selfie. Ověření trvá zpravidla do 24 hodin. Bez KYC lze nakupovat, prodej vyžaduje ověření.'],
+                        ['Mohu prodat cokoliv?','Zákon je zákon — zakázány jsou zbraně, drogy, živá zvířata (CITES), padělky, kradené zboží a obsah porušující autorská práva. Vše ostatní legální je vítáno.'],
+                    ].map(([q,a])=>`
+                    <details class="group bg-gray-50 rounded-2xl border border-gray-100 overflow-hidden">
+                        <summary class="flex justify-between items-center p-5 cursor-pointer font-bold text-gray-800 text-sm list-none">
+                            ${q}
+                            <svg class="w-5 h-5 text-gray-400 group-open:rotate-180 transition-transform shrink-0 ml-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                        </summary>
+                        <p class="px-5 pb-5 text-sm text-gray-600 leading-relaxed border-t border-gray-100 pt-3">${a}</p>
+                    </details>`).join('')}
+                </div>
+            </div>
+
+            <!-- CTA -->
+            <div class="bg-gradient-to-br from-sky-500 to-indigo-600 rounded-[2rem] p-8 md:p-10 text-center text-white shadow-2xl">
+                <h3 class="text-2xl md:text-3xl font-extrabold mb-3">Připraveni začít?</h3>
+                <p class="text-sky-100 mb-7 text-sm md:text-base">Registrace trvá 30 sekund. Tisíce spokojených uživatelů na vás čekají.</p>
+                <div class="flex flex-wrap gap-3 justify-center">
+                    <button onclick="navigate('login')" class="bg-white text-sky-600 font-black py-3 px-8 rounded-2xl shadow-lg hover:scale-105 transition-transform">Vytvořit účet zdarma</button>
+                    <button onclick="navigate('kontakt')" class="bg-white/20 text-white font-bold py-3 px-6 rounded-2xl hover:bg-white/30 transition-colors">Kontaktovat podporu</button>
+                </div>
+            </div>
+        </div>`,
         vop: () => `
         <div class="w-full max-w-4xl mx-auto bg-white/90 backdrop-blur-xl p-6 md:p-10 rounded-[2rem] shadow-xl fade-in border border-white/50 mb-10">
             <button onclick="navigate('home')" class="mb-6 text-sky-500 font-bold hover:text-sky-600 flex items-center gap-2">← Zpět</button>
