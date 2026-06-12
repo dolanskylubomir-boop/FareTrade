@@ -638,6 +638,8 @@
     // ──────────────────────────────────────────────────────────────
     const SUPABASE_URL      = 'https://mpioazyvtgcpxjrhbflp.supabase.co';
     const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1waW9henl2dGdjcHhqcmhiZmxwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEwMDM1MjksImV4cCI6MjA5NjU3OTUyOX0.pNgPqE1aOrsA2efj5H5FIkNjdcKxo7MVycEjfyEVc4s';
+    // Po vygenerování VAPID klíčů (generate-vapid.html) sem vlož Public Key
+    const VAPID_PUBLIC_KEY  = 'BDw2vZmBXdbGq_kOth52_9RQh6l622W3FrGSiYqpiOV30wGXKY0RKIAclxfd6JbXKAMD-gDK3ztX_gr3wxwv3mA';
     let supabaseClient = null;
     let publicClient = null; // klient BEZ auth — nikdy nečeká na JWT refresh
     try {
@@ -1564,11 +1566,13 @@
                     loadFavoritesFromDB();
                     _refreshUnreadBadge();
                     setTimeout(_checkAuctionWins, 2000);
+                    setTimeout(_subscribeToPush, 3000);
                 } else if (event === 'INITIAL_SESSION') {
                     window._jwtReady = true;
                     loadFavoritesFromDB();
                     _refreshUnreadBadge();
                     setTimeout(_checkAuctionWins, 2500);
+                    setTimeout(_subscribeToPush, 3500);
                 } else if (event === 'TOKEN_REFRESHED') {
                     window._jwtReady = true;
                     loadFavoritesFromDB();
@@ -1818,6 +1822,48 @@
         // Reset camera input so same photo can be taken again if needed
         cameraInput.value = '';
     };
+
+    // ── Push notifikace ──────────────────────────────────────────────
+    function _urlBase64ToUint8Array(b64) {
+        const pad  = '='.repeat((4 - b64.length % 4) % 4);
+        const base = (b64 + pad).replace(/-/g, '+').replace(/_/g, '/');
+        return Uint8Array.from([...atob(base)].map(c => c.charCodeAt(0)));
+    }
+
+    async function _subscribeToPush() {
+        if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+        if (!window.currentUser) return;
+        if (VAPID_PUBLIC_KEY.startsWith('REPLACE')) return; // klíč ještě nevyplněn
+        try {
+            const perm = Notification.permission === 'granted'
+                ? 'granted'
+                : await Notification.requestPermission();
+            if (perm !== 'granted') return;
+            const reg = await navigator.serviceWorker.ready;
+            let sub   = await reg.pushManager.getSubscription();
+            if (!sub) {
+                sub = await reg.pushManager.subscribe({
+                    userVisibleOnly: true,
+                    applicationServerKey: _urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+                });
+            }
+            const token = await _ensureValidToken();
+            if (!token) return;
+            await fetch(SUPABASE_URL + '/rest/v1/push_subscriptions', {
+                method:  'POST',
+                headers: {
+                    'apikey':        SUPABASE_ANON_KEY,
+                    'Authorization': 'Bearer ' + token,
+                    'Content-Type':  'application/json',
+                    'Prefer':        'resolution=merge-duplicates'
+                },
+                body: JSON.stringify({ user_id: window.currentUser.id, subscription: sub.toJSON() })
+            });
+        } catch(e) {
+            console.warn('[push] subscribe failed:', e);
+        }
+    }
+    // ────────────────────────────────────────────────────────────────
 
     window.handleAdSubmit = async function(e) {
         e.preventDefault();
