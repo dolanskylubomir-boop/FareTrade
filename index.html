@@ -2612,7 +2612,7 @@
 
             const [profileArr, txArr] = await Promise.all([
                 fetch(`${SUPABASE_URL}/rest/v1/profiles?id=eq.${uid}&select=*`, { headers: h }).then(r => r.json()),
-                fetch(`${SUPABASE_URL}/rest/v1/transactions?status=eq.completed&or=(buyer_id.eq.${uid},seller_id.eq.${uid})&select=price,seller_id,buyer_id,status`, { headers: h }).then(r => r.json())
+                fetch(`${SUPABASE_URL}/rest/v1/transactions?status=eq.completed&or=(buyer_id.eq.${uid},seller_id.eq.${uid})&select=price,item_price,seller_id,buyer_id,status`, { headers: h }).then(r => r.json())
             ]);
 
             const data = Array.isArray(profileArr) && profileArr.length > 0 ? profileArr[0] : null;
@@ -2627,8 +2627,8 @@
             const tx = Array.isArray(txArr) ? txArr : [];
             const sales     = tx.filter(t=>t.seller_id===uid);
             const purchases = tx.filter(t=>t.buyer_id===uid);
-            const earned    = sales.reduce((s,t)=>s+(t.price||0),0);
-            const spent     = purchases.reduce((s,t)=>s+(t.price||0),0);
+            const earned    = sales.reduce((s,t)=>s+(t.item_price||t.price||0),0);
+            const spent     = purchases.reduce((s,t)=>s+(t.item_price||t.price||0),0);
             window._txStatsCache = { uid, sales: sales.length, purchases: purchases.length, earned, spent };
             const earnedEl  = document.getElementById('profile-earned');
             const spentEl   = document.getElementById('profile-spent');
@@ -2744,7 +2744,7 @@
                         <div class="text-xs text-gray-500 mt-0.5">${dateStr} · ${isSeller?'Kupující':'Prodejce'}: <span class="font-semibold text-gray-700">${other||'Neznámý'}</span></div>
                     </div>
                     <div class="text-right shrink-0">
-                        <div class="font-bold text-base text-gray-800 mb-1">${tx.price.toLocaleString('cs-CZ')} Kč</div>
+                        <div class="font-bold text-base text-gray-800 mb-1">${(tx.item_price||tx.price||0).toLocaleString('cs-CZ')} Kč</div>
                         ${badge(tx.status,isSeller)}
                         <div class="mt-1.5 flex gap-1 justify-end">
                             <button onclick="updateTxStatus('${tx.id}','paid')" class="text-[9px] bg-yellow-50 text-yellow-700 px-1.5 py-0.5 rounded uppercase font-bold hover:bg-yellow-100">Platba</button>
