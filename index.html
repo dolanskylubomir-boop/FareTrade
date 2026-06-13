@@ -2916,11 +2916,11 @@
                 <h3 class="text-2xl md:text-3xl font-extrabold text-pastel-text mb-8 text-center">Celý proces krok za krokem</h3>
                 <div class="flex flex-col gap-0">
                     ${[
-                        ['sky','1','Registrace zdarma','Vytvořte si účet za 30 sekund. E-mail, heslo — hotovo. Pro prodej si snadno ověříte totožnost přes KYC (doklad + selfie). Jednou a navždy.'],
-                        ['indigo','2','Vložte inzerát nebo aukci','Přidejte fotky, popis a cenu. Naše AI vám pomůže napsat popis a odhadnout cenu. Inzerát je živý okamžitě.'],
+                        ['sky','1','Registrace zdarma','Vytvořte si účet za 30 sekund. E-mail, heslo — hotovo. Pro prodej ověříte totožnost přes KYC (doklad + selfie). Jednou a navždy.'],
+                        ['indigo','2','Vložte inzerát nebo aukci','Přidejte min. 1 fotku, popis a cenu. U použitého zboží uveďte vady — kupující s popsaným stavem souhlasí, čímž se minimalizují spory. AI vám pomůže s popisem.'],
                         ['violet','3','Zájemce zaplatí přes escrow','Kupující zaplatí — ale peníze nekončí přímo u prodejce. Jsou bezpečně uloženy v úschově FairTrade, dokud vše neproběhne v pořádku.'],
-                        ['pink','4','Prodejce odešle zboží','Po přijetí platby do escrow má prodejce 5 pracovních dnů na odeslání. Zásilku lze sledovat přes zásilkovnu, PPL nebo Českou poštu.'],
-                        ['green','5','Kupující potvrdí přijetí','Dorazilo vše v pořádku? Kupující klikne na Potvrdit. Peníze jsou okamžitě uvolněny prodejci. Pokud kupující do 14 dní nepotvrdí, platba se uvolní automaticky.'],
+                        ['pink','4','Prodejce zdokumentuje a odešle','Před odesláním prodejce povinně nafotí zásilku (obsah, balení, štítek). Fotky jsou uloženy jako důkaz. Poté zadá číslo zásilky — kupující ji může sledovat online.'],
+                        ['green','5','Kupující potvrdí nebo otevře spor','Dorazilo vše v pořádku? Kupující klikne Doručeno — peníze jsou okamžitě uvolněny. Problém? Otevře spor přímo v aplikaci s fotodůkazy. Admin rozhodne do 48 hodin. Bez akce kupujícího se platba uvolní automaticky po 14 dnech.'],
                         ['amber','6','Ohodnoťte se navzájem','Po dokončení transakce si kupující a prodejce vzájemně udělí hodnocení. Reputace je základ důvěry na FairTrade.'],
                     ].map(([color,num,title,desc],i,arr) => `
                     <div class="flex gap-5 ${i<arr.length-1?'pb-7':''}">
@@ -2947,9 +2947,10 @@
                         ${[
                             'Falešný popis nebo fotografie → okamžitý BAN',
                             'Neposlání zboží po přijetí platby → BAN + hlášení Policii ČR',
+                            'Záměrná výměna zboží za jiné → BAN + vrácení peněz kupujícímu',
                             'Sdílení kontaktních údajů mimo platformu → varování, opakování = BAN',
                             'Prodej zakázaného zboží (zbraně, padělky, drogy) → trvalý BAN',
-                            'Manipulace s aukcemi nebo falešné účty → BAN všech propojených účtů',
+                            'Manipulace s aukcemi nebo falešné spory → BAN všech propojených účtů',
                         ].map(t=>`<li class="flex items-start gap-2"><span class="text-red-500 font-black mt-0.5 shrink-0">✕</span>${t}</li>`).join('')}
                     </ul>
                 </div>
@@ -2960,9 +2961,10 @@
                     </h4>
                     <ul class="flex flex-col gap-2.5 text-sm text-gray-700">
                         ${[
-                            'Escrow: vaše peníze jsou v bezpečí až do potvrzení doručení',
+                            'Escrow: peníze uvolněny prodejci až po vašem potvrzení doručení',
                             'KYC: každý prodejce má ověřenou totožnost — žádná anonymita',
-                            'Reklamace: 14 dní na uplatnění reklamace přes naši podporu',
+                            'Fotodokumentace zásilek: prodejce musí nafotit zásilku před odesláním',
+                            'In-app spory: problém? Nahrajte fotky, admin rozhodne do 48 hodin',
                             'GDPR: vaše osobní údaje nikdy neprodáme třetím stranám',
                             'Hodnocení: reputační systém odkrývá nespolehlivé uživatele',
                         ].map(t=>`<li class="flex items-start gap-2"><span class="text-green-500 font-black mt-0.5 shrink-0">✓</span>${t}</li>`).join('')}
@@ -2976,8 +2978,9 @@
                 <div class="flex flex-col gap-4">
                     ${[
                         ['Je registrace skutečně zdarma?','Ano, 100 % zdarma. Platíte pouze 5% provizi z úspěšně prodaného zboží a 49 Kč escrow poplatek. Žádné měsíční poplatky, žádné skryté náklady.'],
-                        ['Co když prodejce zboží nepošle?','Peníze jsou stále v escrow. Otevřete spor v aplikaci, naše podpora případ prošetří a peníze vám vrátíme do 5 pracovních dnů. Podvodný prodejce dostane permanentní BAN.'],
-                        ['Co když zboží nedorazí nebo je poškozené?','Do 14 dní od doručení máte právo reklamovat. Nepotvrďte přijetí a kontaktujte podporu — escrow platbu neztrácíte.'],
+                        ['Co když prodejce zboží nepošle?','Peníze jsou stále v escrow. Klikněte na Spor přímo ve své objednávce, popište situaci a přiložte důkazy. Náš admin případ prošetří a peníze vám vrátíme do 48 hodin. Podvodný prodejce dostane permanentní BAN.'],
+                        ['Co když zboží nedorazí nebo je poškozené?','Neklikejte na Doručeno. Otevřete spor přímo v aplikaci — vyberte důvod, přiložte min. 2 fotky přijatého zboží a stručně popište problém. Platba zůstává v escrow po celou dobu šetření.'],
+                        ['Jak se prodejce brání falešným sporům?','Každý prodejce musí před odesláním nafotit zásilku (obsah, balení, štítek). Fotky jsou časově razítkovány a uloženy. Admin je vidí vedle důkazů kupujícího a rozhodne objektivně.'],
                         ['Jak probíhá ověření totožnosti (KYC)?','Nahrajte fotku občanského průkazu nebo pasu a pořiďte selfie. Ověření trvá zpravidla do 24 hodin. Bez KYC lze nakupovat, prodej vyžaduje ověření.'],
                         ['Mohu prodat cokoliv?','Zákon je zákon — zakázány jsou zbraně, drogy, živá zvířata (CITES), padělky, kradené zboží a obsah porušující autorská práva. Vše ostatní legální je vítáno.'],
                     ].map(([q,a])=>`
@@ -3056,9 +3059,12 @@
                     <p class="mb-2">Prodávající smí vkládat inzeráty a vyhlašovat aukce za těchto podmínek:</p>
                     <ul class="list-disc pl-5 space-y-1 mb-2">
                         <li>Popis a fotografie musí věrně zobrazovat skutečný stav zboží – jakékoli klamavé uvádění je zakázáno.</li>
+                        <li>Inzerát musí obsahovat <strong>minimálně 1 fotografii</strong> skutečného zboží.</li>
+                        <li>U zboží ve stavu „Použité" nebo „Poškozené" je Prodávající povinen popsat konkrétní vady v poli „Popis vad". Kupující přijetím objednávky souhlasí s popsaným stavem.</li>
                         <li>Inzerát nesmí porušovat práva třetích osob (autorská práva, ochranné známky, patenty).</li>
                         <li>Platforma inzeráty moderuje a může je bez náhrady kdykoli odstranit.</li>
                         <li>Aukce je závazná: vítěz příhozu je povinen zboží zakoupit a uhradit.</li>
+                        <li>Prodávající je povinen <strong>před odesláním zásilky</strong> nahrát min. 1 fotografii zásilky (obsah, balení, přepravní štítek) prostřednictvím funkce „Zdokumentovat a odeslat" v aplikaci. Fotografie slouží jako důkaz v případě sporu.</li>
                         <li>Prodávající je povinen odeslat zboží do <strong>5 pracovních dnů</strong> od potvrzení platby.</li>
                         <li>Inzerát za pevnou cenu je aktivní po dobu <strong>20 dní</strong>, aukce po dobu zvolené Prodávajícím (7–20 dní).</li>
                     </ul>
@@ -3102,22 +3108,24 @@
                     <p class="mb-2">Platforma využívá systém escrow pro bezpečnost obou stran:</p>
                     <ol class="list-decimal pl-5 space-y-1 mb-2">
                         <li>Kupující uhradí platbu na escrow účet Provozovatele.</li>
-                        <li>Prodávající obdrží oznámení a je povinen odeslat zboží do 5 pracovních dnů.</li>
-                        <li>Kupující po přijetí zboží potvrdí transakci v aplikaci.</li>
-                        <li>Provozovatel uvolní platbu Prodávajícímu (po odečtení poplatků) do 3 pracovních dnů.</li>
+                        <li>Prodávající obdrží oznámení, nafotí zásilku v aplikaci a odešle zboží do 5 pracovních dnů.</li>
+                        <li>Kupující po přijetí zboží buď potvrdí doručení, nebo do 14 dní otevře spor v aplikaci.</li>
+                        <li>Při potvrzení doručení Provozovatel uvolní platbu Prodávajícímu (po odečtení poplatků) do 3 pracovních dnů.</li>
+                        <li>Při otevření sporu je platba pozastavena a Provozovatel případ prošetří do 48 hodin.</li>
                     </ol>
-                    <p>Pokud Kupující nepotvrdí příjem do <strong>14 dní</strong> od data odeslání, Provozovatel platbu uvolní automaticky. Escrow chrání Kupujícího před podvodným jednáním Prodávajícího.</p>
+                    <p>Pokud Kupující nepotvrdí příjem ani neotevře spor do <strong>14 dní</strong> od data odeslání, Provozovatel platbu uvolní automaticky. Escrow chrání obě strany: Kupujícího před podvodem Prodávajícího, Prodávajícího před neoprávněnými spory díky fotografické dokumentaci zásilky.</p>
                 </section>
 
                 <section>
                     <h3 class="text-base font-extrabold text-gray-800 mb-2 pb-2 border-b border-gray-100">9. Reklamace, vrácení zboží a práva spotřebitele</h3>
-                    <p class="mb-2">Kupující má právo reklamovat zboží, které:</p>
+                    <p class="mb-2">Kupující má právo otevřít spor, pokud zboží:</p>
                     <ul class="list-disc pl-5 space-y-1 mb-2">
-                        <li>prokazatelně neodpovídá popisu nebo fotografiím v inzerátu,</li>
+                        <li>prokazatelně neodpovídá popisu nebo fotografiím v inzerátu (nad rámec popsaných vad),</li>
                         <li>bylo zasláno poškozené nebo neúplné (bez popsaných vad),</li>
                         <li>nedorazilo ve lhůtě <strong>21 dní</strong> od potvrzení platby.</li>
                     </ul>
-                    <p class="mb-2">Reklamaci je nutné uplatnit do <strong>14 dní od přijetí zboží</strong> prostřednictvím zákaznické podpory (podpora@fairtrade-trziste.cz). Platforma slouží jako mediátor sporu a rozhoduje o oprávněnosti reklamace.</p>
+                    <p class="mb-2">Spor je nutné otevřít do <strong>14 dní od přijetí zásilky</strong> přímo v aplikaci (sekce Moje objednávky → Spor). Kupující je povinen přiložit min. 2 fotografie přijatého zboží a stručný popis problému (výjimka: zásilka nedorazila). Provozovatel případ prošetří do <strong>48 hodin</strong> a rozhodne o vrácení platby nebo uvolnění prostředků prodávajícímu. Rozhodnutí je konečné. Vědomě nepravdivé spory jsou důvodem k trvalému zákazu účtu.</p>
+                    <p class="mb-2">Kupující, který zásilku obdržel bez závad, je povinen potvrdit doručení. Opakované bezdůvodné otvírání sporů nebo odmítání potvrzení doručení je porušením VOP.</p>
                     <p>Spotřebitelé (fyzické osoby – nepodnikatelé) mají právo na mimosoudní řešení spotřebitelských sporů prostřednictvím České obchodní inspekce (<a href="https://www.coi.cz" class="text-sky-500 underline">www.coi.cz</a>) nebo evropské platformy ODR (<a href="https://ec.europa.eu/consumers/odr" class="text-sky-500 underline">ec.europa.eu/consumers/odr</a>).</p>
                 </section>
 
