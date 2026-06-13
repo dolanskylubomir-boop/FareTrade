@@ -3518,7 +3518,8 @@
                                 <p class="text-gray-500 text-xs font-semibold uppercase mb-1">Konečná cena pro kupujícího</p>
                                 <div class="flex items-end gap-2">
                                     <div class="text-xl font-bold text-sky-600" id="total-${item.id}">${prices.total.toLocaleString('cs-CZ')} Kč</div>
-                                    <div class="text-xs text-gray-400 mb-0.5">(+5% + ${ESCROW_FEE} Kč úschova)</div>
+                                    <button type="button" onclick="this.nextElementSibling.classList.toggle('hidden')" class="w-5 h-5 rounded-full bg-sky-200 text-sky-600 font-bold text-[10px] leading-none inline-flex items-center justify-center hover:bg-sky-300 transition-colors mb-0.5">?</button>
+                                    <div class="hidden text-xs text-gray-500 bg-white border border-sky-100 rounded-xl px-3 py-2 mb-0.5">Zahrnuje 5% provizi + ${ESCROW_FEE} Kč escrow ochranu. Peníze uvolněny prodejci až po doručení.</div>
                                 </div>
                             </div>
                         </div>
@@ -3626,7 +3627,8 @@
                                 <p class="text-gray-500 text-xs font-semibold uppercase mb-1">Konečná cena pro kupujícího</p>
                                 <div class="flex items-end gap-2">
                                     <div class="text-xl font-bold text-pink-600">${prices.total.toLocaleString('cs-CZ')} Kč</div>
-                                    <div class="text-xs text-gray-400 mb-0.5">(+5% + ${ESCROW_FEE} Kč úschova)</div>
+                                    <button type="button" onclick="this.nextElementSibling.classList.toggle('hidden')" class="w-5 h-5 rounded-full bg-pink-200 text-pink-600 font-bold text-[10px] leading-none inline-flex items-center justify-center hover:bg-pink-300 transition-colors mb-0.5">?</button>
+                                    <div class="hidden text-xs text-gray-500 bg-white border border-pink-100 rounded-xl px-3 py-2 mb-0.5">Zahrnuje 5% provizi + ${ESCROW_FEE} Kč escrow ochranu. Peníze uvolněny prodejci až po doručení.</div>
                                 </div>
                             </div>
                         </div>
