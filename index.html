@@ -4217,9 +4217,13 @@
         if (!confirm('Potvrzujete přijetí zásilky? Tímto uvolníte platbu prodejci.')) return;
         const token = await _ensureValidToken();
         const hdrs = { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' };
-        await fetch(`${SUPABASE_URL}/rest/v1/objednavky?id=eq.${orderId}`, { method:'PATCH', headers:hdrs, body:JSON.stringify({ status:'delivered', buyer_confirmed_at: new Date().toISOString() }) });
+        await fetch(`${SUPABASE_URL}/rest/v1/objednavky?id=eq.${orderId}`, { method:'PATCH', headers:hdrs, body:JSON.stringify({ status:'completed', buyer_confirmed_at: new Date().toISOString() }) });
         showToast('Doručení potvrzeno. Platba bude uvolněna prodejci.','success');
-        setTimeout(() => navigate('moje-objednavky'), 800);
+        setTimeout(() => {
+            _loadObjednavkyTab();
+            if (document.getElementById('profil-seller-obj-content')) _loadSellerObjednavkyTab();
+            if (document.getElementById('moje-obj-content')) window.loadMojeObjednavky && window.loadMojeObjednavky();
+        }, 600);
     };
 
     // ── Dokumentace zásilky ──────────────────────────────────────────
@@ -4313,7 +4317,10 @@
             });
             closeShipDocsModal();
             showToast('Odeslání potvrzeno. Fotky zásilky uloženy. ✅', 'success');
-            setTimeout(function() { window.loadProdejceObjednavky && window.loadProdejceObjednavky(); }, 800);
+            setTimeout(function() {
+                window.loadProdejceObjednavky && window.loadProdejceObjednavky();
+                _loadSellerObjednavkyTab();
+            }, 600);
         } catch(e) {
             showToast('Chyba: ' + e.message, 'warning');
             if (btn) { btn.disabled = false; btn.textContent = 'Potvrdit odeslání zásilky'; }
