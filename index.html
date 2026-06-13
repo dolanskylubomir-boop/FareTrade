@@ -1559,7 +1559,9 @@
                 window.currentUser = session.user;
                 if (btn) { btn.innerText='Můj Profil'; btn.setAttribute('onclick',"navigate('profil')"); }
 
-                if (event === 'SIGNED_IN') {
+                if (event === 'PASSWORD_RECOVERY') {
+                    navigate('reset-hesla');
+                } else if (event === 'SIGNED_IN') {
                     window._jwtReady = true;
                     const isLoginScreen = window.location.hash.includes('login');
                     await checkUserProfileKYC(session.user, isLoginScreen);
@@ -1613,8 +1615,72 @@
             else { showToast('Registrace úspěšná! Zkontrolujte e-mail.','success'); if (data?.user) await checkUserProfileKYC(data.user, true); }
         } else {
             const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
-            if (error) showToast('Chyba přihlášení: ' + error.message, 'warning');
-            else if (!data?.user) navigate('home');
+            if (error) {
+                if (error.message?.toLowerCase().includes('email not confirmed') || error.message?.toLowerCase().includes('not confirmed')) {
+                    showToast('E-mail není ověřen. Zkontrolujte schránku nebo si nechte poslat nový odkaz.', 'warning');
+                    const resendEl = document.getElementById('resend-verification-row');
+                    if (resendEl) { resendEl.classList.remove('hidden'); resendEl.dataset.email = email; }
+                } else {
+                    showToast('Chyba přihlášení: ' + error.message, 'warning');
+                }
+            } else if (!data?.user) navigate('home');
+        }
+    };
+
+    window.sendPasswordReset = async function() {
+        const email = document.getElementById('reset-email-input')?.value.trim()
+                   || document.getElementById('email-input')?.value.trim();
+        if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return showToast('Zadejte platný e-mail.', 'warning');
+        const btn = document.getElementById('reset-send-btn');
+        if (btn) { btn.disabled = true; btn.textContent = 'Odesílám…'; }
+        const { error } = await supabaseClient.auth.resetPasswordForEmail(email, {
+            redirectTo: window.location.origin + window.location.pathname
+        });
+        if (error) {
+            showToast('Chyba: ' + error.message, 'warning');
+            if (btn) { btn.disabled = false; btn.textContent = 'Odeslat odkaz'; }
+        } else {
+            showToast('Odkaz pro reset hesla byl odeslán na ' + email, 'success');
+            const box = document.getElementById('forgot-password-box');
+            if (box) box.classList.add('hidden');
+        }
+    };
+
+    window.resendVerificationEmail = async function(btn) {
+        const email = btn?.closest('[data-email]')?.dataset.email
+                   || document.getElementById('email-input')?.value.trim();
+        if (!email) return;
+        const { error } = await supabaseClient.auth.resend({ type: 'signup', email });
+        if (error) showToast('Chyba: ' + error.message, 'warning');
+        else showToast('Ověřovací e-mail znovu odeslán na ' + email, 'success');
+    };
+
+    window.handleNewPassword = async function() {
+        const p1 = document.getElementById('new-password-1')?.value;
+        const p2 = document.getElementById('new-password-2')?.value;
+        if (!p1 || p1.length < 8) return showToast('Heslo musí mít alespoň 8 znaků.', 'warning');
+        if (p1 !== p2) return showToast('Hesla se neshodují.', 'warning');
+        const btn = document.getElementById('new-password-btn');
+        if (btn) { btn.disabled = true; btn.textContent = 'Ukládám…'; }
+        const { error } = await supabaseClient.auth.updateUser({ password: p1 });
+        if (error) {
+            showToast('Chyba: ' + error.message, 'warning');
+            if (btn) { btn.disabled = false; btn.textContent = 'Uložit nové heslo'; }
+        } else {
+            showToast('Heslo bylo změněno. Přihlašte se.', 'success');
+            navigate('login');
+        }
+    };
+
+    window.toggleForgotPassword = function() {
+        const box = document.getElementById('forgot-password-box');
+        if (!box) return;
+        box.classList.toggle('hidden');
+        if (!box.classList.contains('hidden')) {
+            const emailVal = document.getElementById('email-input')?.value.trim();
+            const inp = document.getElementById('reset-email-input');
+            if (inp && emailVal) inp.value = emailVal;
+            inp?.focus();
         }
     };
 
@@ -2876,7 +2942,19 @@
                 <div class="relative flex py-2 items-center"><div class="flex-grow border-t border-gray-200"></div><span class="flex-shrink mx-4 text-gray-400 text-sm">nebo e-mailem</span><div class="flex-grow border-t border-gray-200"></div></div>
                 <form onsubmit="handleEmailAuth(event)" class="flex flex-col gap-3">
                     <input type="email" id="email-input" placeholder="Váš e-mail" required autocomplete="email" maxlength="254" class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-sky-400 bg-white/60">
-                    <input type="password" id="password-input" placeholder="Heslo (min. 8 znaků)" required autocomplete="current-password" minlength="8" maxlength="128" class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-sky-400 bg-white/60">
+                    <div class="relative">
+                        <input type="password" id="password-input" placeholder="Heslo (min. 8 znaků)" required autocomplete="current-password" minlength="8" maxlength="128" class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-sky-400 bg-white/60">
+                        <button type="button" onclick="toggleForgotPassword()" class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-sky-500 hover:text-sky-700 font-semibold whitespace-nowrap">Zapomenuté heslo?</button>
+                    </div>
+                    <div id="forgot-password-box" class="hidden bg-sky-50 border border-sky-200 rounded-xl p-3 flex flex-col gap-2">
+                        <p class="text-xs text-sky-700 font-semibold">Zašleme vám odkaz pro reset hesla:</p>
+                        <input type="email" id="reset-email-input" placeholder="Váš e-mail" autocomplete="email" maxlength="254" class="w-full px-3 py-2.5 rounded-lg border border-sky-200 text-sm focus:outline-sky-400 bg-white">
+                        <button type="button" id="reset-send-btn" onclick="sendPasswordReset()" class="bg-sky-500 hover:bg-sky-600 text-white font-bold text-sm py-2.5 rounded-lg transition-colors">Odeslat odkaz</button>
+                    </div>
+                    <div id="resend-verification-row" class="hidden bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-center justify-between gap-3">
+                        <p class="text-xs text-amber-700">E-mail není ověřen.</p>
+                        <button type="button" onclick="resendVerificationEmail(this)" class="shrink-0 bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs px-3 py-2 rounded-lg transition-colors">Znovu odeslat</button>
+                    </div>
                     <label class="flex items-start gap-2.5 text-xs text-gray-500 cursor-pointer p-3 bg-gray-50 rounded-xl border border-gray-100 hover:border-sky-200 transition-colors">
                         <input type="checkbox" id="vop-consent" class="w-4 h-4 rounded mt-0.5 accent-sky-500 shrink-0">
                         <span>Je mi více než <strong>18 let</strong>, přečetl(a) jsem si <button type="button" onclick="event.preventDefault();event.stopPropagation();openVopModal(true)" class="text-sky-500 font-bold hover:underline">Obchodní podmínky</button> a souhlasím se zpracováním osobních údajů dle <strong>GDPR</strong>. <span class="text-gray-400">(Povinné pro registraci)</span></span>
@@ -2886,6 +2964,21 @@
                         <button type="submit" data-action="signup" class="flex-1 bg-sky-500 hover:bg-sky-600 text-white font-bold py-3 rounded-xl text-sm transition-colors shadow-sm">Registrovat</button>
                     </div>
                 </form>
+            </div>
+        </div>`,
+
+        'reset-hesla': () => `
+        <div class="w-full max-w-md mx-auto bg-white/90 backdrop-blur-xl p-8 md:p-10 rounded-[2.5rem] shadow-2xl fade-in border border-white/50">
+            <div class="text-center mb-7">
+                <span class="inline-block text-4xl mb-3">🔑</span>
+                <h2 class="text-2xl font-extrabold text-pastel-text">Nové heslo</h2>
+                <p class="text-gray-500 text-sm mt-1">Zadejte nové heslo pro váš účet.</p>
+            </div>
+            <div class="flex flex-col gap-3">
+                <input type="password" id="new-password-1" placeholder="Nové heslo (min. 8 znaků)" minlength="8" maxlength="128" autocomplete="new-password" class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-sky-400 bg-white/60">
+                <input type="password" id="new-password-2" placeholder="Zopakujte nové heslo" minlength="8" maxlength="128" autocomplete="new-password" class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-sky-400 bg-white/60">
+                <button id="new-password-btn" onclick="handleNewPassword()" class="w-full bg-sky-500 hover:bg-sky-600 active:scale-95 text-white font-bold py-3 rounded-xl text-sm transition-all shadow-sm mt-1">Uložit nové heslo</button>
+                <button onclick="navigate('login')" class="w-full text-gray-500 hover:text-gray-700 text-sm py-2 transition-colors">Zpět na přihlášení</button>
             </div>
         </div>`,
 
