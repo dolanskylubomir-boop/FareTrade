@@ -1076,6 +1076,15 @@
         if (str === null || str === undefined) return '';
         return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;').replace(/`/g,'&#96;');
     };
+    // Dekóduje HTML entity zpět na plain text (bezpečné — textarea nespouští skripty)
+    // Používá se pro data z in-memory cache která jsou již esc()-zpracována,
+    // ale mají jít do textContent kontextu (showToast, clipboard, atd.)
+    window._htmlDecode = function(str) {
+        if (!str) return '';
+        const t = document.createElement('textarea');
+        t.innerHTML = String(str);
+        return t.value;
+    };
     window.safeUrl = function(url, fallback = FALLBACK_IMG) {
         if (!url || typeof url !== 'string') return fallback;
         try { const u = new URL(url, window.location.origin); if (u.protocol === 'https:' || u.protocol === 'http:') return esc(u.href); } catch(e) {}
@@ -1629,8 +1638,8 @@
                 return `<div onclick="_openNotifLink('${n.id}','${n.link}')" class="flex items-start gap-3 p-4 rounded-2xl mb-2 cursor-pointer transition-all hover:shadow-md ${n.is_read?'bg-white border border-gray-100':'bg-sky-50 border border-sky-200'}">
                     <span class="text-2xl shrink-0 mt-0.5">${icon}</span>
                     <div class="flex-1 min-w-0">
-                        <p class="font-bold text-gray-800 text-sm">${n.title}</p>
-                        <p class="text-xs text-gray-500 mt-0.5 leading-relaxed">${n.body}</p>
+                        <p class="font-bold text-gray-800 text-sm">${esc(n.title)}</p>
+                        <p class="text-xs text-gray-500 mt-0.5 leading-relaxed">${esc(n.body)}</p>
                         <p class="text-[10px] text-gray-400 mt-1">${date}</p>
                     </div>
                     ${!n.is_read?'<span class="w-2.5 h-2.5 bg-sky-500 rounded-full shrink-0 mt-1.5"></span>':''}
@@ -5666,7 +5675,12 @@
         if (type==='success') { bg='bg-white border-l-4 border-green-500 text-gray-800 shadow-xl'; icon=`<svg class="w-5 h-5 text-green-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>`; }
         if (type==='warning') { bg='bg-white border-l-4 border-yellow-500 text-gray-800 shadow-xl'; icon=`<svg class="w-5 h-5 text-yellow-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>`; }
         toast.className = `flex items-start gap-3 px-4 py-3.5 rounded-2xl transform transition-all duration-300 translate-x-full max-w-[320px] ${bg} pointer-events-auto`;
-        toast.innerHTML = `${icon}<span class="font-semibold text-sm leading-snug">${message}</span>`;
+        // Icon je hardcoded SVG (důvěryhodný) — message se nastavuje přes textContent (XSS-safe)
+        toast.innerHTML = icon;
+        const _toastMsg = document.createElement('span');
+        _toastMsg.className = 'font-semibold text-sm leading-snug';
+        _toastMsg.textContent = message;
+        toast.appendChild(_toastMsg);
         container.appendChild(toast);
         requestAnimationFrame(() => toast.classList.remove('translate-x-full'));
         setTimeout(() => { toast.classList.add('opacity-0','translate-x-full'); setTimeout(()=>toast.remove(),300); }, 5000);
@@ -5686,8 +5700,8 @@
         if (newPrice > oldPrice) {
             auction.price = newPrice; auction.last_bidder_id = newBidder;
             if (window.currentUser && newBidder !== window.currentUser.id) {
-                if (auction.seller_id === window.currentUser.id) showToast(`Nový příhoz ${newPrice.toLocaleString('cs-CZ')} Kč na "${auction.title}"!`,'success');
-                else if (safeParse(localStorage.getItem('ft_local_bids'),{})[id]) showToast(`Byli jste překonáni v "${auction.title}"! Nová cena: ${newPrice.toLocaleString('cs-CZ')} Kč.`,'warning');
+                if (auction.seller_id === window.currentUser.id) showToast(`Nový příhoz ${newPrice.toLocaleString('cs-CZ')} Kč na "${_htmlDecode(auction.title)}"!`,'success');
+                else if (safeParse(localStorage.getItem('ft_local_bids'),{})[id]) showToast(`Byli jste překonáni v "${_htmlDecode(auction.title)}"! Nová cena: ${newPrice.toLocaleString('cs-CZ')} Kč.`,'warning');
             }
             const pEl = document.getElementById('price-'+id);
             const tEl = document.getElementById('total-'+id);
@@ -6223,6 +6237,7 @@
                 const h = window.location.hash;
                 if (isSeller && h.includes('prodejce-objednavky')) window.loadProdejceObjednavky();
                 if (isBuyer  && h.includes('moje-objednavky'))     window.loadMojeObjednavky();
+                if (isBuyer  && h.includes('platba-objednavky/'+o.id)) _loadPlatbaObjednavky(o.id);
             })
             .subscribe();
 
