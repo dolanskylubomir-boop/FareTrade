@@ -5207,22 +5207,37 @@
                 const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_disputed_orders`, { method: 'POST', headers: hdrs, body: '{}' });
                 const rows = await r.json();
                 if (!Array.isArray(rows) || !rows.length) { container.innerHTML = '<p class="text-gray-400 text-center py-8">Žádné aktivní spory. ✓</p>'; return; }
-                container.innerHTML = rows.map(o => `<div class="border border-gray-100 rounded-2xl p-4 mb-3 fade-in">
+                const reasonLabel = { wrong_item:'Jiné zboží', damaged:'Poškozené', not_arrived:'Nedorazilo', missing_parts:'Chybí části', condition_mismatch:'Stav neodpovídá', other:'Jiný problém' };
+                const photoGrid = (photos, label) => {
+                    if (!photos?.length) return `<p class="text-xs text-gray-400 italic">${label}: žádné fotky</p>`;
+                    return `<p class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">${label}</p><div class="flex gap-2 flex-wrap mb-3">${photos.map(u=>`<a href="${u}" target="_blank"><img src="${u}" class="w-20 h-20 rounded-xl object-cover border border-gray-200 hover:opacity-80 transition-opacity cursor-zoom-in"></a>`).join('')}</div>`;
+                };
+                container.innerHTML = rows.map(o => {
+                    const shipPhotos = Array.isArray(o.shipping_photos) ? o.shipping_photos : (o.shipping_photos ? JSON.parse(o.shipping_photos) : []);
+                    const evPhotos   = Array.isArray(o.evidence_photos)  ? o.evidence_photos  : (o.evidence_photos  ? JSON.parse(o.evidence_photos)  : []);
+                    return `<div class="border border-red-100 bg-red-50/30 rounded-2xl p-4 mb-4 fade-in">
                     <div class="flex items-start justify-between gap-3 mb-3">
                         <div>
-                            <p class="font-mono text-xs text-gray-400 mb-0.5">#${o.order_id.substring(0,8).toUpperCase()}</p>
+                            <p class="font-mono text-xs text-gray-400 mb-0.5">#${o.order_id.substring(0,8).toUpperCase()} · ${new Date(o.dispute_created_at||o.created_at).toLocaleDateString('cs-CZ')}</p>
                             <p class="font-bold text-gray-800 text-sm">${o.item_titles || '—'}</p>
                             <p class="text-xs text-gray-500 mt-0.5">Kupující: <strong>${o.buyer_name}</strong> · Prodejce: <strong>${o.seller_name}</strong></p>
                         </div>
                         <span class="font-extrabold text-base text-red-600 shrink-0 whitespace-nowrap">${Number(o.total).toLocaleString('cs-CZ')} Kč</span>
                     </div>
-                    <div class="flex gap-2 flex-wrap">
-                        <button onclick="adminResolveDispute('${o.order_id}','${o.buyer_id}','${o.seller_id}','refund_buyer',false,false)" class="bg-sky-500 hover:bg-sky-600 text-white font-bold px-3 py-2 rounded-xl text-xs transition-colors">↩️ Vrátit kupujícímu</button>
-                        <button onclick="adminResolveDispute('${o.order_id}','${o.buyer_id}','${o.seller_id}','release_seller',false,false)" class="bg-purple-500 hover:bg-purple-600 text-white font-bold px-3 py-2 rounded-xl text-xs transition-colors">✓ Vyplatit prodejci</button>
-                        <button onclick="adminResolveDispute('${o.order_id}','${o.buyer_id}','${o.seller_id}','refund_buyer',true,false)" class="bg-red-50 hover:bg-red-500 hover:text-white border border-red-200 text-red-600 font-bold px-3 py-2 rounded-xl text-xs transition-colors whitespace-nowrap">↩️ Vrátit + BAN prodejce</button>
-                        <button onclick="adminResolveDispute('${o.order_id}','${o.buyer_id}','${o.seller_id}','release_seller',false,true)" class="bg-red-50 hover:bg-red-500 hover:text-white border border-red-200 text-red-600 font-bold px-3 py-2 rounded-xl text-xs transition-colors whitespace-nowrap">✓ Vyplatit + BAN kupujícího</button>
+                    <div class="bg-white rounded-xl p-3 mb-3 border border-red-100">
+                        <p class="text-xs font-bold text-red-700 mb-1">⚖️ Důvod: ${reasonLabel[o.dispute_reason] || o.dispute_reason || '—'}</p>
+                        <p class="text-sm text-gray-700">${o.dispute_description || '—'}</p>
                     </div>
-                </div>`).join('');
+                    ${photoGrid(shipPhotos, '📦 Fotky zásilky od prodejce')}
+                    ${photoGrid(evPhotos, '📷 Důkazy kupujícího')}
+                    <div class="flex gap-2 flex-wrap pt-2 border-t border-red-100 mt-2">
+                        <button onclick="adminResolveDispute('${o.order_id}','${o.buyer_id}','${o.seller_id}','${o.dispute_id}','refund_buyer',false,false)" class="bg-sky-500 hover:bg-sky-600 text-white font-bold px-3 py-2 rounded-xl text-xs transition-colors">↩️ Vrátit kupujícímu</button>
+                        <button onclick="adminResolveDispute('${o.order_id}','${o.buyer_id}','${o.seller_id}','${o.dispute_id}','release_seller',false,false)" class="bg-purple-500 hover:bg-purple-600 text-white font-bold px-3 py-2 rounded-xl text-xs transition-colors">✓ Vyplatit prodejci</button>
+                        <button onclick="adminResolveDispute('${o.order_id}','${o.buyer_id}','${o.seller_id}','${o.dispute_id}','refund_buyer',true,false)" class="bg-red-50 hover:bg-red-500 hover:text-white border border-red-200 text-red-600 font-bold px-3 py-2 rounded-xl text-xs transition-colors whitespace-nowrap">↩️ Vrátit + BAN prodejce</button>
+                        <button onclick="adminResolveDispute('${o.order_id}','${o.buyer_id}','${o.seller_id}','${o.dispute_id}','release_seller',false,true)" class="bg-red-50 hover:bg-red-500 hover:text-white border border-red-200 text-red-600 font-bold px-3 py-2 rounded-xl text-xs transition-colors whitespace-nowrap">✓ Vyplatit + BAN kupujícího</button>
+                    </div>
+                </div>`;
+                }).join('');
             }
             else if (tab === 'ban') {
                 container.innerHTML = `<div class="max-w-md fade-in">
@@ -5262,7 +5277,7 @@
         } catch(e) { showToast('Chyba: ' + e.message, 'error'); }
     };
 
-    window.adminResolveDispute = async function(orderId, buyerId, sellerId, outcome, banSeller, banBuyer) {
+    window.adminResolveDispute = async function(orderId, buyerId, sellerId, disputeId, outcome, banSeller, banBuyer) {
         const labels = { refund_buyer: 'Vrátit peníze kupujícímu', release_seller: 'Vyplatit prodejci' };
         const banNote = banSeller ? ' + BAN prodejce' : (banBuyer ? ' + BAN kupujícího' : '');
         if (!confirm(`Opravdu: ${labels[outcome]}${banNote}?`)) return;
@@ -5271,7 +5286,7 @@
         const banUserId = banSeller ? sellerId : (banBuyer ? buyerId : null);
         const banReason = banSeller ? 'Spor rozhodnut ve prospěch kupujícího — prokázán podvod prodejce' : (banBuyer ? 'Spor rozhodnut ve prospěch prodejce — zneužití reklamačního procesu' : null);
         try {
-            const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/admin_resolve_dispute`, { method: 'POST', headers: hdrs, body: JSON.stringify({ p_order_id: orderId, p_outcome: outcome, p_ban_user_id: banUserId, p_ban_reason: banReason }) });
+            const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/admin_resolve_dispute`, { method: 'POST', headers: hdrs, body: JSON.stringify({ p_order_id: orderId, p_dispute_id: disputeId, p_outcome: outcome, p_ban_user_id: banUserId, p_ban_reason: banReason }) });
             if (!r.ok) throw new Error(await r.text());
             showToast('Spor byl vyřešen.', 'success');
             setTimeout(() => window._loadAdminTab('spory'), 500);
