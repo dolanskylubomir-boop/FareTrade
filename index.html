@@ -1490,6 +1490,31 @@
     // ──────────────────────────────────────────────────────────────
     // SPRÁVA INZERÁTŮ
     // ──────────────────────────────────────────────────────────────
+
+    // Převede surový DB řádek z pevna_cena na formát kompatibilní s dataPevnaCena[]
+    function _mapRawPevnaCena(raw) {
+        const imgSrc = (raw.images && raw.images[0]) ? safeUrl(raw.images[0]) : FALLBACK_IMG;
+        const pm = window._profilesMap || {};
+        const sp = pm[raw.seller_id] || {};
+        const sellerName = esc((sp.display_name || '').trim() || ((sp.first_name || '') + ' ' + (sp.last_name || '')).trim()) || 'Uživatel tržiště';
+        return {
+            id: esc(raw.id), seller_id: raw.seller_id, type: 'pevna_cena',
+            title: esc(raw.title), price: Number(raw.price) || 0,
+            category: esc(raw.category || ''), subcategory: esc(raw.subcategory || ''),
+            img: imgSrc,
+            images: (Array.isArray(raw.images) && raw.images.length ? raw.images : [imgSrc]).map(u => safeUrl(u)),
+            condition: esc(raw.condition || ''), brand: esc(raw.brand || ''),
+            seller: sellerName, verified: sp.is_verified === true, rating: Number(sp.rating) || 0,
+            description: esc(raw.description || ''), endTime: raw.expires_at,
+            is_top: !!(raw.is_top && raw.top_expires_at && new Date(raw.top_expires_at) > new Date()),
+            top_expires_at: raw.top_expires_at || null, top_paid_kc: raw.top_paid_kc || 0,
+            views_count: raw.views_count || 0,
+            reserved_until: raw.reserved_until ? new Date(raw.reserved_until).getTime() : null,
+            created_at: raw.created_at ? new Date(raw.created_at).getTime() : 0,
+            db_status: raw.status || 'aktivní', condition_notes: raw.condition_notes || null
+        };
+    }
+
     window.reactivateItem = async function(itemId) {
         if (!confirm('Znovu aktivovat tento inzerát? Bude viditelný pro kupující.')) return;
         const token = await _ensureValidToken();
@@ -1499,13 +1524,13 @@
             body: JSON.stringify({ status: 'aktivní', expires_at: new Date(Date.now() + 30*24*60*60*1000).toISOString() })
         });
         if (r.ok) {
-            // Načti čerstvá data z DB a přidej zpět do paměti
+            // Načti čerstvá data z DB, správně zpracuj a přidej zpět do paměti
             const rh = { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${token}` };
             try {
                 const fr = await fetch(`${SUPABASE_URL}/rest/v1/pevna_cena?id=eq.${itemId}&select=*`, { headers: rh });
                 const rows = await fr.json();
                 if (Array.isArray(rows) && rows.length) {
-                    const fresh = { ...rows[0], db_status: 'aktivní', type: 'pevna_cena' };
+                    const fresh = _mapRawPevnaCena(rows[0]);
                     const existingIdx = dataPevnaCena.findIndex(i => i.id === itemId);
                     if (existingIdx === -1) dataPevnaCena.push(fresh);
                     else dataPevnaCena[existingIdx] = fresh;
@@ -5985,8 +6010,8 @@
                     if (h.includes('pevna-cena-detail/'+u.id)) navigate('pevna-cena-detail', u.id);
                     if (h.includes('profil')) navigate('profil/inzeraty');
                 } else if (u.status === 'aktivní') {
-                    // Položka byla odstraněna z paměti (vrácení po sporu) — přidej zpět
-                    dataPevnaCena.push({ ...u, db_status: 'aktivní', type: 'pevna_cena' });
+                    // Položka byla odstraněna z paměti (vrácení po sporu) — přidej zpět se správným mapováním
+                    dataPevnaCena.push(_mapRawPevnaCena(u));
                     const h = window.location.hash;
                     if (h.includes('pevna-cena')&&!h.includes('detail')) navigate('pevna-cena', _currentCategory);
                     if (h.includes('profil')) navigate('profil/inzeraty');
