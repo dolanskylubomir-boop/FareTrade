@@ -1931,9 +1931,11 @@
                 },
                 body: JSON.stringify({ user_id: window.currentUser.id, subscription: sub.toJSON() })
             });
-            if (manual) {
-                if (r.ok || r.status === 201 || r.status === 204) showToast('Notifikace zapnuty ✅', 'success');
-                else showToast('Chyba uložení subscription: ' + r.status, 'warning');
+            if (r.ok || r.status === 201 || r.status === 204) {
+                if (manual) showToast('Notifikace zapnuty ✅', 'success');
+                window.updatePushBtn && window.updatePushBtn();
+            } else {
+                if (manual) showToast('Chyba uložení subscription: ' + r.status, 'warning');
             }
         } catch(e) {
             if (manual) showToast('Chyba: ' + e.message, 'warning');
@@ -1942,6 +1944,92 @@
     }
 
     window.manualSubscribePush = function() { _subscribeToPush(true); };
+
+    window.updatePushBtn = async function() {
+        const btn = document.getElementById('push-toggle-btn');
+        if (!btn) return;
+        if (!('Notification' in window) || !('serviceWorker' in navigator) || !('PushManager' in window)) {
+            btn.textContent = 'Nepodporováno';
+            btn.disabled = true;
+            btn.className = 'bg-gray-300 text-white font-bold text-sm px-4 py-2 rounded-xl cursor-not-allowed';
+            return;
+        }
+        try {
+            if (Notification.permission === 'granted') {
+                const reg = await navigator.serviceWorker.ready;
+                const sub = await reg.pushManager.getSubscription();
+                if (sub) {
+                    btn.textContent = '✅ Aktivovány';
+                    btn.className = 'bg-green-500 text-white font-bold text-sm px-4 py-2 rounded-xl cursor-default';
+                    btn.onclick = null;
+                    return;
+                }
+            }
+        } catch(e) {}
+        btn.textContent = 'Zapnout';
+        btn.className = 'bg-sky-500 hover:bg-sky-600 active:scale-95 text-white font-bold text-sm px-4 py-2 rounded-xl transition-all';
+        btn.onclick = function() { manualSubscribePush(); };
+    };
+
+    window.showPushHelpModal = function() {
+        const existing = document.getElementById('push-help-modal');
+        if (existing) { existing.remove(); return; }
+        const modal = document.createElement('div');
+        modal.id = 'push-help-modal';
+        modal.className = 'fixed inset-0 z-[9999] flex items-end sm:items-center justify-center p-4 bg-black/50 backdrop-blur-sm';
+        modal.innerHTML = `
+        <div class="bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden max-h-[85vh] flex flex-col">
+            <div class="flex items-center justify-between p-5 border-b border-gray-100 shrink-0">
+                <div>
+                    <p class="font-extrabold text-gray-800 text-lg">🔔 Jak povolit notifikace</p>
+                    <p class="text-xs text-gray-400 mt-0.5">Návod podle vašeho zařízení</p>
+                </div>
+                <button onclick="document.getElementById('push-help-modal').remove()" class="w-9 h-9 rounded-xl bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors text-gray-500 font-bold text-lg">×</button>
+            </div>
+            <div class="overflow-y-auto p-5 flex flex-col gap-4">
+                <div class="bg-blue-50 border border-blue-100 rounded-2xl p-4">
+                    <p class="font-bold text-blue-800 text-sm mb-2">🖥️ Chrome / Edge (počítač)</p>
+                    <ol class="text-xs text-blue-700 flex flex-col gap-1.5 list-decimal list-inside">
+                        <li>Klikněte na <strong>ikonu zámku 🔒</strong> vlevo v adresním řádku</li>
+                        <li>Vyberte <strong>Nastavení webu</strong></li>
+                        <li>Najděte <strong>Oznámení</strong> a nastavte na <strong>Povolit</strong></li>
+                        <li>Vraťte se na stránku a stiskněte <strong>Zapnout</strong></li>
+                    </ol>
+                </div>
+                <div class="bg-green-50 border border-green-100 rounded-2xl p-4">
+                    <p class="font-bold text-green-800 text-sm mb-2">📱 Android (Chrome)</p>
+                    <ol class="text-xs text-green-700 flex flex-col gap-1.5 list-decimal list-inside">
+                        <li>Při prvním otevření stránky se zobrazí <strong>výzva k povolení</strong> — klepněte na <strong>Povolit</strong></li>
+                        <li>Pokud jste odmítli: otevřete Chrome → tři tečky → <strong>Nastavení</strong></li>
+                        <li>Nastavení webu → <strong>Oznámení</strong> → najděte tuto stránku → <strong>Povolit</strong></li>
+                        <li>Vraťte se a klepněte <strong>Zapnout</strong></li>
+                    </ol>
+                </div>
+                <div class="bg-gray-50 border border-gray-200 rounded-2xl p-4">
+                    <p class="font-bold text-gray-800 text-sm mb-2">🍎 iPhone / iPad (Safari)</p>
+                    <ol class="text-xs text-gray-600 flex flex-col gap-1.5 list-decimal list-inside">
+                        <li>Vyžaduje <strong>iOS 16.4 nebo novější</strong></li>
+                        <li>Otevřete stránku v Safari a klepněte na <strong>Sdílet ↑</strong></li>
+                        <li>Zvolte <strong>Přidat na plochu</strong> (Add to Home Screen)</li>
+                        <li>Otevřete aplikaci z plochy</li>
+                        <li>Klepněte <strong>Zapnout</strong> a povolte notifikace</li>
+                        <li>Nastavení → <strong>FairTrade</strong> → <strong>Oznámení → Povolit</strong></li>
+                    </ol>
+                </div>
+                <div class="bg-orange-50 border border-orange-100 rounded-2xl p-4">
+                    <p class="font-bold text-orange-800 text-sm mb-2">🦊 Firefox (počítač)</p>
+                    <ol class="text-xs text-orange-700 flex flex-col gap-1.5 list-decimal list-inside">
+                        <li>Klikněte na <strong>ikonu zámku 🔒</strong> v adresním řádku</li>
+                        <li>Klikněte na šipku → <strong>Více informací</strong></li>
+                        <li>Záložka <strong>Oprávnění</strong> → <strong>Zobrazovat oznámení → Povolit</strong></li>
+                        <li>Vraťte se a stiskněte <strong>Zapnout</strong></li>
+                    </ol>
+                </div>
+            </div>
+        </div>`;
+        modal.addEventListener('click', function(e) { if (e.target === modal) modal.remove(); });
+        document.body.appendChild(modal);
+    };
     // ────────────────────────────────────────────────────────────────
 
     window.handleAdSubmit = async function(e) {
@@ -2291,15 +2379,21 @@
     };
 
     window.renderProfileTabContent = function(tab) {
-        if (tab === 'kyc') return `
+        if (tab === 'kyc') {
+            setTimeout(function() { window.updatePushBtn && window.updatePushBtn(); }, 150);
+            return `
             <div class="flex items-center justify-between mb-6 fade-in">
                 <h3 class="text-xl font-bold text-gray-800">Osobní a KYC údaje</h3>
                 <span id="kyc-status-badge" class="bg-gray-100 text-gray-600 text-xs px-3 py-1 rounded-full font-bold uppercase tracking-wider">Načítám…</span>
             </div>
             <div class="bg-sky-50 border border-sky-200 rounded-2xl p-4 mb-5 flex items-center justify-between gap-3 fade-in">
                 <div><p class="font-bold text-sky-800 text-sm">🔔 Push notifikace</p><p class="text-xs text-sky-600 mt-0.5">Dostávej oznámení i při zavřené aplikaci.</p></div>
-                <button onclick="manualSubscribePush()" class="shrink-0 bg-sky-500 hover:bg-sky-600 active:scale-95 text-white font-bold text-sm px-4 py-2 rounded-xl transition-all">Zapnout</button>
-            </div>
+                <div class="flex items-center gap-2 shrink-0">
+                    <button id="push-toggle-btn" onclick="manualSubscribePush()" class="bg-sky-500 hover:bg-sky-600 active:scale-95 text-white font-bold text-sm px-4 py-2 rounded-xl transition-all">Zapnout</button>
+                    <button onclick="showPushHelpModal()" class="w-8 h-8 rounded-xl bg-sky-100 hover:bg-sky-200 text-sky-600 font-bold text-sm flex items-center justify-center transition-colors" title="Jak povolit notifikace">?</button>
+                </div>
+            </div>`
+            + `
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-5 bg-gray-50/50 p-5 rounded-3xl border border-gray-100 mb-4 fade-in">
                 <div class="sm:col-span-2"><p class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Zobrazované jméno</p><p id="kyc-display-dname" class="font-bold text-sky-600 text-xl">⌛</p></div>
                 <div class="border-t border-gray-100 pt-4"><p class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Skutečné jméno</p><p id="kyc-display-name" class="font-bold text-gray-800 text-lg">⌛</p></div>
@@ -2311,6 +2405,7 @@
                 <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                 <span>Skutečné osobní údaje jsou bezpečně šifrovány. Zákazníci uvidí pouze Vaše Zobrazované jméno.</span>
             </div>`;
+        }
 
         if (tab === 'transakce') {
             setTimeout(() => loadTransakceTab(), 0);
