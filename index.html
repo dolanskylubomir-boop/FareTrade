@@ -1521,7 +1521,7 @@
             img: imgSrc,
             images: (Array.isArray(raw.images) && raw.images.length ? raw.images : [imgSrc]).map(u => safeUrl(u)),
             condition: esc(raw.condition || ''), brand: esc(raw.brand || ''),
-            seller: sellerName, verified: sp.is_verified === true, rating: Number(sp.rating) || 0,
+            seller: sellerName, verified: sp.is_verified === true, rating: Number(sp.rating) || 0, rating_count: Number(sp.rating_count) || 0,
             description: esc(raw.description || ''), endTime: raw.expires_at,
             is_top: !!(raw.is_top && raw.top_expires_at && new Date(raw.top_expires_at) > new Date()),
             top_expires_at: raw.top_expires_at || null, top_paid_kc: raw.top_paid_kc || 0,
@@ -1778,7 +1778,7 @@
                 const p = profilesMap[sellerId];
                 if (!p) return { name:'Neznámý prodejce', verified:false, rating:0 };
                 let name = p.display_name?.trim() || `${p.first_name||''} ${p.last_name||''}`.trim();
-                return { name: esc(name) || 'Uživatel tržiště', verified: p.is_verified===true, rating: Number(p.rating)||0 };
+                return { name: esc(name) || 'Uživatel tržiště', verified: p.is_verified===true, rating: Number(p.rating)||0, rating_count: Number(p.rating_count)||0 };
             };
 
             const getProfileName = id => {
@@ -1813,7 +1813,7 @@
                         images: (item.images || [safeImage(item)]).map(u => safeUrl(u)),
                         condition: esc(item.condition), brand: esc(item.brand),
                         has360: item.has_360 || false, seller: seller.name,
-                        verified: seller.verified, rating: seller.rating,
+                        verified: seller.verified, rating: seller.rating, rating_count: seller.rating_count || 0,
                         description: esc(item.description), endTime: item.end_time,
                         last_bidder_id: lastBidderId, last_bidder_name: lastBidderId ? getProfileName(lastBidderId) : null,
                         is_top: checkTopExpiry(item), top_expires_at: item.top_expires_at,
@@ -1833,7 +1833,7 @@
                         images: (item.images || [safeImage(item)]).map(u => safeUrl(u)),
                         condition: esc(item.condition), brand: esc(item.brand),
                         has360: item.has_360 || false, seller: seller.name,
-                        verified: seller.verified, rating: seller.rating,
+                        verified: seller.verified, rating: seller.rating, rating_count: seller.rating_count || 0,
                         description: esc(item.description), endTime: item.expires_at,
                         is_top: checkTopExpiry(item), top_expires_at: item.top_expires_at,
                         top_paid_kc: item.top_paid_kc || 0, views_count: item.views_count || 0,
@@ -2520,7 +2520,7 @@
                 has360: adData.has_360 || false,
                 seller: esc(sellerProfile.display_name || user.email?.split('@')[0] || ''),
                 verified: sellerProfile.kyc_status === 'verified',
-                rating: sellerProfile.rating || 0,
+                rating: sellerProfile.rating || 0, rating_count: sellerProfile.rating_count || 0,
                 description: esc(adData.description || ''),
                 endTime: isAuction ? adData.end_time : adData.expires_at,
                 last_bidder_id: null, last_bidder_name: null,
@@ -3938,7 +3938,7 @@
                             <div class="w-10 h-10 rounded-full bg-sky-200 flex items-center justify-center text-sky-700 font-bold shrink-0">${item.seller.charAt(0).toUpperCase()}</div>
                             <div>
                                 <p class="font-bold text-gray-800 text-sm flex items-center gap-1">${item.seller}${item.verified?`<svg class="w-4 h-4 text-sky-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>`:''}</p>
-                                <p class="text-xs ${timeInfo.urgent?'text-red-600 font-bold countdown-urgent':timeInfo.urgent?'text-red-500':'text-gray-500'}">⏱ ${timeInfo.text} · ⭐ ${item.rating}/5 · 👁 ${item.views_count||0} zobrazení</p>
+                                <p class="text-xs ${timeInfo.urgent?'text-red-600 font-bold countdown-urgent':timeInfo.urgent?'text-red-500':'text-gray-500'}">⏱ ${timeInfo.text} · ${item.rating_count > 0 ? `⭐ ${Number(item.rating).toFixed(1)} (${item.rating_count}x)` : '⭐ Nový prodejce'} · 👁 ${item.views_count||0}</p>
                             </div>
                         </div>
                         <div class="mb-6">
@@ -4047,7 +4047,7 @@
                             <div class="w-10 h-10 rounded-full bg-pink-200 flex items-center justify-center text-pink-700 font-bold shrink-0">${item.seller.charAt(0).toUpperCase()}</div>
                             <div>
                                 <p class="font-bold text-gray-800 text-sm flex items-center gap-1">${item.seller}${item.verified?`<svg class="w-4 h-4 text-sky-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>`:''}</p>
-                                <p class="text-xs text-gray-400">⭐ ${item.rating}/5 · 👁 ${item.views_count||0} zobrazení</p>
+                                <p class="text-xs text-gray-400">${item.rating_count > 0 ? `⭐ ${Number(item.rating).toFixed(1)} (${item.rating_count}x)` : '⭐ Nový prodejce'} · 👁 ${item.views_count||0}</p>
                             </div>
                         </div>
                         <div class="mb-5">
@@ -4267,7 +4267,7 @@
         }
     };
 
-    window.confirmDelivery = async function(orderId) {
+    window.confirmDelivery = async function(orderId, sellerId) {
         if (!confirm('Potvrzujete přijetí zásilky? Tímto uvolníte platbu prodejci.')) return;
         const token = await _ensureValidToken();
         const hdrs = { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' };
@@ -4278,6 +4278,7 @@
             if (document.getElementById('profil-seller-obj-content')) _loadSellerObjednavkyTab();
             if (document.getElementById('moje-obj-content')) window.loadMojeObjednavky && window.loadMojeObjednavky();
         }, 600);
+        if (sellerId) setTimeout(() => window._openRatingModal(orderId, sellerId), 1400);
     };
 
     // ── Dokumentace zásilky ──────────────────────────────────────────
@@ -5015,7 +5016,7 @@
                         <div class="flex flex-col sm:flex-row gap-3 justify-between items-start sm:items-center pt-3 border-t border-gray-100">
                             <div class="text-xs text-gray-400 flex flex-col gap-0.5"><span>${carr.icon} ${carr.name} · doprava: ${Number(o.shipping_fee||0).toLocaleString('cs-CZ')} Kč</span>${o.tracking_number ? _trackingHtml(o.carrier, o.tracking_number) : ''}</div>
                             <div class="flex items-center gap-3 shrink-0"><span class="font-extrabold text-lg text-pastel-text whitespace-nowrap">${Number(o.total).toLocaleString('cs-CZ')} Kč</span>
-                                ${o.status==='shipped'?`<div class="flex gap-2 flex-wrap justify-end"><button onclick="openDisputeModal('${o.id}')" class="bg-white border border-red-200 hover:bg-red-50 text-red-500 font-bold px-3 py-2 rounded-xl text-xs transition-colors whitespace-nowrap">⚖️ Spor</button><button onclick="confirmDelivery('${o.id}')" class="bg-green-500 hover:bg-green-600 text-white font-bold px-4 py-2 rounded-xl text-sm transition-colors whitespace-nowrap">✓ Doručeno</button></div>`:''}
+                                ${o.status==='shipped'?`<div class="flex gap-2 flex-wrap justify-end"><button onclick="openDisputeModal('${o.id}')" class="bg-white border border-red-200 hover:bg-red-50 text-red-500 font-bold px-3 py-2 rounded-xl text-xs transition-colors whitespace-nowrap">⚖️ Spor</button><button onclick="confirmDelivery('${o.id}','${o.seller_id}')" class="bg-green-500 hover:bg-green-600 text-white font-bold px-4 py-2 rounded-xl text-sm transition-colors whitespace-nowrap">✓ Doručeno</button></div>`:''}
                                 ${o.status==='dispute'?`<span class="text-xs bg-red-100 text-red-700 px-3 py-1.5 rounded-xl font-semibold whitespace-nowrap">⚖️ Spor — probíhá šetření</span>`:''}
                                 ${(o.status==='pending'||o.status==='created')&&!isAucOrder?`<button onclick="navigate('platba-objednavky','${o.id}')" class="bg-pink-500 hover:bg-pink-600 active:scale-95 text-white font-bold px-4 py-2.5 rounded-xl text-sm transition-all whitespace-nowrap flex items-center gap-2">💳 Zaplatit →</button>`:''}
                                 ${o.status==='completed'?`<span class="text-xs bg-green-100 text-green-700 px-3 py-1.5 rounded-xl font-semibold whitespace-nowrap">✓ Dokončeno</span>`:''}
@@ -5056,7 +5057,7 @@
                     <div class="flex items-center justify-between pt-2 border-t border-gray-100">
                         <span class="text-xs text-gray-400">${carr.icon} ${carr.name} · ${Number(o.shipping_fee||0).toLocaleString('cs-CZ')} Kč</span>
                         <div class="flex items-center gap-2"><span class="font-extrabold text-sm text-pastel-text">${Number(o.total).toLocaleString('cs-CZ')} Kč</span>
-                            ${o.status==='shipped'?`<div class="flex gap-1.5"><button onclick="openDisputeModal('${o.id}')" class="bg-white border border-red-200 hover:bg-red-50 text-red-500 font-bold px-2 py-1.5 rounded-xl text-xs transition-colors">⚖️ Spor</button><button onclick="confirmDelivery('${o.id}')" class="bg-green-500 hover:bg-green-600 text-white font-bold px-3 py-1.5 rounded-xl text-xs transition-colors">✓ Doručeno</button></div>`:''}
+                            ${o.status==='shipped'?`<div class="flex gap-1.5"><button onclick="openDisputeModal('${o.id}')" class="bg-white border border-red-200 hover:bg-red-50 text-red-500 font-bold px-2 py-1.5 rounded-xl text-xs transition-colors">⚖️ Spor</button><button onclick="confirmDelivery('${o.id}','${o.seller_id}')" class="bg-green-500 hover:bg-green-600 text-white font-bold px-3 py-1.5 rounded-xl text-xs transition-colors">✓ Doručeno</button></div>`:''}
                             ${!expired&&(o.status==='pending'||o.status==='created')?`<div class="flex gap-1.5"><button onclick="navigate('moje-objednavky')" class="text-xs bg-amber-50 text-amber-700 border border-amber-200 px-3 py-1.5 rounded-xl font-semibold hover:bg-amber-100 transition-colors">Zaplatit →</button><button onclick="_testPay('${o.id}')" class="text-xs bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 rounded-xl font-bold transition-colors">🧪 TEST zaplatit</button></div>`:''}
                             ${expired?`<button onclick="navigate('pevna-cena-detail/${firstItemId}')" class="text-xs bg-pink-50 text-pink-600 border border-pink-200 px-3 py-1.5 rounded-xl font-semibold hover:bg-pink-100 transition-colors">Zkusit znovu →</button>`:''}
                         </div>
@@ -6282,6 +6283,67 @@
     };
 
     // ──────────────────────────────────────────────────────────────
+    // HODNOCENÍ PRODEJCE
+    // ──────────────────────────────────────────────────────────────
+    let _ratingOrderId = null, _ratingSellerId = null, _ratingValue = 0;
+    const _RATING_LABELS = ['','Velmi špatné ☹','Špatné','Průměrné','Dobré','Výborné ☺'];
+
+    window._openRatingModal = function(orderId, sellerId) {
+        _ratingOrderId = orderId; _ratingSellerId = sellerId; _ratingValue = 0;
+        document.querySelectorAll('.rating-star').forEach(s => { s.style.color = '#d1d5db'; });
+        const lbl = document.getElementById('rating-star-label');
+        if (lbl) lbl.textContent = 'Vyberte počet hvězd';
+        const btn = document.getElementById('rating-submit-btn');
+        if (btn) { btn.disabled = true; btn.textContent = 'Odeslat hodnocení'; }
+        const ta = document.getElementById('rating-comment');
+        if (ta) ta.value = '';
+        const m = document.getElementById('modal-rating');
+        if (m) { m.classList.remove('hidden'); document.body.style.overflow = 'hidden'; }
+    };
+
+    window._closeRatingModal = function() {
+        const m = document.getElementById('modal-rating');
+        if (m) m.classList.add('hidden');
+        document.body.style.overflow = '';
+    };
+
+    window._setRatingStar = function(n) {
+        _ratingValue = n;
+        document.querySelectorAll('.rating-star').forEach(s => {
+            s.style.color = parseInt(s.getAttribute('data-star'), 10) <= n ? '#facc15' : '#d1d5db';
+        });
+        const lbl = document.getElementById('rating-star-label');
+        if (lbl) lbl.textContent = _RATING_LABELS[n] || '';
+        const btn = document.getElementById('rating-submit-btn');
+        if (btn) btn.disabled = false;
+    };
+
+    window._submitRating = async function() {
+        if (!_ratingValue || !_ratingOrderId || !_ratingSellerId) return;
+        const btn = document.getElementById('rating-submit-btn');
+        if (btn) { btn.disabled = true; btn.textContent = 'Odesílám…'; }
+        const comment = (document.getElementById('rating-comment')?.value || '').trim().substring(0, 500);
+        try {
+            const token = await _ensureValidToken();
+            const hdrs = { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' };
+            const r = await fetch(`${SUPABASE_URL}/rest/v1/reviews`, {
+                method: 'POST', headers: hdrs,
+                body: JSON.stringify({ order_id: _ratingOrderId, reviewer_id: window.currentUser.id, seller_id: _ratingSellerId, rating: _ratingValue, comment })
+            });
+            if (!r.ok) {
+                const e = await r.json().catch(() => ({}));
+                if ((e.code || '') === '23505') showToast('Tuto objednávku jste již hodnotili.', 'warning');
+                else showToast('Chyba při ukládání hodnocení.', 'error');
+            } else {
+                showToast('Děkujeme za hodnocení! Pomáhá ostatním kupujícím.', 'success', 5000);
+            }
+        } catch(e) {
+            showToast('Chyba sítě — hodnocení nebylo uloženo.', 'error');
+        }
+        window._closeRatingModal();
+    };
+
+    // ──────────────────────────────────────────────────────────────
     // PŘÍHOZ
     // ──────────────────────────────────────────────────────────────
     window.placeBid = async function(id, amount) {
@@ -6456,6 +6518,39 @@
     <button id="ship-docs-submit-btn" onclick="submitShipDocs()" class="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3.5 rounded-2xl transition-colors">
       Potvrdit odeslání zásilky
     </button>
+  </div>
+</div>
+
+<!-- ══ MODAL: Hodnocení prodejce ══════════════════════════════════════════ -->
+<div id="modal-rating" class="hidden fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+  <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" onclick="_closeRatingModal()"></div>
+  <div class="relative bg-white w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl shadow-2xl p-6 sm:p-8" onclick="event.stopPropagation()">
+    <div class="flex items-center justify-between mb-2">
+      <h3 class="text-lg font-extrabold text-gray-800">⭐ Ohodnoťte prodejce</h3>
+      <button onclick="_closeRatingModal()" class="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 hover:bg-gray-200 transition-colors">✕</button>
+    </div>
+    <p class="text-sm text-gray-400 mb-6">Vaše hodnocení pomáhá ostatním kupujícím rozhodnout se.</p>
+
+    <!-- Hvězdy -->
+    <div class="flex justify-center gap-2 mb-3">
+      <button onclick="_setRatingStar(1)" data-star="1" class="rating-star text-5xl transition-transform hover:scale-110 active:scale-95 leading-none" style="color:#d1d5db">★</button>
+      <button onclick="_setRatingStar(2)" data-star="2" class="rating-star text-5xl transition-transform hover:scale-110 active:scale-95 leading-none" style="color:#d1d5db">★</button>
+      <button onclick="_setRatingStar(3)" data-star="3" class="rating-star text-5xl transition-transform hover:scale-110 active:scale-95 leading-none" style="color:#d1d5db">★</button>
+      <button onclick="_setRatingStar(4)" data-star="4" class="rating-star text-5xl transition-transform hover:scale-110 active:scale-95 leading-none" style="color:#d1d5db">★</button>
+      <button onclick="_setRatingStar(5)" data-star="5" class="rating-star text-5xl transition-transform hover:scale-110 active:scale-95 leading-none" style="color:#d1d5db">★</button>
+    </div>
+    <p id="rating-star-label" class="text-center text-sm font-semibold text-gray-400 mb-5 h-5">Vyberte počet hvězd</p>
+
+    <!-- Komentář -->
+    <div class="mb-6">
+      <label class="block text-xs font-bold text-gray-400 uppercase tracking-wide mb-1.5">Komentář <span class="font-normal">(nepovinný, max. 500 znaků)</span></label>
+      <textarea id="rating-comment" maxlength="500" rows="3" placeholder="Jak proběhl nákup? Bylo zboží v popsaném stavu?…" class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-yellow-400 resize-none transition-colors"></textarea>
+    </div>
+
+    <div class="flex gap-3">
+      <button onclick="_closeRatingModal()" class="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold py-3 rounded-xl transition-colors text-sm">Přeskočit</button>
+      <button onclick="_submitRating()" id="rating-submit-btn" disabled class="flex-1 bg-yellow-400 hover:bg-yellow-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold py-3 rounded-xl transition-colors text-sm">Odeslat hodnocení</button>
+    </div>
   </div>
 </div>
 
