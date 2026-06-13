@@ -3938,7 +3938,7 @@
                             <div class="w-10 h-10 rounded-full bg-sky-200 flex items-center justify-center text-sky-700 font-bold shrink-0">${item.seller.charAt(0).toUpperCase()}</div>
                             <div>
                                 <p class="font-bold text-gray-800 text-sm flex items-center gap-1">${item.seller}${item.verified?`<svg class="w-4 h-4 text-sky-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>`:''}</p>
-                                <p class="text-xs ${timeInfo.urgent?'text-red-600 font-bold countdown-urgent':timeInfo.urgent?'text-red-500':'text-gray-500'}">⏱ ${timeInfo.text} · ${item.rating_count > 0 ? `⭐ ${Number(item.rating).toFixed(1)} (${item.rating_count}x)` : '⭐ Nový prodejce'} · 👁 ${item.views_count||0}</p>
+                                <p class="text-xs ${timeInfo.urgent?'text-red-600 font-bold countdown-urgent':timeInfo.urgent?'text-red-500':'text-gray-500'}">⏱ ${timeInfo.text} · <button onclick="_showSellerReviews('${item.seller_id}','${item.seller.replace(/'/g,'')}')" class="underline decoration-dotted hover:text-yellow-500 transition-colors">${item.rating_count > 0 ? `⭐ ${Number(item.rating).toFixed(1)} (${item.rating_count}x hodnocení)` : '⭐ Nový prodejce'}</button> · 👁 ${item.views_count||0}</p>
                             </div>
                         </div>
                         <div class="mb-6">
@@ -4047,7 +4047,7 @@
                             <div class="w-10 h-10 rounded-full bg-pink-200 flex items-center justify-center text-pink-700 font-bold shrink-0">${item.seller.charAt(0).toUpperCase()}</div>
                             <div>
                                 <p class="font-bold text-gray-800 text-sm flex items-center gap-1">${item.seller}${item.verified?`<svg class="w-4 h-4 text-sky-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>`:''}</p>
-                                <p class="text-xs text-gray-400">${item.rating_count > 0 ? `⭐ ${Number(item.rating).toFixed(1)} (${item.rating_count}x)` : '⭐ Nový prodejce'} · 👁 ${item.views_count||0}</p>
+                                <p class="text-xs text-gray-400"><button onclick="_showSellerReviews('${item.seller_id}','${item.seller.replace(/'/g,'')}')" class="underline decoration-dotted hover:text-yellow-500 transition-colors">${item.rating_count > 0 ? `⭐ ${Number(item.rating).toFixed(1)} (${item.rating_count}x hodnocení)` : '⭐ Nový prodejce'}</button> · 👁 ${item.views_count||0}</p>
                             </div>
                         </div>
                         <div class="mb-5">
@@ -5513,6 +5513,84 @@
         showToast('Zpráva uložena.', 'success');
     };
 
+    // ── Hodnocení prodejce — zobrazení seznamu ───────────────────────
+    window._showSellerReviews = async function(sellerId, sellerName) {
+        const m = document.getElementById('modal-reviews');
+        const content = document.getElementById('reviews-modal-content');
+        const titleEl = document.getElementById('reviews-modal-title');
+        if (!m || !content) return;
+        if (titleEl) titleEl.textContent = 'Hodnocení: ' + (sellerName || 'prodejce');
+        content.innerHTML = '<div class="flex justify-center py-10"><div class="w-8 h-8 border-4 border-gray-200 border-t-yellow-400 rounded-full animate-spin"></div></div>';
+        m.classList.remove('hidden');
+        document.body.style.overflow = 'hidden';
+        try {
+            const hdrs = { 'apikey': SUPABASE_ANON_KEY };
+            const [rRes, pRes] = await Promise.all([
+                fetch(`${SUPABASE_URL}/rest/v1/reviews?seller_id=eq.${sellerId}&select=rating,comment,created_at,reviewer:profiles!reviewer_id(display_name,first_name,last_name)&order=created_at.desc`, { headers: hdrs }),
+                fetch(`${SUPABASE_URL}/rest/v1/profiles?id=eq.${sellerId}&select=display_name,first_name,last_name,rating,rating_count`, { headers: hdrs })
+            ]);
+            const reviews = await rRes.json();
+            const spArr   = await pRes.json();
+            const sp = spArr[0] || {};
+            const name = sp.display_name || `${sp.first_name||''} ${sp.last_name||''}`.trim() || sellerName || 'Prodejce';
+            if (titleEl) titleEl.textContent = 'Hodnocení: ' + name;
+            if (!Array.isArray(reviews) || !reviews.length) {
+                content.innerHTML = '<p class="text-gray-400 text-center py-12 text-sm">Tento prodejce zatím nemá žádná hodnocení.</p>';
+                return;
+            }
+            const avg   = Number(sp.rating) || (reviews.reduce((s,r)=>s+r.rating,0)/reviews.length);
+            const count = Number(sp.rating_count) || reviews.length;
+            const dist  = [5,4,3,2,1].map(n=>({ n, c: reviews.filter(r=>r.rating===n).length }));
+            const starsFilled = n => '★'.repeat(n)+'☆'.repeat(5-n);
+            content.innerHTML =
+                `<div class="flex items-center gap-5 p-5 bg-yellow-50 rounded-2xl mb-5 border border-yellow-100">
+                    <div class="text-center shrink-0">
+                        <div class="text-5xl font-extrabold text-yellow-500 leading-none">${Number(avg).toFixed(1)}</div>
+                        <div class="text-yellow-400 text-lg mt-1 tracking-widest">${starsFilled(Math.round(avg))}</div>
+                        <div class="text-xs text-gray-400 mt-1">${count} hodnocení</div>
+                    </div>
+                    <div class="flex-1 flex flex-col gap-1.5">
+                        ${dist.map(d=>`<div class="flex items-center gap-2 text-xs">
+                            <span class="text-gray-500 w-3 text-right shrink-0">${d.n}</span>
+                            <span class="text-yellow-400">★</span>
+                            <div class="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+                                <div class="h-full bg-yellow-400 rounded-full" style="width:${count>0?Math.round(d.c/count*100):0}%"></div>
+                            </div>
+                            <span class="text-gray-400 w-3 shrink-0">${d.c}</span>
+                        </div>`).join('')}
+                    </div>
+                </div>
+                <div class="flex flex-col gap-3">
+                    ${reviews.map(rev=>{
+                        const rp = rev.reviewer || {};
+                        const rName = esc(rp.display_name || `${rp.first_name||''} ${rp.last_name||''}`.trim() || 'Anonymní');
+                        const date  = new Date(rev.created_at).toLocaleDateString('cs-CZ',{day:'numeric',month:'long',year:'numeric'});
+                        return `<div class="border border-gray-100 rounded-2xl p-4">
+                            <div class="flex items-start gap-3">
+                                <div class="w-9 h-9 rounded-full bg-gradient-to-br from-sky-400 to-indigo-500 flex items-center justify-center text-white font-bold text-sm shrink-0">${rName.charAt(0).toUpperCase()}</div>
+                                <div class="flex-1 min-w-0">
+                                    <div class="flex items-center justify-between gap-2 flex-wrap mb-0.5">
+                                        <p class="font-semibold text-gray-800 text-sm">${rName}</p>
+                                        <span class="text-xs text-gray-400 shrink-0">${date}</span>
+                                    </div>
+                                    <p class="text-yellow-400 text-sm tracking-widest">${starsFilled(rev.rating)}</p>
+                                    ${rev.comment ? `<p class="text-sm text-gray-600 mt-1.5 leading-relaxed">${esc(rev.comment)}</p>` : ''}
+                                </div>
+                            </div>
+                        </div>`;
+                    }).join('')}
+                </div>`;
+        } catch(e) {
+            content.innerHTML = '<p class="text-red-500 text-center py-8 text-sm">Nepodařilo se načíst hodnocení.</p>';
+        }
+    };
+
+    window._closeReviewsModal = function() {
+        const m = document.getElementById('modal-reviews');
+        if (m) m.classList.add('hidden');
+        document.body.style.overflow = '';
+    };
+
     // ── Rychlost odezvy (zobrazení na profilu prodejce) ─────────────
     window.loadSellerResponseTime = async function(sellerId, containerId) {
         const el = document.getElementById(containerId);
@@ -6518,6 +6596,20 @@
     <button id="ship-docs-submit-btn" onclick="submitShipDocs()" class="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3.5 rounded-2xl transition-colors">
       Potvrdit odeslání zásilky
     </button>
+  </div>
+</div>
+
+<!-- ══ MODAL: Seznam hodnocení prodejce ═══════════════════════════════════ -->
+<div id="modal-reviews" class="hidden fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+  <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" onclick="_closeReviewsModal()"></div>
+  <div class="relative bg-white w-full sm:max-w-lg rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col max-h-[90vh]" onclick="event.stopPropagation()">
+    <div class="flex items-center justify-between p-5 border-b border-gray-100 shrink-0">
+      <h3 id="reviews-modal-title" class="font-extrabold text-gray-800 text-base truncate pr-4">Hodnocení prodejce</h3>
+      <button onclick="_closeReviewsModal()" class="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-500 transition-colors shrink-0">✕</button>
+    </div>
+    <div id="reviews-modal-content" class="overflow-y-auto p-5">
+      <div class="flex justify-center py-10"><div class="w-8 h-8 border-4 border-gray-200 border-t-yellow-400 rounded-full animate-spin"></div></div>
+    </div>
   </div>
 </div>
 
