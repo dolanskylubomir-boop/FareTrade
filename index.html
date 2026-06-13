@@ -1567,7 +1567,9 @@
     const NOTIF_ICONS = {
         order_created:  '🛒', order_paid: '💰', order_shipped: '📦',
         order_completed:'✅', dispute_opened:'⚖️', dispute_resolved:'⚖️',
-        dispute_admin:  '🚨', auction_won:'🏆', default:'🔔'
+        dispute_admin:  '🚨', auction_won:'🏆',
+        dac7_warning:   '⚠️', dac7_blocked:'🔒', dac7_verified:'✅',
+        default:'🔔'
     };
 
     async function _loadAktivityTab() {
@@ -2516,6 +2518,51 @@
                 initEl.appendChild(img);
             } else { initEl.innerText = initial; }
         }
+        // DAC7 status
+        window._dac7Status     = data.dac7_status || 'ok';
+        window._dac7SoldCzk    = data.annual_sold_czk || 0;
+        window._dac7SoldCount  = data.annual_sold_count || 0;
+        _renderDac7Banner();
+    }
+
+    function _renderDac7Banner() {
+        const el = document.getElementById('dac7-banner');
+        if (!el) return;
+        const s = window._dac7Status || 'ok';
+        const czk = window._dac7SoldCzk || 0;
+        const cnt = window._dac7SoldCount || 0;
+        const pctCzk = Math.min(100, Math.round(czk / 500));
+        const pctCnt = Math.min(100, Math.round(cnt / 30 * 100));
+        const pct = Math.max(pctCzk, pctCnt);
+        if (s === 'ok' && pct < 60) { el.innerHTML = ''; return; }
+        const cfg = {
+            verified: { bg:'bg-emerald-50 border-emerald-200', icon:'✅', title:'Identita ověřena', sub:'Vaše identifikace je schválena. Prodáváte bez omezení.', bar:'bg-emerald-400' },
+            blocked:  { bg:'bg-red-50 border-red-300',         icon:'🔒', title:'Prodej zablokován — vyžaduje ověření identity', sub:'Překročili jste zákonný limit (2 000 EUR / 30 prodejů). Doplňte rodné číslo a doklad totožnosti.', bar:'bg-red-500' },
+            warning:  { bg:'bg-amber-50 border-amber-300',      icon:'⚠️', title:'Blížíte se limitu pro povinnou identifikaci', sub:'Při překročení 50 000 Kč nebo 30 prodejů musíte poskytnout identifikaci (DAC7).', bar:'bg-amber-400' },
+            ok:       { bg:'bg-sky-50 border-sky-200',          icon:'ℹ️', title:'Zákonný limit prodejů', sub:'Sledujte svůj roční obrat — při překročení limitu budete muset poskytnout identifikaci.', bar:'bg-sky-400' },
+        };
+        const c = cfg[s] || cfg.ok;
+        el.innerHTML = `<div class="border ${c.bg} rounded-2xl p-4 mb-4 fade-in">
+            <div class="flex items-start gap-3">
+                <span class="text-2xl shrink-0">${c.icon}</span>
+                <div class="flex-1 min-w-0">
+                    <p class="font-bold text-gray-800 text-sm">${c.title}</p>
+                    <p class="text-xs text-gray-600 mt-0.5">${c.sub}</p>
+                    <div class="flex gap-6 mt-3">
+                        <div class="flex-1">
+                            <div class="flex justify-between text-[10px] font-bold text-gray-500 mb-1"><span>Obrat</span><span>${czk.toLocaleString('cs-CZ')} / 50 000 Kč</span></div>
+                            <div class="h-2 bg-gray-200 rounded-full overflow-hidden"><div class="${c.bar} h-full rounded-full transition-all" style="width:${pctCzk}%"></div></div>
+                        </div>
+                        <div class="flex-1">
+                            <div class="flex justify-between text-[10px] font-bold text-gray-500 mb-1"><span>Prodeje</span><span>${cnt} / 30</span></div>
+                            <div class="h-2 bg-gray-200 rounded-full overflow-hidden"><div class="${c.bar} h-full rounded-full transition-all" style="width:${pctCnt}%"></div></div>
+                        </div>
+                    </div>
+                    ${s === 'blocked' ? `<button onclick="navigate('profil/kyc')" class="mt-3 bg-red-500 hover:bg-red-600 text-white font-bold px-4 py-1.5 rounded-xl text-xs transition-colors">Doplnit identifikaci →</button>` : ''}
+                    ${s === 'warning' ? `<button onclick="navigate('profil/kyc')" class="mt-3 bg-amber-500 hover:bg-amber-600 text-white font-bold px-4 py-1.5 rounded-xl text-xs transition-colors">Vyplnit KYC předem →</button>` : ''}
+                </div>
+            </div>
+        </div>`;
     }
 
     window.loadProfileData = function(activeTab = 'inzeraty') {
@@ -2584,6 +2631,29 @@
             if (data.kyc_status==='submitted') { kycBadge.textContent='Čeká na schválení'; kycBadge.className='bg-amber-100 text-amber-800 text-xs px-3 py-1 rounded-full font-bold uppercase border border-amber-200'; }
             else if (data.kyc_status==='approved'||data.is_verified) { kycBadge.textContent='Schváleno / Ověřeno'; kycBadge.className='bg-green-100 text-green-800 text-xs px-3 py-1 rounded-full font-bold uppercase border border-green-200'; }
             else { kycBadge.textContent='Neověřeno'; kycBadge.className='bg-red-100 text-red-800 text-xs px-3 py-1 rounded-full font-bold uppercase border border-red-200'; }
+        }
+        // Pre-fill DAC7 birth number if already saved
+        const bnInput = document.getElementById('dac7-birth-number');
+        if (bnInput && data.kyc_birth_number) bnInput.value = data.kyc_birth_number;
+        // DAC7 badge
+        const dac7Badge = document.getElementById('dac7-kyc-badge');
+        if (dac7Badge) {
+            const s = data.dac7_status || 'ok';
+            const hasDocs = !!(data.kyc_id_front || data.kyc_birth_number);
+            if (s === 'verified')                   { dac7Badge.textContent = 'Ověřeno ✓'; dac7Badge.className = 'text-xs px-2 py-0.5 rounded-full font-bold uppercase bg-green-100 text-green-700'; }
+            else if (s === 'blocked' && hasDocs)    { dac7Badge.textContent = 'Čeká na ověření'; dac7Badge.className = 'text-xs px-2 py-0.5 rounded-full font-bold uppercase bg-amber-100 text-amber-700'; }
+            else if (s === 'blocked')               { dac7Badge.textContent = 'Blokován — vyžaduje doklady'; dac7Badge.className = 'text-xs px-2 py-0.5 rounded-full font-bold uppercase bg-red-100 text-red-700'; }
+            else if (s === 'warning')               { dac7Badge.textContent = '⚠️ Blíží se limitu'; dac7Badge.className = 'text-xs px-2 py-0.5 rounded-full font-bold uppercase bg-amber-100 text-amber-700'; }
+            else                                    { dac7Badge.textContent = 'V pořádku'; dac7Badge.className = 'text-xs px-2 py-0.5 rounded-full font-bold uppercase bg-green-100 text-green-700'; }
+        }
+        // Show existing doc thumbnails
+        if (data.kyc_id_front) {
+            const img = document.getElementById('dac7-front-preview');
+            if (img) { img.src = data.kyc_id_front; img.classList.remove('hidden'); }
+        }
+        if (data.kyc_id_back) {
+            const img = document.getElementById('dac7-back-preview');
+            if (img) { img.src = data.kyc_id_back; img.classList.remove('hidden'); }
         }
     }
 
@@ -2680,7 +2750,11 @@
 
     window.renderProfileTabContent = function(tab) {
         if (tab === 'kyc') {
-            setTimeout(function() { window.updatePushBtn && window.updatePushBtn(); _loadVacationState(); }, 150);
+            setTimeout(function() {
+                window.updatePushBtn && window.updatePushBtn();
+                _loadVacationState();
+                if (window._privateProfileCache?.data) _applyKycToDOM(window._privateProfileCache.data);
+            }, 150);
             return `
             <div class="flex items-center justify-between mb-6 fade-in">
                 <h3 class="text-xl font-bold text-gray-800">Osobní a KYC údaje</h3>
@@ -2717,6 +2791,47 @@
                     <input id="vacation-msg-input" type="text" maxlength="200" placeholder="Automatická odpověď (např. Jsem na dovolené do 20.7.)" class="w-full px-3 py-2 rounded-xl border border-amber-200 text-sm focus:outline-none focus:border-amber-400 bg-white">
                     <button onclick="saveVacationMessage()" class="mt-2 text-xs bg-amber-500 hover:bg-amber-600 text-white font-bold px-4 py-2 rounded-xl transition-colors">Uložit zprávu</button>
                 </div>
+            </div>
+            <div id="dac7-kyc-section" class="mt-5 fade-in">
+                <div class="flex items-center gap-2 mb-3">
+                    <span class="text-lg">🇪🇺</span>
+                    <h4 class="font-extrabold text-gray-800 text-base">DAC7 — Povinná identifikace</h4>
+                    <span id="dac7-kyc-badge" class="text-xs px-2 py-0.5 rounded-full font-bold uppercase bg-gray-100 text-gray-500">Načítám…</span>
+                </div>
+                <p class="text-xs text-gray-500 mb-4">EU direktiva 2021/514 ukládá platformám povinnost ověřovat prodejce překračující 2 000 EUR nebo 30 prodejů ročně a hlásit je Finanční správě.</p>
+                <div class="bg-gray-50 rounded-2xl border border-gray-200 p-4 flex flex-col gap-4">
+                    <div>
+                        <label class="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-1">Rodné číslo / IČO</label>
+                        <input id="dac7-birth-number" type="text" placeholder="např. 900101/1234 nebo 12345678" maxlength="20"
+                            class="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-sky-400 bg-white font-mono">
+                        <p class="text-xs text-gray-400 mt-1">Fyzická osoba: rodné číslo ve formátu RRMMDD/XXXX. Firma: IČO.</p>
+                    </div>
+                    <div>
+                        <label class="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-1">Doklad totožnosti — přední strana</label>
+                        <div class="flex items-center gap-3">
+                            <label class="flex-1 cursor-pointer border-2 border-dashed border-sky-200 bg-sky-50 hover:bg-sky-100 rounded-xl px-4 py-3 flex items-center gap-2 transition-colors">
+                                <input id="dac7-id-front" type="file" accept="image/*,.pdf" class="hidden" onchange="previewDac7Doc(this,'dac7-front-preview')">
+                                <svg class="w-5 h-5 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                                <span class="text-sm font-bold text-sky-600">Nahrát přední stranu</span>
+                            </label>
+                            <img id="dac7-front-preview" class="hidden w-16 h-16 rounded-xl object-cover border border-gray-200" src="">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-1">Doklad totožnosti — zadní strana</label>
+                        <div class="flex items-center gap-3">
+                            <label class="flex-1 cursor-pointer border-2 border-dashed border-sky-200 bg-sky-50 hover:bg-sky-100 rounded-xl px-4 py-3 flex items-center gap-2 transition-colors">
+                                <input id="dac7-id-back" type="file" accept="image/*,.pdf" class="hidden" onchange="previewDac7Doc(this,'dac7-back-preview')">
+                                <svg class="w-5 h-5 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                                <span class="text-sm font-bold text-sky-600">Nahrát zadní stranu</span>
+                            </label>
+                            <img id="dac7-back-preview" class="hidden w-16 h-16 rounded-xl object-cover border border-gray-200" src="">
+                        </div>
+                    </div>
+                    <button onclick="_saveDac7Kyc()" class="bg-sky-500 hover:bg-sky-600 text-white font-extrabold py-3 px-6 rounded-2xl transition-colors text-sm w-full sm:w-auto">
+                        Uložit identifikaci →
+                    </button>
+                </div>
             </div>`;
         }
 
@@ -2740,6 +2855,7 @@
                 <div class="flex gap-2 mb-5 border-b border-gray-100 pb-4 flex-wrap">
                     <button onclick="window._loadAdminTab('kyc')" class="px-4 py-2 rounded-xl text-sm font-semibold bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200 transition-colors">🪪 KYC ke schválení</button>
                     <button onclick="window._loadAdminTab('spory')" class="px-4 py-2 rounded-xl text-sm font-semibold bg-red-50 text-red-700 hover:bg-red-100 border border-red-200 transition-colors">⚖️ Spory</button>
+                    <button onclick="window._loadAdminTab('dac7')" class="px-4 py-2 rounded-xl text-sm font-semibold bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 transition-colors">🇪🇺 DAC7 report</button>
                     <button onclick="window._loadAdminTab('ban')" class="px-4 py-2 rounded-xl text-sm font-semibold bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-200 transition-colors">🚫 Ruční BAN</button>
                 </div>
                 <div id="admin-content"><div class="flex justify-center py-12"><div class="w-8 h-8 border-4 border-gray-200 border-t-gray-500 rounded-full animate-spin"></div></div></div>
@@ -3542,6 +3658,7 @@
                     <div class="bg-white/90 backdrop-blur-xl p-4 rounded-[1.25rem] shadow-sm border border-gray-100 flex flex-col"><span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Prodáno</span><span id="profile-earned" class="text-xl font-black text-green-600">0 Kč</span></div>
                     <div class="bg-white/90 backdrop-blur-xl p-4 rounded-[1.25rem] shadow-sm border border-gray-100 flex flex-col"><span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Nakoupeno</span><span id="profile-spent" class="text-xl font-black text-pink-600">0 Kč</span></div>
                 </div>
+                <div id="dac7-banner"></div>
                 <div class="bg-white/90 backdrop-blur-xl rounded-[2rem] shadow-xl border border-white/50 overflow-hidden">
                     <div class="flex border-b border-gray-100 overflow-x-auto scrollbar-hide">
                         <button onclick="navigate('profil/inzeraty')"  class="${tab('inzeraty')}">Inzeráty a příhozy</button>
@@ -3558,7 +3675,17 @@
             </div>`;
         },
 
-        'novy-inzerat': () => `
+        'novy-inzerat': () => {
+            if (window._dac7Status === 'blocked') return `
+            <div class="w-full max-w-2xl mx-auto bg-white/90 backdrop-blur-xl p-8 rounded-[2rem] shadow-xl fade-in border border-red-200 text-center">
+                <div class="text-6xl mb-4">🔒</div>
+                <h2 class="text-2xl font-extrabold text-red-700 mb-3">Prodej zablokován</h2>
+                <p class="text-gray-600 mb-2">Překročili jste zákonný limit prodejů stanovený EU direktivou DAC7 (2 000 EUR nebo 30 transakcí za rok).</p>
+                <p class="text-gray-600 mb-6">Abyste mohli pokračovat v prodeji, musíte poskytnout identifikaci — rodné číslo a doklad totožnosti.</p>
+                <button onclick="navigate('profil/kyc')" class="bg-red-500 hover:bg-red-600 text-white font-extrabold px-8 py-3 rounded-2xl transition-colors">Doplnit identifikaci →</button>
+                <button onclick="navigate('profil')" class="ml-3 text-gray-500 hover:text-gray-700 font-bold px-4 py-3">← Zpět</button>
+            </div>`; }
+        return `
         <div class="w-full max-w-4xl mx-auto bg-white/90 backdrop-blur-xl p-6 md:p-10 rounded-[2.5rem] shadow-2xl fade-in border border-white/50 mb-10">
             <button onclick="navigate('profil')" class="mb-6 text-sky-500 font-bold hover:text-sky-600 flex items-center gap-2">← Zpět na profil</button>
             <div class="mb-8"><h2 class="text-3xl font-extrabold text-pastel-text">Nový inzerát</h2><p class="text-gray-500 text-sm mt-1">Vyplňte detaily nebo nechte AI, ať vám pomůže.</p></div>
@@ -3630,7 +3757,7 @@
                 <button type="submit" class="w-full bg-sky-500 hover:bg-sky-600 text-white font-black py-5 rounded-2xl transition-all shadow-lg text-lg uppercase tracking-wider mt-2">Vložit inzerát na tržiště</button>
                 <p class="text-center text-xs text-gray-400 -mt-3">Vložením inzerátu souhlasíte s VOP tržiště FairTrade.</p>
             </form>
-        </div>`,
+        </div>`},
 
         aukce: (kategorieFilter) => {
             kategorieFilter = kategorieFilter || 'Vše';
@@ -5520,6 +5647,39 @@
                 </div>`;
                 }).join('');
             }
+            else if (tab === 'dac7') {
+                const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_dac7_report`, { method: 'POST', headers: hdrs, body: '{}' });
+                const rows = await r.json();
+                if (!Array.isArray(rows) || !rows.length) { container.innerHTML = '<p class="text-gray-400 text-center py-8">Žádní prodejci u limitu DAC7 v aktuálním roce. ✓</p>'; return; }
+                const yearLabel = (rows[0] && rows[0].report_year) ? rows[0].report_year : new Date().getFullYear();
+                const statusBadge = s => {
+                    if (s==='blocked')  return '<span class="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full font-bold uppercase">🔒 Blokován</span>';
+                    if (s==='warning')  return '<span class="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-bold uppercase">⚠️ Varování</span>';
+                    if (s==='verified') return '<span class="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-bold uppercase">✅ Ověřen</span>';
+                    return '<span class="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full font-bold uppercase">' + s + '</span>';
+                };
+                const csvRows = [['ID','Jméno','Email','Rodné číslo','Adresa','Status','Prodeje (Kč)','Počet prodejů','Rok']].concat(rows.map(s=>[s.seller_id,s.display_name||s.first_name||'',s.email||'',s.birth_number||'',s.full_address||'',s.dac7_status,s.annual_sold_czk,s.annual_sold_count,s.report_year]));
+                const csvStr = csvRows.map(r=>r.map(v=>'"'+(String(v||'').replace(/"/g,'""'))+'"').join(',')).join('\n');
+                container.innerHTML = `<div class="fade-in">
+                    <div class="flex items-center justify-between mb-4 flex-wrap gap-3">
+                        <h4 class="font-extrabold text-gray-800">🇪🇺 DAC7 zpráva ${yearLabel} — ${rows.length} prodejců</h4>
+                        <button onclick="window._exportDac7Csv()" class="bg-sky-500 hover:bg-sky-600 text-white font-bold text-xs px-4 py-2 rounded-xl transition-colors">⬇ Stáhnout CSV</button>
+                    </div>
+                    <div class="flex flex-col gap-3">
+                    ${rows.map(s=>`<div class="border border-gray-100 rounded-2xl p-4 flex items-center gap-3 flex-wrap bg-white">
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-center gap-2 mb-1">${statusBadge(s.dac7_status)}</div>
+                            <p class="font-bold text-gray-800 text-sm">${s.display_name||s.first_name||'Bez jména'}</p>
+                            <p class="text-xs text-gray-400">${s.email||''} · <span class="font-mono">${s.seller_id.substring(0,8)}</span></p>
+                            <p class="text-xs text-gray-500 mt-1">Rodné číslo: <strong>${s.birth_number||'—'}</strong> · Adresa: ${s.full_address||'—'}</p>
+                            <p class="text-xs text-gray-500">Prodeje: <strong>${Number(s.annual_sold_czk).toLocaleString('cs-CZ')} Kč</strong> / ${s.annual_sold_count} transakcí</p>
+                        </div>
+                        ${s.dac7_status==='blocked'?`<button onclick="adminApproveDac7('${s.seller_id}')" class="bg-green-500 hover:bg-green-600 text-white font-bold px-3 py-2 rounded-xl text-xs transition-colors shrink-0">✓ Schválit KYC</button>`:''}
+                    </div>`).join('')}
+                    </div>
+                </div>`;
+                window._dac7CsvStr = csvStr;
+            }
             else if (tab === 'ban') {
                 container.innerHTML = `<div class="max-w-md fade-in">
                     <h3 class="font-bold text-gray-800 mb-4">Ruční deaktivace účtu</h3>
@@ -5531,6 +5691,17 @@
                 </div>`;
             }
         } catch(e) { container.innerHTML = '<p class="text-red-500 text-center py-8">Chyba načítání: ' + e.message + '</p>'; }
+    };
+
+    window._exportDac7Csv = function() {
+        const csv = window._dac7CsvStr;
+        if (!csv) return showToast('Nejprve načtěte DAC7 report.', 'warning');
+        const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = 'dac7_report_' + new Date().getFullYear() + '.csv';
+        document.body.appendChild(a); a.click();
+        document.body.removeChild(a); URL.revokeObjectURL(url);
     };
 
     window.adminApproveKYC = async function(userId) {
@@ -5556,6 +5727,79 @@
             showToast(isFraud ? 'KYC odmítnuto a BAN udělen.' : 'KYC odmítnuto.', 'success');
             setTimeout(() => window._loadAdminTab('kyc'), 500);
         } catch(e) { showToast('Chyba: ' + e.message, 'error'); }
+    };
+
+    window.adminApproveDac7 = async function(sellerId) {
+        if (!confirm('Schválit KYC a odblokovat prodej tohoto uživatele?')) return;
+        const token = await _ensureValidToken();
+        const hdrs = { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' };
+        try {
+            const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/admin_approve_dac7`, { method: 'POST', headers: hdrs, body: JSON.stringify({ p_seller_id: sellerId }) });
+            if (!r.ok) throw new Error(await r.text());
+            showToast('DAC7 KYC schváleno — prodej obnoven.', 'success');
+            setTimeout(() => window._loadAdminTab('dac7'), 500);
+        } catch(e) { showToast('Chyba: ' + e.message, 'error'); }
+    };
+
+    window.previewDac7Doc = function(input, previewId) {
+        const file = input.files && input.files[0];
+        if (!file) return;
+        if (file.type.startsWith('image/')) {
+            const reader = new FileReader();
+            reader.onload = e => {
+                const img = document.getElementById(previewId);
+                if (img) { img.src = e.target.result; img.classList.remove('hidden'); }
+            };
+            reader.readAsDataURL(file);
+        } else {
+            const img = document.getElementById(previewId);
+            if (img) {
+                img.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23e0f2fe'/%3E%3Ctext x='50' y='60' font-size='36' text-anchor='middle' fill='%230284c7'%3EPDF%3C/text%3E%3C/svg%3E";
+                img.classList.remove('hidden');
+            }
+        }
+    };
+
+    window._saveDac7Kyc = async function() {
+        if (!window.currentUser) return showToast('Musíte být přihlášeni.', 'warning');
+        const birthNum = (document.getElementById('dac7-birth-number')?.value || '').trim();
+        if (!birthNum) return showToast('Vyplňte rodné číslo nebo IČO.', 'warning');
+        const frontFile = document.getElementById('dac7-id-front')?.files?.[0];
+        const backFile  = document.getElementById('dac7-id-back')?.files?.[0];
+        if (!frontFile) return showToast('Nahrajte přední stranu dokladu.', 'warning');
+        const btn = document.querySelector('[onclick="_saveDac7Kyc()"]');
+        const orig = btn ? btn.innerText : null;
+        if (btn) { btn.innerText = 'Ukládám…'; btn.disabled = true; }
+        try {
+            const token = await _ensureValidToken();
+            const uid = window.currentUser.id;
+            const uploadDoc = async (file, side) => {
+                if (!file) return null;
+                const ext = file.name.split('.').pop().toLowerCase();
+                const fileName = `kyc-${uid}-${side}-${Date.now()}.${ext}`;
+                const { data, error } = await supabaseClient.storage.from('kyc-docs').upload(fileName, file, { cacheControl: '3600', upsert: true });
+                if (error) throw new Error('Nahrání dokladu selhalo: ' + error.message);
+                const { data: pu } = supabaseClient.storage.from('kyc-docs').getPublicUrl(fileName);
+                return pu?.publicUrl || null;
+            };
+            const [frontUrl, backUrl] = await Promise.all([
+                uploadDoc(frontFile, 'front'),
+                backFile ? uploadDoc(backFile, 'back') : Promise.resolve(null)
+            ]);
+            const patch = { kyc_birth_number: birthNum };
+            if (frontUrl) patch.kyc_id_front = frontUrl;
+            if (backUrl)  patch.kyc_id_back  = backUrl;
+            const h = { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' };
+            const r = await fetch(`${SUPABASE_URL}/rest/v1/profiles?id=eq.${uid}`, { method: 'PATCH', headers: h, body: JSON.stringify(patch) });
+            if (!r.ok) throw new Error(await r.text());
+            showToast('Identifikace uložena! Admin ji brzy ověří.', 'success');
+            const badge = document.getElementById('dac7-kyc-badge');
+            if (badge) { badge.textContent = 'Čeká na ověření'; badge.className = 'text-xs px-2 py-0.5 rounded-full font-bold uppercase bg-amber-100 text-amber-700'; }
+        } catch(e) {
+            showToast('Chyba: ' + e.message, 'error');
+        } finally {
+            if (btn) { btn.innerText = orig || 'Uložit identifikaci →'; btn.disabled = false; }
+        }
     };
 
     window.adminResolveDispute = async function(orderId, buyerId, sellerId, disputeId, outcome, banSeller, banBuyer) {
@@ -5653,6 +5897,15 @@
                 const eEl=document.getElementById('profile-earned'); const sEl=document.getElementById('profile-spent');
                 if (eEl&&d.total_earned!==undefined) eEl.innerHTML=`${Number(d.total_earned).toLocaleString('cs-CZ')} <span class="text-xs text-gray-400 font-bold">Kč</span>`;
                 if (sEl&&d.total_spent!==undefined)  sEl.innerHTML=`${Number(d.total_spent).toLocaleString('cs-CZ')} <span class="text-xs text-gray-400 font-bold">Kč</span>`;
+                if (d.dac7_status !== undefined) {
+                    window._dac7Status    = d.dac7_status || 'ok';
+                    window._dac7SoldCzk   = d.annual_sold_czk || 0;
+                    window._dac7SoldCount = d.annual_sold_count || 0;
+                    _renderDac7Banner();
+                    if (window._privateProfileCache?.uid === window.currentUser.id) {
+                        window._privateProfileCache.data = { ...window._privateProfileCache.data, ...d };
+                    }
+                }
             }).subscribe();
         }
         // Objednávky — nová objednávka i změna statusu
