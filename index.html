@@ -2987,10 +2987,6 @@
                     <div class="text-right shrink-0">
                         <div class="font-bold text-base text-gray-800 mb-1">${(tx.item_price||tx.price||0).toLocaleString('cs-CZ')} Kč</div>
                         ${badge(tx.status,isSeller)}
-                        <div class="mt-1.5 flex gap-1 justify-end">
-                            <button onclick="updateTxStatus('${tx.id}','paid')" class="text-[9px] bg-yellow-50 text-yellow-700 px-1.5 py-0.5 rounded uppercase font-bold hover:bg-yellow-100">Platba</button>
-                            <button onclick="updateTxStatus('${tx.id}','completed')" class="text-[9px] bg-green-50 text-green-700 px-1.5 py-0.5 rounded uppercase font-bold hover:bg-green-100">Hotovo</button>
-                        </div>
                     </div>
                 </div>`;
             };
@@ -5114,8 +5110,8 @@
     // FILTRY — Transakce + Objednávky
     // ──────────────────────────────────────────────────────────────
 
-    const TX_FILTERS  = [['vse','Vše'],['completed','Dokončeno'],['paid','Zaplaceno'],['shipped','Odesláno'],['dispute','Spor'],['returned','Vráceno']];
-    const OBJ_FILTERS = [['vse','Vše'],['paid','Zaplaceno'],['shipped','Odesláno'],['completed','Dokončeno'],['dispute','Spor'],['returned','Vráceno']];
+    const TX_FILTERS  = [['vse','Vše'],['completed','Dokončeno'],['paid','Zaplaceno'],['shipped','Odesláno'],['dispute','Spor'],['returned','Vráceno'],['cancelled','Zrušeno']];
+    const OBJ_FILTERS = [['vse','Vše'],['paid','Zaplaceno'],['shipped','Odesláno'],['completed','Dokončeno'],['dispute','Spor'],['returned','Vráceno'],['cancelled','Zrušeno']];
 
     function _renderFilterBar(barId, filters, active, onClickFn) {
         const bar = document.getElementById(barId);
