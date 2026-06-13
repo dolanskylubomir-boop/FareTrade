@@ -1504,6 +1504,35 @@
         }
     };
 
+    async function _loadSellerPendingItems() {
+        const container = document.getElementById('seller-pending-section');
+        if (!container || !window.currentUser) return;
+        const token = await _ensureValidToken();
+        const hdrs = { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${token}` };
+        const r = await fetch(`${SUPABASE_URL}/rest/v1/pevna_cena?seller_id=eq.${window.currentUser.id}&status=eq.ceka_na_platbu&select=id,title,price,images`, { headers: hdrs });
+        const items = await r.json();
+        if (!Array.isArray(items) || !items.length) { container.innerHTML = ''; return; }
+        const FI = FALLBACK_IMG;
+        container.innerHTML = `<div class="border-t border-yellow-100 pt-4 mt-2 fade-in">
+            <p class="text-xs font-bold text-yellow-600 uppercase tracking-wide mb-3">⏳ Čeká na zaplacení (${items.length})</p>
+            <div class="flex flex-col gap-2">` +
+            items.map(item => {
+                const img = item.images?.[0] ? safeUrl(item.images[0]) : FI;
+                return `<div class="flex items-center gap-3 p-3 border border-yellow-200 rounded-2xl bg-yellow-50/60 opacity-75">
+                    <img src="${img}" onerror="this.onerror=null;this.src='${FI}'" class="w-12 h-12 rounded-xl object-cover bg-gray-100 shrink-0 grayscale">
+                    <div class="flex-grow min-w-0">
+                        <h4 class="font-bold text-gray-500 truncate text-sm">${item.title}</h4>
+                        <p class="text-[11px] text-yellow-700 font-semibold mt-0.5">Kupující má 2 hod. na zaplacení — inzerát je zablokován</p>
+                    </div>
+                    <div class="text-right shrink-0">
+                        <div class="font-bold text-sm text-gray-400">${Number(item.price).toLocaleString('cs-CZ')} Kč</div>
+                        <span class="text-[10px] bg-yellow-200 text-yellow-800 px-2 py-0.5 rounded-full font-bold">Blokováno</span>
+                    </div>
+                </div>`;
+            }).join('') +
+            `</div></div>`;
+    }
+
     async function _loadSellerArchive() {
         const container = document.getElementById('seller-archive-section');
         if (!container || !window.currentUser) return;
@@ -2808,7 +2837,7 @@
             const myPevna = dataPevnaCena.filter(i=>i.seller_id===window.currentUser.id);
             const myAds   = [...myAukce, ...myPevna];
             const mySold  = [];
-            setTimeout(() => _loadSellerArchive(), 0);
+            setTimeout(() => { _loadSellerArchive(); _loadSellerPendingItems(); }, 0);
             const localBids = safeParse(localStorage.getItem('ft_local_bids'),{});
             const myBids = dataAukce.filter(i => {
                 const inDb    = window.auctionParticipants?.[i.id]?.has(window.currentUser.id);
@@ -2863,6 +2892,7 @@
                 html += '</div>';
             }
 
+            html += `<div id="seller-pending-section" class="mt-2"></div>`;
             html += `<div id="seller-archive-section" class="mt-2"></div>`;
 
             html += `<div class="flex items-center justify-between mt-6 mb-5 fade-in border-t border-gray-100 pt-6"><h3 class="text-xl font-bold text-gray-800">Aukce, kde přihazuji (${myBids.length})</h3></div>`;
