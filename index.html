@@ -2927,8 +2927,14 @@
                 if (!container) return;
                 const favs = await loadFavoritesForTab();
                 if (!favs.length) { container.innerHTML='<p class="text-gray-500 text-center py-8 fade-in">Žádné oblíbené položky. Klikněte na ❤️ u inzerátu.</p>'; return; }
+                const INACTIVE = ['prodano','prodáno','zruseno','archivovano','archivováno','ceka_na_platbu'];
+                const activeFavs = favs.filter(item => {
+                    const live = [...dataAukce,...dataPevnaCena].find(i=>i.id===item.item_id);
+                    return live && !INACTIVE.includes(live.db_status);
+                });
+                if (!activeFavs.length) { container.innerHTML='<p class="text-gray-500 text-center py-8 fade-in">Žádné oblíbené položky. Klikněte na ❤️ u inzerátu.</p>'; return; }
                 let html = '<div class="flex flex-col gap-3">';
-                favs.forEach(item => {
+                activeFavs.forEach(item => {
                     const isAukce = item.item_type==='aukce';
                     const live    = [...dataAukce,...dataPevnaCena].find(i=>i.id===item.item_id);
                     const price   = live?live.price:item.item_price;
@@ -5850,6 +5856,7 @@
                 const h = window.location.hash;
                 if (h.includes('pevna-cena')&&!h.includes('detail')) navigate('pevna-cena');
                 if (h.includes('pevna-cena-detail/'+u.id)) { showToast('Tato položka byla právě zakoupena jiným uživatelem.','warning'); setTimeout(()=>navigate('pevna-cena'),2000); }
+                if (h.includes('profil/oblibene')) navigate('profil/oblibene');
             } else if (u.status === 'ceka_na_platbu') {
                 const idx = dataPevnaCena.findIndex(i=>i.id==u.id);
                 if (idx !== -1) {
@@ -5858,6 +5865,7 @@
                     if (h.includes('pevna-cena')&&!h.includes('detail')) navigate('pevna-cena');
                     if (h.includes('pevna-cena-detail/'+u.id)) { showToast('Tato položka čeká na platbu od jiného kupujícího.','warning'); setTimeout(()=>navigate('pevna-cena'),2000); }
                     if (h.includes('profil/inzeraty')||h.includes('profil')) navigate('profil/inzeraty');
+                    if (h.includes('profil/oblibene')) navigate('profil/oblibene');
                 }
             } else {
                 const idx = dataPevnaCena.findIndex(i=>i.id==u.id);
