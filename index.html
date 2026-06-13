@@ -5593,6 +5593,7 @@
                     const h = window.location.hash;
                     if (h.includes('pevna-cena')&&!h.includes('detail')) navigate('pevna-cena', _currentCategory);
                     if (h.includes('pevna-cena-detail/'+u.id)) navigate('pevna-cena-detail', u.id);
+                    if (h.includes('profil')) navigate('profil/inzeraty');
                 }
             }
         }).subscribe();
@@ -5624,6 +5625,34 @@
                 if (sEl&&d.total_spent!==undefined)  sEl.innerHTML=`${Number(d.total_spent).toLocaleString('cs-CZ')} <span class="text-xs text-gray-400 font-bold">Kč</span>`;
             }).subscribe();
         }
+        // Objednávky — nová objednávka i změna statusu
+        supabaseClient.channel('rt_objednavky')
+            .on('postgres_changes', { event:'INSERT', schema:'public', table:'objednavky' }, (p) => {
+                if (!window.currentUser) return;
+                const o = p.new;
+                if (o.seller_id === window.currentUser.id) {
+                    showToast('🛒 Nová objednávka přišla!', 'success', 5000);
+                    const sellerCont = document.getElementById('profil-seller-obj-content');
+                    if (sellerCont) _loadSellerObjednavkyTab();
+                    const h = window.location.hash;
+                    if (h.includes('prodejce-objednavky')) window.loadProdejceObjednavky();
+                }
+            })
+            .on('postgres_changes', { event:'UPDATE', schema:'public', table:'objednavky' }, (p) => {
+                if (!window.currentUser) return;
+                const o = p.new;
+                const isBuyer  = o.buyer_id  === window.currentUser.id;
+                const isSeller = o.seller_id === window.currentUser.id;
+                if (!isBuyer && !isSeller) return;
+                // Refresh objednávky tabu
+                if (isBuyer  && document.getElementById('profil-obj-content'))        _loadObjednavkyTab();
+                if (isSeller && document.getElementById('profil-seller-obj-content')) _loadSellerObjednavkyTab();
+                const h = window.location.hash;
+                if (isSeller && h.includes('prodejce-objednavky')) window.loadProdejceObjednavky();
+                if (isBuyer  && h.includes('moje-objednavky'))     window.loadMojeObjednavky();
+            })
+            .subscribe();
+
         supabaseClient.channel('rt_auction_offers')
             .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'auction_offers' }, (p) => {
                 const u = p.new;
