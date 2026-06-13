@@ -4948,12 +4948,14 @@
         const token = await _ensureValidToken();
         const hdrs = { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${token}` };
         try {
-            const [rOrders, rOffers] = await Promise.all([
+            const [rOrders, rOffers, rReviews] = await Promise.all([
                 fetch(`${SUPABASE_URL}/rest/v1/objednavky?buyer_id=eq.${window.currentUser.id}&order=created_at.desc&select=*,objednavka_polozky(*)`, { headers: hdrs }),
-                fetch(`${SUPABASE_URL}/rest/v1/auction_offers?bidder_id=eq.${window.currentUser.id}&status=eq.offer_sent&order=created_at.desc`, { headers: hdrs })
+                fetch(`${SUPABASE_URL}/rest/v1/auction_offers?bidder_id=eq.${window.currentUser.id}&status=eq.offer_sent&order=created_at.desc`, { headers: hdrs }),
+                fetch(`${SUPABASE_URL}/rest/v1/reviews?reviewer_id=eq.${window.currentUser.id}&select=order_id`, { headers: hdrs })
             ]);
             const orders = await rOrders.json();
             const auctOffers = await rOffers.json();
+            const _reviewedIds = new Set((await rReviews.json().catch(()=>[])).map(r=>r.order_id));
             const FI = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23f1f5f9'/%3E%3C/svg%3E";
             let html = '';
 
@@ -5019,7 +5021,7 @@
                                 ${o.status==='shipped'?`<div class="flex gap-2 flex-wrap justify-end"><button onclick="openDisputeModal('${o.id}')" class="bg-white border border-red-200 hover:bg-red-50 text-red-500 font-bold px-3 py-2 rounded-xl text-xs transition-colors whitespace-nowrap">⚖️ Spor</button><button onclick="confirmDelivery('${o.id}','${o.seller_id}')" class="bg-green-500 hover:bg-green-600 text-white font-bold px-4 py-2 rounded-xl text-sm transition-colors whitespace-nowrap">✓ Doručeno</button></div>`:''}
                                 ${o.status==='dispute'?`<span class="text-xs bg-red-100 text-red-700 px-3 py-1.5 rounded-xl font-semibold whitespace-nowrap">⚖️ Spor — probíhá šetření</span>`:''}
                                 ${(o.status==='pending'||o.status==='created')&&!isAucOrder?`<button onclick="navigate('platba-objednavky','${o.id}')" class="bg-pink-500 hover:bg-pink-600 active:scale-95 text-white font-bold px-4 py-2.5 rounded-xl text-sm transition-all whitespace-nowrap flex items-center gap-2">💳 Zaplatit →</button>`:''}
-                                ${o.status==='completed'?`<span class="text-xs bg-green-100 text-green-700 px-3 py-1.5 rounded-xl font-semibold whitespace-nowrap">✓ Dokončeno</span>`:''}
+                                ${(o.status==='completed'||o.status==='resolved_buyer'||o.status==='refunded')?`<div class="flex items-center gap-2 flex-wrap justify-end"><span class="text-xs bg-green-100 text-green-700 px-3 py-1.5 rounded-xl font-semibold whitespace-nowrap">${o.status==='resolved_buyer'?'⚖️ Spor vyřešen':o.status==='refunded'?'↩️ Vráceno':'✓ Dokončeno'}</span>${!_reviewedIds.has(o.id)?`<button onclick="_openRatingModal('${o.id}','${o.seller_id}')" class="text-xs bg-yellow-50 hover:bg-yellow-100 border border-yellow-200 text-yellow-700 font-bold px-3 py-1.5 rounded-xl transition-colors whitespace-nowrap">⭐ Hodnotit</button>`:`<span class="text-xs text-gray-400 whitespace-nowrap">✓ Hodnoceno</span>`}</div>`:''}
                             </div>
                         </div>
                         ${(()=>{const sp=Array.isArray(o.shipping_photos)?o.shipping_photos:(o.shipping_photos?JSON.parse(o.shipping_photos):[]);return (o.status==='shipped'&&sp.length)?`<div class="mt-3 pt-3 border-t border-gray-100"><p class="text-xs text-gray-400 mb-2">📦 Fotky zásilky od prodejce</p><div class="flex gap-2 flex-wrap">${sp.map(u=>`<a href="${u}" target="_blank"><img src="${u}" class="w-14 h-14 rounded-lg object-cover border border-gray-200 hover:opacity-80 transition-opacity cursor-zoom-in"></a>`).join('')}</div>${o.shipped_at?`<p class="text-xs text-gray-400 mt-2">Odesláno: ${new Date(o.shipped_at).toLocaleDateString('cs-CZ')} · Platba se automaticky uvolní za 14 dní od odeslání.</p>`:''}</div>`:''})()}
@@ -6310,6 +6312,10 @@
                     const h = window.location.hash;
                     if (h.includes('moje-objednavky')) window.loadMojeObjednavky();
                     if (h.includes('platba-objednavky/'+o.id)) _loadPlatbaObjednavky(o.id);
+                    // Rating modal po dokončení objednávky (normální i sporové)
+                    if (o.status === 'completed' || o.status === 'resolved_buyer' || o.status === 'refunded') {
+                        setTimeout(() => window._openRatingModal(o.id, o.seller_id), 2000);
+                    }
                 })
                 .subscribe();
             supabaseClient.channel('rt_objednavky_s')
@@ -6366,7 +6372,17 @@
     let _ratingOrderId = null, _ratingSellerId = null, _ratingValue = 0;
     const _RATING_LABELS = ['','Velmi špatné ☹','Špatné','Průměrné','Dobré','Výborné ☺'];
 
-    window._openRatingModal = function(orderId, sellerId) {
+    window._openRatingModal = async function(orderId, sellerId) {
+        if (window.currentUser) {
+            try {
+                const token = await _ensureValidToken();
+                const chk = await fetch(`${SUPABASE_URL}/rest/v1/reviews?order_id=eq.${orderId}&reviewer_id=eq.${window.currentUser.id}&select=id`, {
+                    headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${token}` }
+                });
+                const existing = await chk.json().catch(() => []);
+                if (Array.isArray(existing) && existing.length) return;
+            } catch(e) {}
+        }
         _ratingOrderId = orderId; _ratingSellerId = sellerId; _ratingValue = 0;
         document.querySelectorAll('.rating-star').forEach(s => { s.style.color = '#d1d5db'; });
         const lbl = document.getElementById('rating-star-label');
