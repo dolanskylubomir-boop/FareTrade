@@ -4686,7 +4686,7 @@
                         <span class="text-xs text-gray-400">${carr.icon} ${carr.name} · ${Number(o.shipping_fee||0).toLocaleString('cs-CZ')} Kč</span>
                         <div class="flex items-center gap-2"><span class="font-extrabold text-sm text-pastel-text">${Number(o.total).toLocaleString('cs-CZ')} Kč</span>
                             ${o.status==='shipped'?`<div class="flex gap-1.5"><button onclick="openDisputeModal('${o.id}')" class="bg-white border border-red-200 hover:bg-red-50 text-red-500 font-bold px-2 py-1.5 rounded-xl text-xs transition-colors">⚖️ Spor</button><button onclick="confirmDelivery('${o.id}')" class="bg-green-500 hover:bg-green-600 text-white font-bold px-3 py-1.5 rounded-xl text-xs transition-colors">✓ Doručeno</button></div>`:''}
-                            ${!expired&&(o.status==='pending'||o.status==='created')?`<button onclick="navigate('moje-objednavky')" class="text-xs bg-amber-50 text-amber-700 border border-amber-200 px-3 py-1.5 rounded-xl font-semibold hover:bg-amber-100 transition-colors">Zaplatit →</button>`:''}
+                            ${!expired&&(o.status==='pending'||o.status==='created')?`<div class="flex gap-1.5"><button onclick="navigate('moje-objednavky')" class="text-xs bg-amber-50 text-amber-700 border border-amber-200 px-3 py-1.5 rounded-xl font-semibold hover:bg-amber-100 transition-colors">Zaplatit →</button><button onclick="_testPay('${o.id}')" class="text-xs bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 rounded-xl font-bold transition-colors">🧪 TEST zaplatit</button></div>`:''}
                             ${expired?`<button onclick="navigate('pevna-cena-detail/${firstItemId}')" class="text-xs bg-pink-50 text-pink-600 border border-pink-200 px-3 py-1.5 rounded-xl font-semibold hover:bg-pink-100 transition-colors">Zkusit znovu →</button>`:''}
                         </div>
                     </div>
@@ -4694,6 +4694,20 @@
             }).join('') + `<button onclick="navigate('moje-objednavky')" class="w-full text-center text-xs text-sky-500 font-bold hover:text-sky-600 py-2 mt-1">Zobrazit vše →</button>`;
         } catch(e) { container.innerHTML = '<p class="text-red-500 text-center py-8">Chyba načítání.</p>'; }
     }
+
+    // ── TEST ONLY — smaž před ostrým provozem ─────────────────
+    window._testPay = async function(orderId) {
+        if (!confirm('TEST: Simulovat platbu pro objednávku ' + orderId.substring(0,8).toUpperCase() + '?')) return;
+        const token = await _ensureValidToken();
+        const r = await fetch(`${SUPABASE_URL}/rest/v1/objednavky?id=eq.${orderId}`, {
+            method: 'PATCH',
+            headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+            body: JSON.stringify({ status: 'paid' })
+        });
+        if (r.ok) { showToast('✅ TEST: Status → paid', 'success'); setTimeout(() => { _loadObjednavkyTab(); _loadSellerObjednavkyTab(); }, 500); }
+        else showToast('Chyba: ' + r.status, 'warning');
+    };
+    // ── KONEC TEST ─────────────────────────────────────────────
 
     async function _loadSellerObjednavkyTab() {
         const container = document.getElementById('profil-seller-obj-content');
