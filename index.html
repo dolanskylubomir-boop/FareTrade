@@ -1291,7 +1291,15 @@
                     body: JSON.stringify({ user_id:uid, item_id:id, item_type:type||(item?item.type:'unknown'), item_title:item?item.title:'', item_img:item?item.img:'', item_price:item?item.price:0 })
                 });
             }
-        } catch(e) {}
+        } catch(e) {
+            // Revert the optimistic UI update
+            if (isFav) window._favCache.add(id); else window._favCache.delete(id);
+            document.querySelectorAll(`.fav-btn[data-id="${id}"]`).forEach(btn => {
+                btn.classList.toggle('text-red-500', isFav);
+                btn.classList.toggle('text-white', !isFav);
+            });
+            showToast('Chyba při ukládání oblíbeného — zkuste znovu.', 'error');
+        }
     };
 
     window.loadFavoritesForTab = async function() {
@@ -5312,7 +5320,7 @@
                 html += '<div class="border border-gray-100 rounded-3xl overflow-hidden bg-white shadow-sm">';
                 html += '<div class="flex items-center gap-3 p-4 border-b border-gray-100 bg-gray-50/50">';
                 html += '<div class="w-8 h-8 rounded-xl bg-' + color + '-100 flex items-center justify-center shrink-0"><svg class="w-4 h-4 text-' + color + '-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-3 3-3-3z"/></svg></div>';
-                const safeTitle = (thread.itemTitle || 'Inzerát').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+                const safeTitle = esc(thread.itemTitle || 'Inzerát');
                 html += '<div class="flex-grow min-w-0"><p class="font-bold text-gray-800 text-sm truncate">' + safeTitle + '</p><p class="text-xs text-' + color + '-500 font-bold uppercase">' + (isAukce ? 'Aukce' : 'Pevná cena') + '</p></div>';
                 html += '<div class="flex items-center gap-2 shrink-0">';
                 html += '<button onclick="navigate(\'' + (isAukce?'aukce-detail':'pevna-cena-detail') + '/' + thread.itemId + '\')" class="text-xs text-' + color + '-500 hover:text-' + color + '-700 font-bold">Zobrazit →</button>';
@@ -5322,7 +5330,7 @@
                 html += '<div class="p-4 flex flex-col gap-3">';
                 thread.messages.forEach(function(m) {
                     const isMine  = m.sender_id === uid;
-                    const safeBody = m.body.replace(/</g,'&lt;').replace(/>/g,'&gt;');
+                    const safeBody = esc(m.body);
                     const dateStr  = new Date(m.created_at).toLocaleDateString('cs-CZ',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
                     html += '<div class="flex ' + (isMine ? 'justify-end' : 'justify-start') + '">';
                     html += '<div class="max-w-[80%] ' + (isMine ? 'bg-sky-500 text-white rounded-2xl rounded-tr-md' : 'bg-gray-100 text-gray-800 rounded-2xl rounded-tl-md') + ' px-4 py-2.5">';
@@ -5334,7 +5342,7 @@
                 const lastMsg = thread.messages[thread.messages.length - 1];
                 if (lastMsg.receiver_id === uid) {
                     const replyId   = 'reply-' + thread.itemId + '_' + thread.otherId;
-                    const safeTitle = (thread.itemTitle||'').replace(/'/g,'').replace(/</g,'').replace(/>/g,'');
+                    const safeTitle = encodeURIComponent(thread.itemTitle || '');
                     const qr = [
                         ['Ano, dostupné ✅', 'Ano, zboží je stále dostupné.'],
                         ['Zásilkovna ✅',    'Ano, posílám Zásilkovnou.'],
@@ -5349,7 +5357,7 @@
                     html += '</div>';
                     html += '<div class="flex gap-2">';
                     html += '<input type="text" maxlength="800" id="' + replyId + '" placeholder="Odpověď…" class="flex-1 min-w-0 px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-sky-400">';
-                    html += '<button onclick="sendReply(\'' + lastMsg.id + '\',\'' + thread.otherId + '\',\'' + thread.itemId + '\',\'' + safeTitle + '\',\'' + thread.itemType + '\')" class="shrink-0 bg-sky-500 hover:bg-sky-600 text-white font-bold px-4 py-2 rounded-xl text-sm transition-colors whitespace-nowrap">Odpovědět</button>';
+                    html += '<button onclick="sendReply(\'' + lastMsg.id + '\',\'' + thread.otherId + '\',\'' + thread.itemId + '\',decodeURIComponent(\'' + safeTitle + '\'),\'' + thread.itemType + '\')" class="shrink-0 bg-sky-500 hover:bg-sky-600 text-white font-bold px-4 py-2 rounded-xl text-sm transition-colors whitespace-nowrap">Odpovědět</button>';
                     html += '</div></div>';
                 }
                 html += '</div></div>';
