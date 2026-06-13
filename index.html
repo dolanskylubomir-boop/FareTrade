@@ -4262,15 +4262,18 @@
         if (!token) return;
         const uid  = window.currentUser.id;
         const hdrs = { 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + token, 'Prefer': 'return=minimal' };
-        const url  = SUPABASE_URL + '/rest/v1/messages?item_id=eq.' + itemId
-                   + '&or=(and(sender_id.eq.' + uid + ',receiver_id.eq.' + otherId + '),and(sender_id.eq.' + otherId + ',receiver_id.eq.' + uid + '))';
-        const r = await fetch(url, { method: 'DELETE', headers: hdrs });
-        if (r.ok || r.status === 204) {
+        const base = SUPABASE_URL + '/rest/v1/messages?item_id=eq.' + itemId;
+        // Dva samostatné DELETE — odeslané i přijaté zprávy v konverzaci
+        const [r1, r2] = await Promise.all([
+            fetch(base + '&sender_id=eq.' + uid   + '&receiver_id=eq.' + otherId, { method: 'DELETE', headers: hdrs }),
+            fetch(base + '&sender_id=eq.' + otherId + '&receiver_id=eq.' + uid,   { method: 'DELETE', headers: hdrs })
+        ]);
+        if ((r1.ok || r1.status === 204) && (r2.ok || r2.status === 204)) {
             showToast('Konverzace smazána.', 'success');
             loadZpravyTab();
         } else {
-            showToast('Chyba smazání — zkontrolujte práva v DB.', 'warning');
-            console.warn('deleteThread error:', r.status, await r.text().catch(function(){}));
+            showToast('Chyba smazání — spusťte SQL pro opravu práv.', 'warning');
+            console.warn('deleteThread:', r1.status, r2.status);
         }
     };
 
