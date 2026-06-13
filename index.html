@@ -38,7 +38,6 @@
             }
         }
     </script>
-    
     <style>
         /* === Animace === */
         .fade-in { animation: fadeIn .2s ease-in; }
@@ -4407,6 +4406,7 @@
         if (idOrCategory !== null && vsechnyKategorie.includes(idOrCategory) && idOrCategory !== _currentCategory) {
             _currentSubcategory = null;
         }
+        window.scrollTo({ top: 0, behavior: 'instant' });
         const app = document.getElementById('app');
         app.innerHTML = views[viewName](idOrCategory);
         const fullUrl = idOrCategory && !vsechnyKategorie.includes(idOrCategory) ? `${viewName}/${idOrCategory}` : viewName;
