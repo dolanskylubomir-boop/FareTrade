@@ -2926,13 +2926,18 @@
         }
 
         if (tab === 'transakce') {
+            window._txFilter = window._txFilter || 'vse';
             setTimeout(() => loadTransakceTab(), 0);
-            return `<div class="flex items-center justify-between mb-6 fade-in"><h3 class="text-xl font-bold text-gray-800">Historie transakcí</h3><span class="text-xs text-gray-400 font-semibold flex items-center gap-1"><span class="inline-block w-2 h-2 rounded-full bg-green-400 animate-pulse"></span>Živé</span></div><div id="transakce-content" class="text-gray-400 text-center py-10">⌛ Načítám transakce…</div>`;
+            return `<div class="flex items-center justify-between mb-4 fade-in"><h3 class="text-xl font-bold text-gray-800">Historie transakcí</h3><span class="text-xs text-gray-400 font-semibold flex items-center gap-1"><span class="inline-block w-2 h-2 rounded-full bg-green-400 animate-pulse"></span>Živé</span></div>
+            <div id="tx-filter-bar" class="flex flex-wrap gap-1.5 mb-5"></div>
+            <div id="transakce-content" class="text-gray-400 text-center py-10">⌛ Načítám transakce…</div>`;
         }
 
         if (tab === 'objednavky') {
+            window._objFilter = window._objFilter || 'vse';
             setTimeout(() => { _loadObjednavkyTab(); _loadSellerObjednavkyTab(); }, 0);
             return `<div class="flex items-center justify-between mb-4 fade-in"><h3 class="text-xl font-bold text-gray-800">Objednávky</h3><span class="text-xs text-gray-400 font-semibold flex items-center gap-1"><span class="inline-block w-2 h-2 rounded-full bg-pink-400 animate-pulse"></span>Živé</span></div>
+            <div id="obj-filter-bar" class="flex flex-wrap gap-1.5 mb-5"></div>
             <div class="mb-2"><p class="text-xs font-bold text-gray-400 uppercase tracking-wide mb-2">📦 Příchozí — prodejce</p><div id="profil-seller-obj-content" class="text-gray-400 text-center py-4 text-sm">⌛ Načítám…</div></div>
             <div class="border-t border-gray-100 pt-4 mt-2"><p class="text-xs font-bold text-gray-400 uppercase tracking-wide mb-2">🛍️ Moje nákupy — kupující</p><div id="profil-obj-content" class="text-gray-400 text-center py-4 text-sm">⌛ Načítám…</div></div>`;
         }
@@ -2954,9 +2959,10 @@
 
         if (tab === '_transakce_render') {
             const allTx    = window._txData || [];
-            const mySales  = allTx.filter(tx=>tx.seller_id===window.currentUser.id).sort((a,b)=>new Date(b.created_at)-new Date(a.created_at));
-            const myBuys   = allTx.filter(tx=>tx.buyer_id===window.currentUser.id).sort((a,b)=>new Date(b.created_at)-new Date(a.created_at));
-            if (!mySales.length && !myBuys.length) return `<p class="text-gray-500 text-center py-8 fade-in">Zatím jste neuskutečnili žádné nákupy ani prodeje.</p>`;
+            const f        = window._txFilter || 'vse';
+            const mySales  = allTx.filter(tx=>tx.seller_id===window.currentUser.id && _txMatchFilter(tx.status,f)).sort((a,b)=>new Date(b.created_at)-new Date(a.created_at));
+            const myBuys   = allTx.filter(tx=>tx.buyer_id===window.currentUser.id   && _txMatchFilter(tx.status,f)).sort((a,b)=>new Date(b.created_at)-new Date(a.created_at));
+            if (!mySales.length && !myBuys.length) return `<p class="text-gray-500 text-center py-8 fade-in">Žádné transakce pro zvolený filtr.</p>`;
             const badge = (status, isSeller) => {
                 if (status==='created'||status==='pending') return isSeller?'<span class="badge-blue">Čeká na platbu</span>':'<span class="badge-blue">Objednáno</span>';
                 if (status==='paid')                        return '<span class="badge-yellow">Zaplaceno</span>';
@@ -4934,9 +4940,11 @@
         try {
             const r = await fetch(`${SUPABASE_URL}/rest/v1/objednavky?buyer_id=eq.${window.currentUser.id}&order=created_at.desc&select=*,objednavka_polozky(*)&limit=20`, { headers: hdrs });
             const orders = await r.json();
-            if (!Array.isArray(orders) || !orders.length) { container.innerHTML = '<p class="text-gray-500 text-center py-8 fade-in">Zatím žádné objednávky.</p>'; return; }
+            _renderFilterBar('obj-filter-bar', OBJ_FILTERS, window._objFilter || 'vse', '_setObjFilter');
+            const filtered = Array.isArray(orders) ? orders.filter(o => _txMatchFilter(o.status, window._objFilter || 'vse')) : [];
+            if (!filtered.length) { container.innerHTML = `<p class="text-gray-500 text-center py-8 fade-in">${!Array.isArray(orders)||!orders.length ? 'Zatím žádné objednávky.' : 'Žádné objednávky pro zvolený filtr.'}</p>`; return; }
             const FI = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23f1f5f9'/%3E%3C/svg%3E";
-            container.innerHTML = orders.map(o => {
+            container.innerHTML = filtered.map(o => {
                 const expired = _orderExpired(o);
                 const st = expired ? { label:'Rezervace vypršela', cls:'bg-orange-100 text-orange-700' } : (ORDER_STATUS_MAP[o.status] || { label: o.status, cls:'bg-gray-100 text-gray-500' });
                 const items = o.objednavka_polozky || [];
@@ -4995,7 +5003,10 @@
             const r = await fetch(`${SUPABASE_URL}/rest/v1/objednavky?seller_id=eq.${window.currentUser.id}&order=created_at.desc&select=*,objednavka_polozky(*)&limit=20`, { headers: hdrs });
             const orders = await r.json();
             _updateObjednavkyAlertBadge(orders);
+            _renderFilterBar('obj-filter-bar', OBJ_FILTERS, window._objFilter || 'vse', '_setObjFilter');
             if (!Array.isArray(orders) || !orders.length) { container.innerHTML = '<p class="text-gray-500 text-center py-6 fade-in text-sm">Zatím žádné příchozí objednávky.</p>'; return; }
+            const filtered = orders.filter(o => _txMatchFilter(o.status, window._objFilter || 'vse'));
+            if (!filtered.length) { container.innerHTML = '<p class="text-gray-500 text-center py-6 fade-in text-sm">Žádné objednávky pro zvolený filtr.</p>'; return; }
             const FI = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23f1f5f9'/%3E%3C/svg%3E";
             const paidOrders = orders.filter(o => o.status === 'paid');
             const paidBanner = paidOrders.length ? `<div class="bg-orange-50 border-2 border-orange-300 rounded-2xl p-4 mb-4 flex items-start gap-3 fade-in">
@@ -5005,7 +5016,7 @@
                     <p class="text-xs text-orange-600 mt-0.5">Kupující zaplatil — zdokumentuj zásilku fotkou a označ jako odeslanou. Klikni na tlačítko <strong>📦 Zdokumentovat a odeslat</strong> níže.</p>
                 </div>
             </div>` : '';
-            container.innerHTML = paidBanner + orders.map(o => {
+            container.innerHTML = paidBanner + filtered.map(o => {
                 const st = ORDER_STATUS_MAP[o.status] || { label: o.status, cls:'bg-gray-100 text-gray-500' };
                 const items = o.objednavka_polozky || [];
                 const carr = DOPRAVCI.find(d => d.id === o.carrier) || { name: o.carrier || '—', icon:'📦' };
@@ -5100,6 +5111,46 @@
     };
 
     // ──────────────────────────────────────────────────────────────
+    // FILTRY — Transakce + Objednávky
+    // ──────────────────────────────────────────────────────────────
+
+    const TX_FILTERS  = [['vse','Vše'],['completed','Dokončeno'],['paid','Zaplaceno'],['shipped','Odesláno'],['dispute','Spor'],['returned','Vráceno']];
+    const OBJ_FILTERS = [['vse','Vše'],['paid','Zaplaceno'],['shipped','Odesláno'],['completed','Dokončeno'],['dispute','Spor'],['returned','Vráceno']];
+
+    function _renderFilterBar(barId, filters, active, onClickFn) {
+        const bar = document.getElementById(barId);
+        if (!bar) return;
+        bar.innerHTML = filters.map(([k,l]) =>
+            `<button onclick="${onClickFn}('${k}')" class="px-3 py-1.5 rounded-full text-xs font-bold transition-all border ${active===k ? 'bg-sky-100 text-sky-600 border-sky-200' : 'bg-gray-50 text-gray-500 border-gray-200 hover:bg-gray-100'}">${l}</button>`
+        ).join('');
+    }
+
+    function _txMatchFilter(status, f) {
+        if (f === 'vse') return true;
+        if (f === 'completed') return ['completed','resolved_seller'].includes(status);
+        if (f === 'dispute')   return ['dispute','resolved_buyer','resolved_seller'].includes(status);
+        if (f === 'returned')  return ['returned','refunded','resolved_buyer'].includes(status);
+        return status === f;
+    }
+
+    window._setTxFilter = function(key) {
+        window._txFilter = key;
+        _renderFilterBar('tx-filter-bar', TX_FILTERS, key, '_setTxFilter');
+        const cont = document.getElementById('transakce-content');
+        if (!cont) return;
+        if (window._txData) {
+            cont.innerHTML = renderProfileTabContent('_transakce_render') || '<p class="text-gray-500 text-center py-8">Zatím žádné transakce.</p>';
+        } else loadTransakceTab();
+    };
+
+    window._setObjFilter = function(key) {
+        window._objFilter = key;
+        _renderFilterBar('obj-filter-bar', OBJ_FILTERS, key, '_setObjFilter');
+        _loadObjednavkyTab();
+        _loadSellerObjednavkyTab();
+    };
+
+    // ──────────────────────────────────────────────────────────────
     // ASYNC LOADER TRANSAKCÍ
     // ──────────────────────────────────────────────────────────────
     window.loadTransakceTab = async function() {
@@ -5115,6 +5166,8 @@
             const dbTx = await r.json();
             if (!Array.isArray(dbTx)) { container.innerHTML='<p class="text-red-500 text-center py-8">Chyba načítání transakcí.</p>'; return; }
             window._txData = dbTx;
+            window._txFilter = window._txFilter || 'vse';
+            _renderFilterBar('tx-filter-bar', TX_FILTERS, window._txFilter, '_setTxFilter');
             const html = renderProfileTabContent('_transakce_render');
             container.innerHTML = html || '<p class="text-gray-500 text-center py-8 fade-in">Zatím žádné transakce.</p>';
         } catch(e) {
