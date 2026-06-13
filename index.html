@@ -5567,7 +5567,7 @@
         supabaseClient.channel('rt_bids').on('postgres_changes',{ event:'INSERT', schema:'public', table:'bids' },(p)=>handleRealtimeAuctionUpdate({ id:p.new.auction_id, current_price:p.new.amount, last_bidder_id:p.new.bidder_id })).subscribe();
         supabaseClient.channel('rt_pevna').on('postgres_changes',{ event:'UPDATE', schema:'public', table:'pevna_cena' },(p)=>{
             const u = p.new;
-            if (['prodáno','archivováno','zruseno'].includes(u.status)) {
+            if (['prodano','prodáno','archivováno','zruseno','ceka_na_platbu'].includes(u.status)) {
                 dataPevnaCena = dataPevnaCena.filter(i=>i.id!==u.id);
                 const h = window.location.hash;
                 if (h.includes('pevna-cena')&&!h.includes('detail')) navigate('pevna-cena');
