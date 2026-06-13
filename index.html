@@ -1504,6 +1504,36 @@
         }
     };
 
+    async function _loadSellerArchive() {
+        const container = document.getElementById('seller-archive-section');
+        if (!container || !window.currentUser) return;
+        const token = await _ensureValidToken();
+        const hdrs = { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${token}` };
+        try {
+            const r = await fetch(`${SUPABASE_URL}/rest/v1/pevna_cena?seller_id=eq.${window.currentUser.id}&status=in.(prodano,zruseno)&order=created_at.desc&select=id,title,price,images,status`, { headers: hdrs });
+            const items = await r.json();
+            if (!Array.isArray(items) || !items.length) return;
+            let html = `<div class="border-t border-gray-100 pt-5 mt-2 fade-in"><p class="text-xs font-bold text-gray-400 uppercase tracking-wide mb-3">Prodané / Archiv (${items.length})</p><div class="flex flex-col gap-2">`;
+            items.forEach(item => {
+                const img = (item.images && item.images[0]) ? safeUrl(item.images[0]) : FALLBACK_IMG;
+                const isProdano = item.status === 'prodano';
+                const statusLabel = isProdano ? '✓ Prodáno' : '↩️ Vráceno — čeká na aktivaci';
+                const statusCls   = isProdano ? 'bg-emerald-100 text-emerald-700' : 'bg-orange-100 text-orange-700';
+                html += `<div class="flex items-center gap-3 p-3 border border-gray-100 rounded-2xl bg-gray-50/50 opacity-80">
+                    <div class="w-12 h-12 rounded-xl bg-gray-100 overflow-hidden shrink-0"><img src="${img}" onerror="this.onerror=null;this.src='${FALLBACK_IMG}'" class="w-full h-full object-cover grayscale"></div>
+                    <div class="flex-grow min-w-0">
+                        <h4 class="font-bold text-gray-600 truncate text-sm">${esc(item.title)}</h4>
+                        <span class="inline-block text-[10px] px-2 py-0.5 rounded-full font-bold ${statusCls} mt-0.5">${statusLabel}</span>
+                    </div>
+                    <span class="font-bold text-sm text-gray-500 shrink-0">${Number(item.price).toLocaleString('cs-CZ')} Kč</span>
+                    ${!isProdano ? `<button onclick="reactivateItem('${item.id}')" class="w-8 h-8 rounded-xl bg-green-50 text-green-600 hover:bg-green-100 flex items-center justify-center transition-colors shrink-0" title="Znovu aktivovat"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg></button>` : ''}
+                </div>`;
+            });
+            html += '</div></div>';
+            container.innerHTML = html;
+        } catch(e) {}
+    }
+
     window.deleteAd = async function(type, id) {
         if (!confirm('Opravdu chcete tento inzerát smazat? Bude trvale stažen z nabídky.')) return;
         const tableName = type === 'aukce' ? 'aukce' : 'pevna_cena';
@@ -2682,8 +2712,9 @@
             if (!window.currentUser) return `<p class="text-gray-500 py-4 text-center fade-in">⌛ Načítám inzeráty…</p>`;
             const myAukce = dataAukce.filter(i=>i.seller_id===window.currentUser.id);
             const myPevna = dataPevnaCena.filter(i=>i.seller_id===window.currentUser.id);
-            const myAds   = [...myAukce, ...myPevna.filter(i=>i.db_status==='aktivní'||!i.db_status)];
-            const mySold  = myPevna.filter(i=>i.db_status==='prodano'||i.db_status==='zruseno');
+            const myAds   = [...myAukce, ...myPevna];
+            const mySold  = [];
+            setTimeout(() => _loadSellerArchive(), 0);
             const localBids = safeParse(localStorage.getItem('ft_local_bids'),{});
             const myBids = dataAukce.filter(i => {
                 const inDb    = window.auctionParticipants?.[i.id]?.has(window.currentUser.id);
@@ -2735,28 +2766,7 @@
                 html += '</div>';
             }
 
-            if (mySold.length) {
-                html += `<div class="flex items-center justify-between mt-6 mb-4 border-t border-gray-100 pt-6 fade-in"><h3 class="text-base font-bold text-gray-500">Prodané / Archiv (${mySold.length})</h3></div>`;
-                html += `<div class="flex flex-col gap-3 mb-6">`;
-                mySold.forEach(item => {
-                    const isDispute = item.db_status === 'prodano' && false; // rozšíříme přes orders
-                    const statusLabel = item.db_status === 'zruseno' ? '↩️ Vráceno' : '✓ Prodáno';
-                    const statusCls   = item.db_status === 'zruseno' ? 'bg-orange-100 text-orange-700' : 'bg-emerald-100 text-emerald-700';
-                    html += `<div class="flex items-center gap-3 p-3.5 border border-gray-100 rounded-2xl bg-gray-50/60 opacity-80">
-                        <div class="w-14 h-14 rounded-xl bg-gray-100 overflow-hidden shrink-0"><img src="${item.img}" onerror="this.onerror=null;this.src='${FALLBACK_IMG}';" class="w-full h-full object-cover grayscale"></div>
-                        <div class="flex-grow min-w-0">
-                            <div class="text-[11px] text-gray-400 font-bold mb-0.5 uppercase">Pevná cena</div>
-                            <h4 class="font-bold text-gray-600 truncate text-sm">${item.title}</h4>
-                            <span class="inline-block text-[10px] px-2 py-0.5 rounded-full font-bold ${statusCls} mt-0.5">${statusLabel}</span>
-                        </div>
-                        <div class="text-right shrink-0 mr-1"><div class="font-bold text-base text-gray-500">${item.price.toLocaleString('cs-CZ')} Kč</div></div>
-                        ${item.db_status==='zruseno'?`<button onclick="reactivateItem('${item.id}')" title="Znovu aktivovat" class="w-8 h-8 rounded-xl bg-green-50 text-green-600 hover:bg-green-100 flex items-center justify-center transition-colors shrink-0" title="Znovu aktivovat">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
-                        </button>`:''}
-                    </div>`;
-                });
-                html += `</div>`;
-            }
+            html += `<div id="seller-archive-section" class="mt-2"></div>`;
 
             html += `<div class="flex items-center justify-between mt-6 mb-5 fade-in border-t border-gray-100 pt-6"><h3 class="text-xl font-bold text-gray-800">Aukce, kde přihazuji (${myBids.length})</h3></div>`;
             if (!myBids.length) {
