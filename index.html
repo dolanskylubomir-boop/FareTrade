@@ -2180,6 +2180,10 @@
             if (title.length > 120) throw new Error('Název může mít max. 120 znaků.');
             if (descVal.length > 5000) throw new Error('Popis může mít max. 5000 znaků.');
             if (!vsechnyKategorie.includes(category)) throw new Error('Neplatná kategorie.');
+            const condNotes = (document.getElementById('ad-condition-notes')?.value||'').trim();
+            if ((condition==='Použité'||condition==='Poškozené') && !condNotes) throw new Error('U použitého nebo poškozeného zboží musíte popsat vady.');
+            const photoInputs = Array.from(document.querySelectorAll('input[type="file"]')).filter(i=>i.files?.[0]);
+            if (!photoInputs.length) throw new Error('Přidejte alespoň 1 fotografii zboží.');
 
             const uploadedImages = [];
             for (let input of document.querySelectorAll('input[type="file"]')) {
@@ -2198,6 +2202,7 @@
 
             const adData = {
                 seller_id: user.id, title, description: descVal, category, subcategory: subcategory || null, condition,
+                condition_notes: condNotes || null,
                 brand: document.getElementById('ad-brand').value || null,
                 weight: parseFloat(document.getElementById('ad-weight').value) || null,
                 dimensions: document.getElementById('ad-dimensions').value || null,
@@ -3386,8 +3391,13 @@
                     </div>
 
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div class="flex flex-col gap-1"><label class="text-xs font-bold text-gray-500 pl-1">Stav zboží</label><select id="ad-condition" required class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-sky-400 bg-white"><option value="" disabled selected>Vyberte…</option><option value="Nové">Nové</option><option value="Rozbalené">Rozbalené</option><option value="Použité">Použité</option><option value="Poškozené">Poškozené</option></select></div>
+                        <div class="flex flex-col gap-1"><label class="text-xs font-bold text-gray-500 pl-1">Stav zboží *</label><select id="ad-condition" required onchange="document.getElementById('condition-notes-row').classList.toggle('hidden', this.value==='Nové'||!this.value)" class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-sky-400 bg-white"><option value="" disabled selected>Vyberte…</option><option value="Nové">Nové</option><option value="Rozbalené">Rozbalené</option><option value="Použité">Použité</option><option value="Poškozené">Poškozené</option></select></div>
                         <div class="flex flex-col gap-1"><label class="text-xs font-bold text-gray-500 pl-1">Značka (volitelně)</label><input type="text" id="ad-brand" maxlength="60" placeholder="Apple, Nike, Škoda…" class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-sky-400"></div>
+                    </div>
+                    <div id="condition-notes-row" class="hidden mt-2">
+                        <label class="text-xs font-bold text-amber-700 pl-1">Popis vad a opotřebení *</label>
+                        <textarea id="ad-condition-notes" rows="2" maxlength="500" placeholder="Popište konkrétní vady, škrábance, poškození, chybějící části… Kupující musí vědět přesně co dostane." class="w-full px-4 py-3 rounded-xl border border-amber-200 bg-amber-50 text-sm focus:outline-sky-400 resize-none mt-1"></textarea>
+                        <p class="text-xs text-amber-600 mt-1">⚠️ Přesný popis vad chrání vás před sporem. Kupující souhlasí s popsaným stavem.</p>
                     </div>
                 </div>
                 <div class="bg-gradient-to-r from-purple-50 to-pink-50 p-5 rounded-3xl border border-purple-100 flex flex-col md:flex-row items-center justify-between gap-4">
@@ -3593,6 +3603,7 @@
                         <div class="mb-5">
                             <p id="desc-text-${item.id}" class="text-gray-600 text-sm leading-relaxed ${item.description&&item.description.length>160?'line-clamp-4':''}" style="white-space:pre-wrap">${item.description||'<span class="text-gray-400 italic">Popis nebyl uveden.</span>'}</p>
                             ${item.description&&item.description.length>160?`<button id="desc-btn-${item.id}" onclick="toggleDesc('${item.id}')" class="mt-2 text-pink-500 hover:text-pink-600 text-xs font-bold flex items-center gap-1 transition-colors">Zobrazit celý popis <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg></button>`:''}
+                            ${item.condition_notes?`<div class="mt-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3"><p class="text-xs font-bold text-amber-700 mb-1">⚠️ Prodejce uvádí k stavu zboží:</p><p class="text-sm text-amber-800" style="white-space:pre-wrap">${item.condition_notes}</p></div>`:''}
                         </div>
                         <div class="bg-pink-50 border border-pink-100 p-5 rounded-3xl mb-5">
                             <p class="text-gray-400 text-xs font-semibold uppercase tracking-wider mb-1">Cena prodejce</p>
@@ -3812,11 +3823,15 @@
 
     // ── Dokumentace zásilky ──────────────────────────────────────────
     let _shipOrderId = null;
+    let _shipCarrier = null;
     let _shipPhotos  = [null, null, null];
 
-    window.openShipDocsModal = function(orderId) {
+    window.openShipDocsModal = function(orderId, carrier) {
         _shipOrderId = orderId;
+        _shipCarrier = carrier || null;
         _shipPhotos  = [null, null, null];
+        const carrSel = document.getElementById('ship-carrier-select');
+        if (carrSel) { carrSel.value = carrier || ''; }
         document.getElementById('ship-tracking-input').value = '';
         [0,1,2].forEach(function(i) {
             const slot = document.getElementById('ship-slot-' + i);
@@ -3870,6 +3885,7 @@
 
     window.submitShipDocs = async function() {
         const tracking = document.getElementById('ship-tracking-input')?.value.trim();
+        _shipCarrier = document.getElementById('ship-carrier-select')?.value || _shipCarrier;
         if (!tracking) return showToast('Zadejte číslo zásilky.', 'warning');
         const photos = _shipPhotos.filter(Boolean);
         if (!photos.length) return showToast('Nahrajte alespoň 1 fotku zásilky.', 'warning');
@@ -3892,7 +3908,7 @@
             const hdrs = { 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' };
             await fetch(SUPABASE_URL + '/rest/v1/objednavky?id=eq.' + _shipOrderId, {
                 method: 'PATCH', headers: hdrs,
-                body: JSON.stringify({ status: 'shipped', tracking_number: tracking, shipping_photos: urls, shipped_at: new Date().toISOString() })
+                body: JSON.stringify({ status: 'shipped', tracking_number: tracking, carrier: _shipCarrier || undefined, shipping_photos: urls, shipped_at: new Date().toISOString() })
             });
             closeShipDocsModal();
             showToast('Odeslání potvrzeno. Fotky zásilky uloženy. ✅', 'success');
@@ -3954,7 +3970,8 @@
         if (!reason) return showToast('Vyberte důvod sporu.', 'warning');
         if (!desc || desc.length < 30) return showToast('Popis musí mít alespoň 30 znaků.', 'warning');
         const photos = _disputePhotos.filter(Boolean);
-        if (photos.length < 2) return showToast('Nahrajte alespoň 2 fotky přijatého zboží.', 'warning');
+        const notArrived = reason === 'not_arrived';
+        if (!notArrived && photos.length < 2) return showToast('Nahrajte alespoň 2 fotky přijatého zboží.', 'warning');
         const btn = document.getElementById('dispute-submit-btn');
         if (btn) { btn.disabled = true; btn.textContent = 'Odesílám…'; }
         try {
@@ -4454,6 +4471,7 @@
                                 ${o.status==='completed'?`<span class="text-xs bg-green-100 text-green-700 px-3 py-1.5 rounded-xl font-semibold whitespace-nowrap">✓ Dokončeno</span>`:''}
                             </div>
                         </div>
+                        ${(()=>{const sp=Array.isArray(o.shipping_photos)?o.shipping_photos:(o.shipping_photos?JSON.parse(o.shipping_photos):[]);return (o.status==='shipped'&&sp.length)?`<div class="mt-3 pt-3 border-t border-gray-100"><p class="text-xs text-gray-400 mb-2">📦 Fotky zásilky od prodejce</p><div class="flex gap-2 flex-wrap">${sp.map(u=>`<a href="${u}" target="_blank"><img src="${u}" class="w-14 h-14 rounded-lg object-cover border border-gray-200 hover:opacity-80 transition-opacity cursor-zoom-in"></a>`).join('')}</div>${o.shipped_at?`<p class="text-xs text-gray-400 mt-2">Odesláno: ${new Date(o.shipped_at).toLocaleDateString('cs-CZ')} · Platba se automaticky uvolní za 14 dní od odeslání.</p>`:''}</div>`:''})()}
                     </div>`;
                 }).join('');
             }
@@ -4554,10 +4572,11 @@
                         <div class="text-xs text-gray-400 flex flex-col gap-0.5"><span>${carr.icon} ${carr.name}</span>${o.tracking_number ? _trackingHtml(o.carrier, o.tracking_number) : ''}</div>
                         <div class="flex flex-col sm:flex-row items-end sm:items-center gap-2">
                             <span class="font-extrabold text-lg text-pastel-text whitespace-nowrap">${Number(o.total).toLocaleString('cs-CZ')} Kč</span>
-                            ${o.status==='paid'?`<button onclick="openShipDocsModal('${o.id}')" class="bg-sky-500 hover:bg-sky-600 active:scale-95 text-white font-bold px-4 py-2.5 rounded-xl text-sm transition-all whitespace-nowrap flex items-center gap-2"><svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/></svg>Zdokumentovat a odeslat</button>`:''}
+                            ${o.status==='paid'?`<button onclick="openShipDocsModal('${o.id}','${o.carrier||''}')" class="bg-sky-500 hover:bg-sky-600 active:scale-95 text-white font-bold px-4 py-2.5 rounded-xl text-sm transition-all whitespace-nowrap flex items-center gap-2"><svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/></svg>Zdokumentovat a odeslat</button>`:''}
                             ${o.status==='pending'?`<span class="text-xs bg-yellow-100 text-yellow-700 px-3 py-1.5 rounded-xl font-semibold whitespace-nowrap">Čeká na platbu kupce</span>`:''}
                             ${o.status==='delivered'?`<span class="text-xs bg-blue-100 text-blue-700 px-3 py-1.5 rounded-xl font-semibold whitespace-nowrap">Doručeno — čeká na potvrzení</span>`:''}
                             ${o.status==='completed'?`<span class="text-xs bg-green-100 text-green-700 px-3 py-1.5 rounded-xl font-semibold whitespace-nowrap">✓ Platba uvolněna</span>`:''}
+                            ${o.status==='dispute'?`<span class="text-xs bg-red-100 text-red-700 px-3 py-1.5 rounded-xl font-bold whitespace-nowrap animate-pulse">⚖️ Spor kupujícího — šetření</span>`:''}
                         </div>
                     </div>
                 </div>`;
@@ -5512,9 +5531,25 @@
       Vyfotit zásilku fotoaparátem
     </label>
 
-    <!-- Číslo zásilky -->
-    <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Číslo zásilky *</label>
-    <input id="ship-tracking-input" type="text" placeholder="např. Z123456789" class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400 mb-5">
+    <!-- Dopravce + číslo zásilky -->
+    <div class="grid grid-cols-2 gap-3 mb-5">
+      <div>
+        <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Dopravce *</label>
+        <select id="ship-carrier-select" class="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400 bg-white">
+          <option value="">— Vyberte —</option>
+          <option value="zasilkovna">Zásilkovna</option>
+          <option value="ppl">PPL</option>
+          <option value="ceska-posta">Česká pošta</option>
+          <option value="dpd">DPD</option>
+          <option value="gls">GLS</option>
+          <option value="osobni">Osobní předání</option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Číslo zásilky *</label>
+        <input id="ship-tracking-input" type="text" placeholder="Z123456789" class="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400">
+      </div>
+    </div>
 
     <div class="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-5 text-xs text-amber-700">
       ⚠️ Fotky zásilky jsou povinné. Bez nich nemůžete zásilku odeslat a jste nechráněni v případě sporu.
@@ -5553,7 +5588,7 @@
     <textarea id="dispute-desc" rows="4" placeholder="Popište přesně co se stalo, jak zboží vypadalo, v čem se lišilo od inzerátu…" class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-red-400 mb-4 resize-none"></textarea>
 
     <!-- Fotky důkazů -->
-    <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Fotky přijatého zboží * <span class="text-gray-400 font-normal">(min. 2)</span></label>
+    <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Fotky přijatého zboží <span class="text-gray-400 font-normal" id="dispute-photo-hint">(min. 2, nepovinné při „zásilka nedorazila")</span></label>
     <div class="grid grid-cols-3 gap-3 mb-5">
       <label id="dispute-slot-0" class="aspect-square rounded-2xl border-2 border-dashed border-gray-200 hover:border-red-400 cursor-pointer flex flex-col items-center justify-center bg-gray-50 transition-all overflow-hidden">
         <input type="file" accept="image/*" class="hidden dispute-photo-input" data-slot="0" onchange="previewDisputePhoto(this)">
