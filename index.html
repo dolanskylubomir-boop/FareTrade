@@ -1623,7 +1623,7 @@
     const NOTIF_ICONS = {
         order_created:  '🛒', order_paid: '💰', order_shipped: '📦',
         order_completed:'✅', dispute_opened:'⚖️', dispute_resolved:'⚖️',
-        dispute_admin:  '🚨', auction_won:'🏆',
+        dispute_admin:  '🚨', auction_won:'🏆', new_review:'⭐',
         dac7_warning:   '⚠️', dac7_blocked:'🔒', dac7_verified:'✅',
         default:'🔔'
     };
@@ -1654,6 +1654,69 @@
                 </div>`;
             }).join('');
         } catch(e) { container.innerHTML = '<p class="text-red-400 text-center py-8">Chyba načítání.</p>'; }
+    }
+
+    async function _loadMojeHodnoceniTab() {
+        const container = document.getElementById('hodnoceni-content');
+        if (!container || !window.currentUser) return;
+        const token = await _ensureValidToken();
+        const hdrs = { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${token}` };
+        try {
+            const [rReviews, rProf] = await Promise.all([
+                fetch(`${SUPABASE_URL}/rest/v1/reviews?seller_id=eq.${window.currentUser.id}&select=*,reviewer:profiles!reviewer_id(display_name)&order=created_at.desc&limit=100`, { headers: hdrs }),
+                fetch(`${SUPABASE_URL}/rest/v1/profiles?id=eq.${window.currentUser.id}&select=rating,rating_count`, { headers: hdrs })
+            ]);
+            const reviews = await rReviews.json().catch(() => []);
+            const profs   = await rProf.json().catch(() => []);
+            const prof    = profs[0] || {};
+            if (!Array.isArray(reviews) || !reviews.length) {
+                container.innerHTML = '<p class="text-gray-400 text-center py-10 fade-in">Zatím žádná hodnocení od kupujících.</p>';
+                return;
+            }
+            const avg = Number(prof.rating) || 0;
+            const cnt = Number(prof.rating_count) || reviews.length;
+            const dist = [0, 0, 0, 0, 0];
+            reviews.forEach(r => { if (r.rating >= 1 && r.rating <= 5) dist[r.rating - 1]++; });
+            const starBars = [5, 4, 3, 2, 1].map(n => {
+                const c = dist[n - 1];
+                const pct = cnt ? Math.round(c / cnt * 100) : 0;
+                return `<div class="flex items-center gap-2 text-xs">
+                    <span class="w-5 text-right text-gray-500 font-bold">${n}★</span>
+                    <div class="flex-1 bg-gray-100 rounded-full h-2 overflow-hidden">
+                        <div class="bg-yellow-400 h-2 rounded-full" style="width:${pct}%"></div>
+                    </div>
+                    <span class="w-5 text-gray-400">${c}</span>
+                </div>`;
+            }).join('');
+            let html = `<div class="flex flex-col sm:flex-row items-start sm:items-center gap-6 mb-6 p-5 bg-yellow-50 rounded-2xl border border-yellow-100 fade-in">
+                <div class="text-center shrink-0">
+                    <div class="text-5xl font-extrabold text-yellow-500">${avg.toFixed(1)}</div>
+                    <div class="text-yellow-400 text-xl mt-0.5">${'★'.repeat(Math.round(avg))}${'☆'.repeat(5 - Math.round(avg))}</div>
+                    <div class="text-xs text-gray-400 mt-1">${cnt} hodnocení</div>
+                </div>
+                <div class="flex-1 w-full flex flex-col gap-1.5">${starBars}</div>
+            </div>`;
+            html += reviews.map(r => {
+                const name    = esc(r.reviewer?.display_name || 'Anonymní kupující');
+                const date    = new Date(r.created_at).toLocaleDateString('cs-CZ', { day: 'numeric', month: 'long', year: 'numeric' });
+                const stars   = '★'.repeat(r.rating) + '☆'.repeat(5 - r.rating);
+                const comment = esc(r.comment || '');
+                return `<div class="flex items-start gap-3 p-4 bg-white border border-gray-100 rounded-2xl mb-2 fade-in shadow-sm">
+                    <div class="w-9 h-9 rounded-full bg-yellow-100 flex items-center justify-center shrink-0 text-base font-bold text-yellow-600">${esc(name.charAt(0).toUpperCase())}</div>
+                    <div class="flex-1 min-w-0">
+                        <div class="flex items-center justify-between gap-2 flex-wrap">
+                            <span class="font-bold text-gray-800 text-sm">${name}</span>
+                            <span class="text-[10px] text-gray-400">${date}</span>
+                        </div>
+                        <div class="text-yellow-400 text-sm mt-0.5 tracking-wide">${stars}</div>
+                        ${comment ? `<p class="text-gray-600 text-sm mt-1.5 leading-relaxed">${comment}</p>` : '<p class="text-gray-400 text-xs mt-1 italic">Bez komentáře</p>'}
+                    </div>
+                </div>`;
+            }).join('');
+            container.innerHTML = html;
+        } catch (e) {
+            container.innerHTML = '<p class="text-red-400 text-center py-8">Chyba načítání hodnocení.</p>';
+        }
     }
 
     window._openNotifLink = async function(notifId, link) {
@@ -3013,6 +3076,14 @@
             return html;
         }
 
+        if (tab === 'hodnoceni') {
+            setTimeout(() => _loadMojeHodnoceniTab(), 0);
+            return `<div class="flex items-center justify-between mb-6 fade-in">
+                <h3 class="text-xl font-bold text-gray-800">⭐ Moje hodnocení od kupujících</h3>
+            </div>
+            <div id="hodnoceni-content" class="text-gray-400 text-center py-10">⌛ Načítám hodnocení…</div>`;
+        }
+
         if (tab === 'aktivity') {
             setTimeout(() => _loadAktivityTab(), 0);
             return `<div class="flex items-center justify-between mb-6 fade-in">
@@ -3781,6 +3852,7 @@
                         <button id="tab-btn-objednavky" onclick="navigate('profil/objednavky')" class="${tab('objednavky')} relative">Objednávky 📦<span id="objednavky-alert-dot" class="unread-dot hidden" style="background:#f97316" title="Čekají objednávky k odeslání">!</span></button>
                         <button id="tab-btn-kyc"       onclick="navigate('profil/kyc')"        class="${tab('kyc')} relative">Osobní údaje (KYC)</button>
                         <button id="tab-btn-oblibene"  onclick="navigate('profil/oblibene')"   class="${tab('oblibene')} relative">Oblíbené ❤️</button>
+                        <button id="tab-btn-hodnoceni" onclick="navigate('profil/hodnoceni')"  class="${tab('hodnoceni')} relative">⭐ Moje hodnocení</button>
                         <button onclick="navigate('profil/zpravy')"    class="${tab('zpravy')} relative" id="tab-btn-zpravy">Zprávy 💬<span id="zpravy-unread-dot" class="unread-dot hidden"></span></button>
                         <button onclick="navigate('profil/aktivity')"  class="${tab('aktivity')} relative" id="tab-btn-aktivity">🔔 Aktivity<span id="aktivity-unread-dot" class="unread-dot hidden"></span></button>
                         ${window._userRole === 'admin' ? `<button onclick="navigate('profil/admin')" class="${tab('admin')}">⚙️ Admin</button>` : ''}
