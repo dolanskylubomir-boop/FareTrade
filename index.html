@@ -1880,6 +1880,8 @@
             }
         } catch(e) {}
         try { localStorage.removeItem('ft_local_bids'); } catch(e) {}
+        try { localStorage.removeItem('ft_cart_v1'); } catch(e) {}
+        try { _updateCartBadge(); } catch(e) {}
         window.currentUser = null;
         window._userRole = 'user';
         window._banInfo = null;
