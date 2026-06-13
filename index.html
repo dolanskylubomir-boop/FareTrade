@@ -3783,7 +3783,10 @@
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8">
                 <div class="flex flex-col gap-5">
                     <div class="bg-gray-50 rounded-3xl p-5">
-                        <h3 class="font-bold text-pastel-text mb-4 flex items-center gap-2"><svg class="w-5 h-5 text-sky-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>Doručovací adresa</h3>
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="font-bold text-pastel-text flex items-center gap-2"><svg class="w-5 h-5 text-sky-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>Doručovací adresa</h3>
+                            <button type="button" onclick="fillAddressFromProfile('co')" class="text-xs text-sky-500 hover:text-sky-700 font-bold flex items-center gap-1 bg-sky-50 hover:bg-sky-100 px-3 py-1.5 rounded-lg transition-colors">⬇ Z profilu</button>
+                        </div>
                         <div class="flex flex-col gap-3">
                             <input id="co-name"   type="text" placeholder="Jméno a příjmení *"      class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-sky-400 bg-white" autocomplete="name">
                             <input id="co-street" type="text" placeholder="Ulice a číslo popisné *"  class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-sky-400 bg-white" autocomplete="street-address">
@@ -3855,7 +3858,10 @@
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8">
                 <div class="flex flex-col gap-5">
                     <div class="bg-gray-50 rounded-3xl p-5">
-                        <h3 class="font-bold text-pastel-text mb-4 flex items-center gap-2"><svg class="w-5 h-5 text-sky-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>Doručovací adresa</h3>
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="font-bold text-pastel-text flex items-center gap-2"><svg class="w-5 h-5 text-sky-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>Doručovací adresa</h3>
+                            <button type="button" onclick="fillAddressFromProfile('phn')" class="text-xs text-sky-500 hover:text-sky-700 font-bold flex items-center gap-1 bg-sky-50 hover:bg-sky-100 px-3 py-1.5 rounded-lg transition-colors">⬇ Z profilu</button>
+                        </div>
                         <div class="flex flex-col gap-3">
                             <input id="phn-name"   type="text" placeholder="Jméno a příjmení *"     class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-sky-400 bg-white" autocomplete="name">
                             <input id="phn-street" type="text" placeholder="Ulice a číslo popisné *" class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-sky-400 bg-white" autocomplete="street-address">
@@ -3926,7 +3932,10 @@
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8">
                     <div class="flex flex-col gap-5">
                         <div class="bg-gray-50 rounded-2xl p-5 border border-gray-100">
-                            <h3 class="font-bold text-gray-800 mb-4">Doručovací adresa</h3>
+                            <div class="flex items-center justify-between mb-4">
+                                <h3 class="font-bold text-gray-800">Doručovací adresa</h3>
+                                <button type="button" onclick="fillAddressFromProfile('phn')" class="text-xs text-sky-500 hover:text-sky-700 font-bold flex items-center gap-1 bg-sky-50 hover:bg-sky-100 px-3 py-1.5 rounded-lg transition-colors">⬇ Z profilu</button>
+                            </div>
                             <div class="flex flex-col gap-3">
                                 <div><label class="${labelCls}">Jméno a příjmení *</label><input id="phn-name" type="text" placeholder="Jan Novák" class="${inputCls}"></div>
                                 <div><label class="${labelCls}">Ulice a číslo *</label><input id="phn-street" type="text" placeholder="Náměstí Míru 1" class="${inputCls}"></div>
@@ -3993,7 +4002,10 @@
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8">
                     <div class="flex flex-col gap-5">
                         <div class="bg-gray-50 rounded-2xl p-5 border border-gray-100">
-                            <h3 class="font-bold text-gray-800 mb-4">Doručovací adresa</h3>
+                            <div class="flex items-center justify-between mb-4">
+                                <h3 class="font-bold text-gray-800">Doručovací adresa</h3>
+                                <button type="button" onclick="fillAddressFromProfile('phn')" class="text-xs text-sky-500 hover:text-sky-700 font-bold flex items-center gap-1 bg-sky-50 hover:bg-sky-100 px-3 py-1.5 rounded-lg transition-colors">⬇ Z profilu</button>
+                            </div>
                             <div class="flex flex-col gap-3">
                                 <div><label class="${labelCls}">Jméno a příjmení *</label><input id="phn-name" type="text" placeholder="Jan Novák" class="${inputCls}"></div>
                                 <div><label class="${labelCls}">Ulice a číslo *</label><input id="phn-street" type="text" placeholder="Náměstí Míru 1" class="${inputCls}"></div>
@@ -4370,6 +4382,30 @@
             showToast('Chyba smazání — spusťte SQL pro opravu práv.', 'warning');
             console.warn('deleteThread:', r1.status, r2.status);
         }
+    };
+
+    window.fillAddressFromProfile = async function(prefix) {
+        const set = (id, val) => { const el = document.getElementById(prefix + '-' + id); if (el && val) el.value = val; };
+        let data = window._privateProfileCache?.data;
+        if (!data) {
+            const token = await _ensureValidToken();
+            if (!token || !window.currentUser) return;
+            const r = await fetch(SUPABASE_URL + '/rest/v1/profiles?id=eq.' + window.currentUser.id + '&select=first_name,last_name,street,building_number,orientation_number,city,zip_code',
+                { headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + token } });
+            const arr = await r.json().catch(function() { return []; });
+            data = Array.isArray(arr) && arr.length ? arr[0] : null;
+        }
+        if (!data) return showToast('Nejprve vyplňte osobní údaje v profilu.', 'warning');
+        const name = [data.first_name, data.last_name].filter(Boolean).join(' ');
+        const co   = data.building_number
+            ? data.street + ' ' + data.building_number + (data.orientation_number ? '/' + data.orientation_number : '')
+            : data.street || '';
+        set('name',   name);
+        set('street', co);
+        set('city',   data.city);
+        set('zip',    data.zip_code);
+        if (name || co) showToast('Adresa doplněna z profilu.', 'success');
+        else showToast('Adresa v profilu není vyplněna.', 'warning');
     };
 
     // Unread badge — spustí se po přihlášení
