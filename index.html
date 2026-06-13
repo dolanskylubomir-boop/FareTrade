@@ -100,6 +100,10 @@
         .search-wrap input { padding-left:42px; }
         .search-hidden { display:none !important; }
         .unread-dot { position:absolute; top:-3px; right:-3px; min-width:16px; height:16px; background:#ef4444; border-radius:8px; border:2px solid white; font-size:9px; font-weight:800; color:#fff; display:flex; align-items:center; justify-content:center; padding:0 3px; }
+        @keyframes tab-ping { 0%{box-shadow:0 0 0 0 rgba(14,165,233,.5)} 70%{box-shadow:0 0 0 6px rgba(14,165,233,0)} 100%{box-shadow:0 0 0 0 rgba(14,165,233,0)} }
+        @keyframes tab-flash { 0%,100%{background:transparent} 30%{background:rgba(14,165,233,.12)} }
+        .tab-has-update { animation:tab-flash 1.2s ease 3; background:rgba(14,165,233,.07) !important; color:#0ea5e9 !important; border-bottom-color:#7dd3fc !important; }
+        .tab-activity-dot { position:absolute; top:8px; right:6px; width:7px; height:7px; background:#f97316; border-radius:50%; border:1.5px solid white; animation:tab-ping 1.5s ease infinite; }
 
         /* === Sort select === */
         select.sort-select { appearance:none; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right 12px center; padding-right:32px; }
@@ -3689,8 +3693,8 @@
             if (!activeTab) activeTab = 'inzeraty';
             setTimeout(() => { loadProfileData(activeTab); }, 0);
             const tab = t => t===activeTab
-                ? 'px-5 py-4 font-bold text-sky-500 border-b-2 border-sky-500 bg-sky-50/50 whitespace-nowrap text-sm outline-none'
-                : 'px-5 py-4 font-bold text-gray-500 hover:text-gray-800 transition-colors whitespace-nowrap text-sm outline-none';
+                ? 'profile-tab px-5 py-4 font-bold text-sky-500 border-b-2 border-sky-500 bg-sky-50/50 whitespace-nowrap text-sm outline-none transition-all'
+                : 'profile-tab px-5 py-4 font-bold text-gray-400 hover:text-sky-500 hover:bg-sky-50/60 hover:border-b-2 hover:border-sky-200 transition-all whitespace-nowrap text-sm outline-none border-b-2 border-transparent';
             return `
             <div class="w-full max-w-5xl mx-auto fade-in">
                 <div class="bg-white/90 backdrop-blur-xl p-6 md:p-8 rounded-[2rem] shadow-xl border border-white/50 mb-6 flex flex-col md:flex-row items-center md:items-start gap-5 relative overflow-hidden">
@@ -3718,11 +3722,11 @@
                 <div id="dac7-banner"></div>
                 <div class="bg-white/90 backdrop-blur-xl rounded-[2rem] shadow-xl border border-white/50 overflow-hidden">
                     <div class="flex border-b border-gray-100 overflow-x-auto scrollbar-hide">
-                        <button onclick="navigate('profil/inzeraty')"  class="${tab('inzeraty')}">Inzeráty a příhozy</button>
-                        <button onclick="navigate('profil/transakce')" class="${tab('transakce')}">Historie transakcí</button>
-                        <button onclick="navigate('profil/objednavky')" class="${tab('objednavky')}">Objednávky 📦</button>
-                        <button onclick="navigate('profil/kyc')"       class="${tab('kyc')}">Osobní údaje (KYC)</button>
-                        <button onclick="navigate('profil/oblibene')"  class="${tab('oblibene')}">Oblíbené ❤️</button>
+                        <button id="tab-btn-inzeraty"  onclick="navigate('profil/inzeraty')"   class="${tab('inzeraty')} relative">Inzeráty a příhozy</button>
+                        <button id="tab-btn-transakce" onclick="navigate('profil/transakce')"  class="${tab('transakce')} relative">Historie transakcí</button>
+                        <button id="tab-btn-objednavky" onclick="navigate('profil/objednavky')" class="${tab('objednavky')} relative">Objednávky 📦</button>
+                        <button id="tab-btn-kyc"       onclick="navigate('profil/kyc')"        class="${tab('kyc')} relative">Osobní údaje (KYC)</button>
+                        <button id="tab-btn-oblibene"  onclick="navigate('profil/oblibene')"   class="${tab('oblibene')} relative">Oblíbené ❤️</button>
                         <button onclick="navigate('profil/zpravy')"    class="${tab('zpravy')} relative" id="tab-btn-zpravy">Zprávy 💬<span id="zpravy-unread-dot" class="unread-dot hidden"></span></button>
                         <button onclick="navigate('profil/aktivity')"  class="${tab('aktivity')} relative" id="tab-btn-aktivity">🔔 Aktivity<span id="aktivity-unread-dot" class="unread-dot hidden"></span></button>
                         ${window._userRole === 'admin' ? `<button onclick="navigate('profil/admin')" class="${tab('admin')}">⚙️ Admin</button>` : ''}
@@ -5441,6 +5445,19 @@
     });
 
     // ──────────────────────────────────────────────────────────────
+    // TAB FLASH — zvýrazní záložku profilu při nové aktivitě
+    // ──────────────────────────────────────────────────────────────
+    window._flashTab = function(tabName) {
+        const hash = window.location.hash.replace('#','');
+        if (!hash.startsWith('profil')) return;
+        const activeTab = hash.split('/')[1] || 'inzeraty';
+        if (activeTab === tabName) return;
+        const btn = document.getElementById('tab-btn-' + tabName);
+        if (!btn) return;
+        btn.classList.add('tab-has-update');
+        setTimeout(() => btn.classList.remove('tab-has-update'), 5000);
+    };
+
     // TOAST NOTIFIKACE
     // ──────────────────────────────────────────────────────────────
     window.showToast = function(message, type = 'info') {
@@ -5507,6 +5524,7 @@
         const msg = msgs[tx.status] || `Transakce aktualizována: "${tx.item_title}"`;
         showToast(msg, type);
         sendBrowserNotification('FairTrade', msg, tx.item_image||null);
+        _flashTab('transakce');
         const cont = document.getElementById('transakce-content');
         if (cont) {
             if (window._txData) {
@@ -5942,6 +5960,7 @@
                 const n = p.new;
                 // Aktualizuj badge
                 _refreshNotifBadge();
+                _flashTab('aktivity');
                 // Zobraz toast s kliknutím na odkaz
                 const icon = NOTIF_ICONS[n.type] || '🔔';
                 showToast(`${icon} ${n.title} — ${n.body}`, 'info', 6000);
@@ -5974,6 +5993,7 @@
                 const o = p.new;
                 if (o.seller_id === window.currentUser.id) {
                     showToast('🛒 Nová objednávka přišla!', 'success', 5000);
+                    _flashTab('objednavky');
                     const sellerCont = document.getElementById('profil-seller-obj-content');
                     if (sellerCont) _loadSellerObjednavkyTab();
                     const h = window.location.hash;
@@ -5986,6 +6006,7 @@
                 const isBuyer  = o.buyer_id  === window.currentUser.id;
                 const isSeller = o.seller_id === window.currentUser.id;
                 if (!isBuyer && !isSeller) return;
+                _flashTab('objednavky');
                 // Refresh objednávky tabu
                 if (isBuyer  && document.getElementById('profil-obj-content'))        _loadObjednavkyTab();
                 if (isSeller && document.getElementById('profil-seller-obj-content')) _loadSellerObjednavkyTab();
