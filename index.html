@@ -2831,27 +2831,30 @@
                 html += `<div class="flex flex-col gap-3 mb-8">`;
                 myAds.forEach(item => {
                     const isAukce = item.type === 'aukce';
+                    const isPending = item.db_status === 'ceka_na_platbu';
                     const topInfo = item.is_top && item.top_expires_at ? `<span class="inline-flex items-center gap-1 bg-amber-100 text-amber-700 text-[10px] px-2 py-0.5 rounded-full font-bold uppercase ml-2">⭐ TOP do ${new Date(item.top_expires_at).toLocaleDateString('cs-CZ')}</span>` : '';
-                    html += `<div class="flex items-center gap-3 p-3.5 border border-gray-100 rounded-2xl hover:shadow-md transition-shadow bg-white group relative overflow-hidden">
-                        <div onclick="navigate('${isAukce?'aukce-detail':'pevna-cena-detail'}/${item.id}')" class="flex items-center gap-3 flex-grow cursor-pointer min-w-0">
-                            <div class="w-14 h-14 rounded-xl bg-gray-100 overflow-hidden shrink-0"><img src="${item.img}" onerror="this.onerror=null;this.src='${FALLBACK_IMG}';" class="w-full h-full object-cover group-hover:scale-110 transition-transform"></div>
+                    html += `<div class="flex items-center gap-3 p-3.5 border ${isPending?'border-yellow-200 bg-yellow-50/50 opacity-70':'border-gray-100 bg-white'} rounded-2xl ${isPending?'':'hover:shadow-md'} transition-shadow group relative overflow-hidden">
+                        ${isPending?`<div class="absolute top-2 right-2 z-10"><span class="bg-yellow-400 text-yellow-900 text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wide">⏳ Čeká na platbu</span></div>`:''}
+                        <div onclick="${isPending?'':'navigate(\''+( isAukce?'aukce-detail':'pevna-cena-detail')+'/'+item.id+'\')'}" class="flex items-center gap-3 flex-grow ${isPending?'pointer-events-none':'cursor-pointer'} min-w-0">
+                            <div class="w-14 h-14 rounded-xl bg-gray-100 overflow-hidden shrink-0 ${isPending?'grayscale':''}" ><img src="${item.img}" onerror="this.onerror=null;this.src='${FALLBACK_IMG}';" class="w-full h-full object-cover ${isPending?'':'group-hover:scale-110'} transition-transform"></div>
                             <div class="flex-grow min-w-0">
-                                <div class="text-[11px] ${isAukce?'text-sky-500':'text-pink-500'} font-bold mb-0.5 uppercase flex items-center flex-wrap gap-1">${isAukce?'Aukce':'Pevná cena'}${topInfo}<span class="text-gray-400 font-medium text-[10px] bg-gray-50 px-1.5 py-0.5 rounded">${getDays(item.endTime)}</span></div>
-                                <h4 class="font-bold text-gray-800 truncate text-sm">${item.title}</h4>
-                                ${isAukce&&item.last_bidder_id?`<div class="text-[10px] text-green-600 font-bold mt-0.5">✓ Zájemce: ${item.last_bidder_name}</div>`:''}
+                                <div class="text-[11px] ${isPending?'text-gray-400':isAukce?'text-sky-500':'text-pink-500'} font-bold mb-0.5 uppercase flex items-center flex-wrap gap-1">${isAukce?'Aukce':'Pevná cena'}${topInfo}${!isPending?`<span class="text-gray-400 font-medium text-[10px] bg-gray-50 px-1.5 py-0.5 rounded">${getDays(item.endTime)}</span>`:''}</div>
+                                <h4 class="font-bold ${isPending?'text-gray-400':'text-gray-800'} truncate text-sm">${item.title}</h4>
+                                ${isPending?`<p class="text-[10px] text-yellow-700 font-semibold mt-0.5">Kupující má 2 hod. na zaplacení</p>`:''}
+                                ${!isPending&&isAukce&&item.last_bidder_id?`<div class="text-[10px] text-green-600 font-bold mt-0.5">✓ Zájemce: ${item.last_bidder_name}</div>`:''}
                             </div>
                         </div>
                         <div class="text-right shrink-0 mr-1">
-                            <div class="font-bold text-base text-gray-800">${item.price.toLocaleString('cs-CZ')} Kč</div>
+                            <div class="font-bold text-base ${isPending?'text-gray-400':'text-gray-800'}">${item.price.toLocaleString('cs-CZ')} Kč</div>
                         </div>
                         <div class="flex flex-col gap-1 shrink-0">
-                            <button onclick="showEditModal('${item.id}','${item.type}')" title="Upravit" class="w-8 h-8 rounded-xl bg-sky-50 text-sky-600 hover:bg-sky-100 flex items-center justify-center transition-colors">
+                            <button onclick="${isPending?'showToast(\'Inzerát nelze upravit — čeká na platbu.\',\'warning\')':'showEditModal(\''+item.id+'\',\''+item.type+'\')'}" title="${isPending?'Nelze upravit':'Upravit'}" class="w-8 h-8 rounded-xl ${isPending?'bg-gray-100 text-gray-300 cursor-not-allowed':'bg-sky-50 text-sky-600 hover:bg-sky-100'} flex items-center justify-center transition-colors">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
                             </button>
-                            <button onclick="showTopModal('${item.id}','${item.type}')" title="TOP inzerát" class="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 hover:bg-amber-100 flex items-center justify-center transition-colors">
+                            <button onclick="${isPending?'':('showTopModal(\''+item.id+'\',\''+item.type+'\')')}" title="TOP inzerát" class="w-8 h-8 rounded-xl ${isPending?'bg-gray-100 text-gray-300 cursor-not-allowed':'bg-amber-50 text-amber-600 hover:bg-amber-100'} flex items-center justify-center transition-colors">
                                 <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
                             </button>
-                            <button onclick="deleteAd('${item.type}','${item.id}')" title="Smazat" class="w-8 h-8 rounded-xl bg-red-50 text-red-400 hover:bg-red-100 hover:text-red-600 flex items-center justify-center transition-colors">
+                            <button onclick="${isPending?'showToast(\'Inzerát nelze smazat — čeká na platbu.\',\'warning\')':'deleteAd(\''+item.type+'\',\''+item.id+'\')'}" title="${isPending?'Nelze smazat':'Smazat'}" class="w-8 h-8 rounded-xl ${isPending?'bg-gray-100 text-gray-300 cursor-not-allowed':'bg-red-50 text-red-400 hover:bg-red-100 hover:text-red-600'} flex items-center justify-center transition-colors">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
                             </button>
                         </div>
@@ -3714,6 +3717,7 @@
             kategorieFilter = kategorieFilter || 'Vše';
             _currentCategory = kategorieFilter;
             const all = dataPevnaCena.filter(i =>
+                i.db_status !== 'ceka_na_platbu' &&
                 (kategorieFilter === 'Vše' || i.category === kategorieFilter) &&
                 (!_currentSubcategory || i.subcategory === _currentSubcategory)
             );
@@ -5567,14 +5571,24 @@
         supabaseClient.channel('rt_bids').on('postgres_changes',{ event:'INSERT', schema:'public', table:'bids' },(p)=>handleRealtimeAuctionUpdate({ id:p.new.auction_id, current_price:p.new.amount, last_bidder_id:p.new.bidder_id })).subscribe();
         supabaseClient.channel('rt_pevna').on('postgres_changes',{ event:'UPDATE', schema:'public', table:'pevna_cena' },(p)=>{
             const u = p.new;
-            if (['prodano','prodáno','archivováno','zruseno','ceka_na_platbu'].includes(u.status)) {
+            if (['prodano','prodáno','archivováno','zruseno'].includes(u.status)) {
                 dataPevnaCena = dataPevnaCena.filter(i=>i.id!==u.id);
                 const h = window.location.hash;
                 if (h.includes('pevna-cena')&&!h.includes('detail')) navigate('pevna-cena');
                 if (h.includes('pevna-cena-detail/'+u.id)) { showToast('Tato položka byla právě zakoupena jiným uživatelem.','warning'); setTimeout(()=>navigate('pevna-cena'),2000); }
+            } else if (u.status === 'ceka_na_platbu') {
+                const idx = dataPevnaCena.findIndex(i=>i.id==u.id);
+                if (idx !== -1) {
+                    dataPevnaCena[idx].db_status = 'ceka_na_platbu';
+                    const h = window.location.hash;
+                    if (h.includes('pevna-cena')&&!h.includes('detail')) navigate('pevna-cena');
+                    if (h.includes('pevna-cena-detail/'+u.id)) { showToast('Tato položka čeká na platbu od jiného kupujícího.','warning'); setTimeout(()=>navigate('pevna-cena'),2000); }
+                    if (h.includes('profil/inzeraty')||h.includes('profil')) navigate('profil/inzeraty');
+                }
             } else {
                 const idx = dataPevnaCena.findIndex(i=>i.id==u.id);
                 if (idx !== -1) {
+                    dataPevnaCena[idx].db_status = u.status;
                     dataPevnaCena[idx].reserved_until = u.reserved_until ? new Date(u.reserved_until).getTime() : null;
                     const h = window.location.hash;
                     if (h.includes('pevna-cena')&&!h.includes('detail')) navigate('pevna-cena', _currentCategory);
