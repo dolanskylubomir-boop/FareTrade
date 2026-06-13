@@ -3818,8 +3818,8 @@
             if (!activeTab) activeTab = 'inzeraty';
             setTimeout(() => { loadProfileData(activeTab); }, 0);
             const tab = t => t===activeTab
-                ? 'profile-tab px-5 py-4 font-bold text-sky-500 border-b-2 border-sky-500 bg-sky-50/50 whitespace-nowrap text-sm outline-none transition-all'
-                : 'profile-tab px-5 py-4 font-bold text-gray-400 hover:text-sky-500 hover:bg-sky-50/60 hover:border-b-2 hover:border-sky-200 transition-all whitespace-nowrap text-sm outline-none border-b-2 border-transparent';
+                ? 'profile-tab px-3.5 py-4 font-bold text-sky-500 border-b-2 border-sky-500 bg-sky-50/50 whitespace-nowrap text-sm outline-none transition-all'
+                : 'profile-tab px-3.5 py-4 font-bold text-gray-400 hover:text-sky-500 hover:bg-sky-50/60 hover:border-b-2 hover:border-sky-200 transition-all whitespace-nowrap text-sm outline-none border-b-2 border-transparent';
             return `
             <div class="w-full max-w-5xl mx-auto fade-in">
                 <div class="bg-white/90 backdrop-blur-xl p-6 md:p-8 rounded-[2rem] shadow-xl border border-white/50 mb-6 flex flex-col md:flex-row items-center md:items-start gap-5 relative overflow-hidden">
@@ -3846,16 +3846,18 @@
                 </div>
                 <div id="dac7-banner"></div>
                 <div class="bg-white/90 backdrop-blur-xl rounded-[2rem] shadow-xl border border-white/50 overflow-hidden">
-                    <div class="flex border-b border-gray-100 overflow-x-auto scrollbar-hide">
-                        <button id="tab-btn-inzeraty"  onclick="navigate('profil/inzeraty')"   class="${tab('inzeraty')} relative">Inzeráty a příhozy</button>
-                        <button id="tab-btn-transakce" onclick="navigate('profil/transakce')"  class="${tab('transakce')} relative">Historie transakcí</button>
-                        <button id="tab-btn-objednavky" onclick="navigate('profil/objednavky')" class="${tab('objednavky')} relative">Objednávky 📦<span id="objednavky-alert-dot" class="unread-dot hidden" style="background:#f97316" title="Čekají objednávky k odeslání">!</span></button>
-                        <button id="tab-btn-kyc"       onclick="navigate('profil/kyc')"        class="${tab('kyc')} relative">Osobní údaje (KYC)</button>
-                        <button id="tab-btn-oblibene"  onclick="navigate('profil/oblibene')"   class="${tab('oblibene')} relative">Oblíbené ❤️</button>
-                        <button id="tab-btn-hodnoceni" onclick="navigate('profil/hodnoceni')"  class="${tab('hodnoceni')} relative">⭐ Moje hodnocení</button>
-                        <button onclick="navigate('profil/zpravy')"    class="${tab('zpravy')} relative" id="tab-btn-zpravy">Zprávy 💬<span id="zpravy-unread-dot" class="unread-dot hidden"></span></button>
-                        <button onclick="navigate('profil/aktivity')"  class="${tab('aktivity')} relative" id="tab-btn-aktivity">🔔 Aktivity<span id="aktivity-unread-dot" class="unread-dot hidden"></span></button>
-                        ${window._userRole === 'admin' ? `<button onclick="navigate('profil/admin')" class="${tab('admin')}">⚙️ Admin</button>` : ''}
+                    <div class="flex border-b border-gray-100">
+                        <div class="flex overflow-x-auto scrollbar-hide flex-1 min-w-0">
+                            <button id="tab-btn-inzeraty"  onclick="navigate('profil/inzeraty')"   class="${tab('inzeraty')} relative">Inzeráty</button>
+                            <button id="tab-btn-transakce" onclick="navigate('profil/transakce')"  class="${tab('transakce')} relative">Transakce</button>
+                            <button id="tab-btn-objednavky" onclick="navigate('profil/objednavky')" class="${tab('objednavky')} relative">Objednávky 📦<span id="objednavky-alert-dot" class="unread-dot hidden" style="background:#f97316" title="Čekají objednávky k odeslání">!</span></button>
+                            <button id="tab-btn-kyc"       onclick="navigate('profil/kyc')"        class="${tab('kyc')} relative">KYC</button>
+                            <button id="tab-btn-oblibene"  onclick="navigate('profil/oblibene')"   class="${tab('oblibene')} relative">Oblíbené ❤️</button>
+                            <button id="tab-btn-hodnoceni" onclick="navigate('profil/hodnoceni')"  class="${tab('hodnoceni')} relative">⭐ Hodnocení</button>
+                            <button onclick="navigate('profil/zpravy')"    class="${tab('zpravy')} relative" id="tab-btn-zpravy">Zprávy 💬<span id="zpravy-unread-dot" class="unread-dot hidden"></span></button>
+                            <button onclick="navigate('profil/aktivity')"  class="${tab('aktivity')} relative" id="tab-btn-aktivity">🔔 Aktivity<span id="aktivity-unread-dot" class="unread-dot hidden"></span></button>
+                        </div>
+                        ${window._userRole === 'admin' ? `<button onclick="navigate('profil/admin')" class="${tab('admin')} shrink-0 border-l border-gray-100 bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-700 font-extrabold">⚙️ Admin</button>` : ''}
                     </div>
                     <div class="p-5 md:p-8" id="profile-tab-content">${renderProfileTabContent(activeTab)}</div>
                 </div>
