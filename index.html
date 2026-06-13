@@ -4202,7 +4202,10 @@
                 html += '<div class="w-8 h-8 rounded-xl bg-' + color + '-100 flex items-center justify-center shrink-0"><svg class="w-4 h-4 text-' + color + '-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-3 3-3-3z"/></svg></div>';
                 const safeTitle = (thread.itemTitle || 'Inzerát').replace(/</g,'&lt;').replace(/>/g,'&gt;');
                 html += '<div class="flex-grow min-w-0"><p class="font-bold text-gray-800 text-sm truncate">' + safeTitle + '</p><p class="text-xs text-' + color + '-500 font-bold uppercase">' + (isAukce ? 'Aukce' : 'Pevná cena') + '</p></div>';
-                html += '<button onclick="navigate(\'' + (isAukce?'aukce-detail':'pevna-cena-detail') + '/' + thread.itemId + '\')" class="text-xs text-' + color + '-500 hover:text-' + color + '-700 font-bold shrink-0">Zobrazit →</button>';
+                html += '<div class="flex items-center gap-2 shrink-0">';
+                html += '<button onclick="navigate(\'' + (isAukce?'aukce-detail':'pevna-cena-detail') + '/' + thread.itemId + '\')" class="text-xs text-' + color + '-500 hover:text-' + color + '-700 font-bold">Zobrazit →</button>';
+                html += '<button onclick="deleteThread(\'' + thread.itemId + '\',\'' + thread.otherId + '\')" class="text-gray-300 hover:text-red-500 transition-colors p-1 rounded-lg hover:bg-red-50" title="Smazat konverzaci"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg></button>';
+                html += '</div>';
                 html += '</div>';
                 html += '<div class="p-4 flex flex-col gap-3">';
                 thread.messages.forEach(function(m) {
@@ -4250,6 +4253,24 @@
             loadZpravyTab();
         } catch(e) {
             showToast('Chyba odeslání: ' + e.message, 'warning');
+        }
+    };
+
+    window.deleteThread = async function(itemId, otherId) {
+        if (!confirm('Smazat celou konverzaci? Tato akce je nevratná.')) return;
+        const token = await _ensureValidToken();
+        if (!token) return;
+        const uid  = window.currentUser.id;
+        const hdrs = { 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + token, 'Prefer': 'return=minimal' };
+        const url  = SUPABASE_URL + '/rest/v1/messages?item_id=eq.' + itemId
+                   + '&or=(and(sender_id.eq.' + uid + ',receiver_id.eq.' + otherId + '),and(sender_id.eq.' + otherId + ',receiver_id.eq.' + uid + '))';
+        const r = await fetch(url, { method: 'DELETE', headers: hdrs });
+        if (r.ok || r.status === 204) {
+            showToast('Konverzace smazána.', 'success');
+            loadZpravyTab();
+        } else {
+            showToast('Chyba smazání — zkontrolujte práva v DB.', 'warning');
+            console.warn('deleteThread error:', r.status, await r.text().catch(function(){}));
         }
     };
 
