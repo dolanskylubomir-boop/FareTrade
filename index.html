@@ -1068,14 +1068,15 @@
     window.MAPY_KEY = 'RIiwkZC637nWPlSr-WJYs4HKm06DHnPrt0cgypBbc2E';
     window._ADDR_CFG = {
         'kyc-street': { cityId: 'kyc-city', zipId: 'kyc-zip' },
-        'co-street':  { cityId: 'co-city',  zipId: 'co-zip'  }
+        'co-street':  { cityId: 'co-city',  zipId: 'co-zip'  },
+        'phn-street': { cityId: 'phn-city', zipId: 'phn-zip' }
     };
     window._addrHits  = {};
     window._addrTimer = null;
 
     document.addEventListener('input', function(e) {
         var id = e.target && e.target.id;
-        if (id !== 'kyc-street' && id !== 'co-street') return;
+        if (!window._ADDR_CFG[id]) return;
         console.log('[addr] input fired on', id);
         var cfg = window._ADDR_CFG[id];
         var q   = e.target.value.trim();
@@ -1083,8 +1084,9 @@
         // Uzivatel vybral polozku -> doplnit mesto + PSC
         var hits = window._addrHits[id] || [];
         for (var i = 0; i < hits.length; i++) {
-            if (hits[i].street === q) {
-                var h = hits[i];
+            var h = hits[i];
+            if (h.street === q || h.full === q) {
+                e.target.value = h.street;
                 if (cfg.cityId && h.city) { var c = document.getElementById(cfg.cityId); if (c) c.value = h.city; }
                 if (cfg.zipId  && h.zip)  { var z = document.getElementById(cfg.zipId);  if (z) z.value = h.zip;  }
                 return;
@@ -1121,7 +1123,9 @@
                     }
                     var zip = (item.zip || '').replace(/\s/g,'');
                     if (zip.length === 5) zip = zip.slice(0,3) + ' ' + zip.slice(3);
-                    return { street: item.name || '', city: city, zip: zip };
+                    var street = item.name || '';
+                    var full = street + (city ? ' — ' + city : '') + (zip ? ' ' + zip : '');
+                    return { street: street, city: city, zip: zip, full: full };
                 }).filter(function(x) { return x.street; });
 
                 console.log('[addr] parsed:', results);
@@ -1129,7 +1133,7 @@
 
                 var dl2 = document.getElementById(dlId);
                 if (dl2) dl2.innerHTML = results.map(function(s) {
-                    return '<option value="' + s.street.replace(/&/g,'&amp;').replace(/"/g,'&quot;') + '">';
+                    return '<option value="' + s.full.replace(/&/g,'&amp;').replace(/"/g,'&quot;') + '">';
                 }).join('');
             })
             .catch(function(e2) { console.error('[addr] fetch error:', e2); });
@@ -5050,7 +5054,7 @@
                         </div>
                         <div class="flex flex-col gap-3">
                             <input id="co-name"   type="text" placeholder="Jméno a příjmení *"      class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-sky-400 bg-white" autocomplete="name">
-                            <input id="co-street" type="text" placeholder="Ulice a číslo popisné *" autocomplete="off" oninput="window._streetAutocomplete(this)" class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-sky-400 bg-white">
+                            <input id="co-street" type="text" placeholder="Ulice a číslo popisné *" autocomplete="off" class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-sky-400 bg-white">
                             <div class="grid grid-cols-2 gap-3">
                                 <input id="co-city" type="text" placeholder="Město *" class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-sky-400 bg-white" autocomplete="address-level2">
                                 <input id="co-zip"  type="text" placeholder="PSČ *"   class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-sky-400 bg-white" maxlength="6" autocomplete="postal-code" inputmode="numeric" oninput="formatPSC(this); if(this.value.replace(/\s/g,'').length===5) _zipLookup(this, document.getElementById('co-city'))">
