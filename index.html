@@ -1064,87 +1064,77 @@
         } catch {}
     };
 
-    // Mapy.cz v1 suggest API
-    const MAPY_KEY = 'RIiwkZC637nWPlSr-WJYs4HKm06DHnPrt0cgypBbc2E';
-    const _ADDR_CFG = {
+    // Mapy.cz v1 suggest — event delegace (nespoleha na inline oninput)
+    window.MAPY_KEY = 'RIiwkZC637nWPlSr-WJYs4HKm06DHnPrt0cgypBbc2E';
+    window._ADDR_CFG = {
         'kyc-street': { cityId: 'kyc-city', zipId: 'kyc-zip' },
         'co-street':  { cityId: 'co-city',  zipId: 'co-zip'  }
     };
-    window._addrSuggestions = {};
-    var _addrTimer = null;
+    window._addrHits  = {};
+    window._addrTimer = null;
 
-    window._streetAutocomplete = function(el) {
-        var cfg = _ADDR_CFG[el.id];
-        if (!cfg) return;
-        var q = el.value.trim();
-
-        // Vytvor datalist okamzite pri prvnim volani (nezavisle na delce q)
-        var dlId = '_dl_' + el.id;
-        if (!document.getElementById(dlId)) {
-            var dl = document.createElement('datalist');
-            dl.id = dlId;
-            document.body.appendChild(dl);
-            el.setAttribute('list', dlId);
-        }
+    document.addEventListener('input', function(e) {
+        var id = e.target && e.target.id;
+        if (id !== 'kyc-street' && id !== 'co-street') return;
+        console.log('[addr] input fired on', id);
+        var cfg = window._ADDR_CFG[id];
+        var q   = e.target.value.trim();
 
         // Uzivatel vybral polozku -> doplnit mesto + PSC
-        var hits = window._addrSuggestions[el.id] || [];
+        var hits = window._addrHits[id] || [];
         for (var i = 0; i < hits.length; i++) {
             if (hits[i].street === q) {
-                var hit = hits[i];
-                if (cfg.cityId && hit.city) {
-                    var ce = document.getElementById(cfg.cityId);
-                    if (ce) ce.value = hit.city;
-                }
-                if (cfg.zipId && hit.zip) {
-                    var ze = document.getElementById(cfg.zipId);
-                    if (ze) ze.value = hit.zip;
-                }
+                var h = hits[i];
+                if (cfg.cityId && h.city) { var c = document.getElementById(cfg.cityId); if (c) c.value = h.city; }
+                if (cfg.zipId  && h.zip)  { var z = document.getElementById(cfg.zipId);  if (z) z.value = h.zip;  }
                 return;
             }
         }
 
+        // Vytvor datalist hned (pred fetchem)
+        var dlId = '_dl_' + id;
+        if (!document.getElementById(dlId)) {
+            var dl = document.createElement('datalist');
+            dl.id  = dlId;
+            document.body.appendChild(dl);
+            e.target.setAttribute('list', dlId);
+            console.log('[addr] datalist created:', dlId);
+        }
+
         if (q.length < 3) return;
 
-        clearTimeout(_addrTimer);
-        _addrTimer = setTimeout(function() {
+        clearTimeout(window._addrTimer);
+        window._addrTimer = setTimeout(function() {
             var url = 'https://api.mapy.cz/v1/suggest?lang=cs&limit=6&type=regional.address&apikey='
-                      + MAPY_KEY + '&query=' + encodeURIComponent(q);
+                      + window.MAPY_KEY + '&query=' + encodeURIComponent(q);
+            console.log('[addr] fetching:', url);
             fetch(url)
             .then(function(r) { return r.json(); })
             .then(function(data) {
-                console.log('[Mapy]', data);
-                var items = data.items || [];
+                console.log('[addr] response:', data);
+                var items   = data.items || [];
                 var results = items.map(function(item) {
                     var city = '';
-                    var reg = item.regionalStructure || [];
+                    var reg  = item.regionalStructure || [];
                     for (var j = 0; j < reg.length; j++) {
                         if (reg[j].type === 'regional.municipality') { city = reg[j].name; break; }
                     }
-                    if (!city) {
-                        for (var k = 0; k < reg.length; k++) {
-                            if (reg[k].type === 'regional.municipality_part') { city = reg[k].name; break; }
-                        }
-                    }
-                    var zip = (item.zip || '').replace(/\s/g, '');
+                    var zip = (item.zip || '').replace(/\s/g,'');
                     if (zip.length === 5) zip = zip.slice(0,3) + ' ' + zip.slice(3);
-                    var street = item.name || item.label || '';
-                    return { street: street, city: city, zip: zip };
+                    return { street: item.name || '', city: city, zip: zip };
                 }).filter(function(x) { return x.street; });
 
-                console.log('[Mapy] parsed:', results);
-                window._addrSuggestions[el.id] = results;
+                console.log('[addr] parsed:', results);
+                window._addrHits[id] = results;
 
                 var dl2 = document.getElementById(dlId);
-                if (dl2) {
-                    dl2.innerHTML = results.map(function(s) {
-                        return '<option value="' + s.street.replace(/&/g,'&amp;').replace(/"/g,'&quot;') + '">';
-                    }).join('');
-                }
+                if (dl2) dl2.innerHTML = results.map(function(s) {
+                    return '<option value="' + s.street.replace(/&/g,'&amp;').replace(/"/g,'&quot;') + '">';
+                }).join('');
             })
-            .catch(function(e) { console.error('[Mapy] error:', e); });
+            .catch(function(e2) { console.error('[addr] fetch error:', e2); });
         }, 300);
-    };
+    });
     window.validateAge = function(input) {
         if (!input.value) return true;
         const birth = new Date(input.value);
