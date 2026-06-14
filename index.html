@@ -822,7 +822,7 @@
         { id:'ostatni',      name:'Ostatní',           icon:'📦', sub:[] },
     ];
     const vsechnyKategorie = ['Vše', ...KATEGORIE.map(k => k.name)];
-    const FALLBACK_IMG     = 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?q=80&w=800&auto=format&fit=crop';
+    const FALLBACK_IMG     = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 4 3'%3E%3Crect width='4' height='3' fill='%23f1f5f9'/%3E%3Crect x='1.4' y='0.7' width='1.2' height='1' rx='0.12' fill='%23e2e8f0'/%3E%3Ccircle cx='2' cy='1.2' r='0.28' fill='%23f8fafc'/%3E%3Ccircle cx='2' cy='1.2' r='0.16' fill='%23cbd5e1'/%3E%3Cpath d='M1.6 2 Q2 1.75 2.4 2' stroke='%23e2e8f0' stroke-width='0.07' fill='none' stroke-linecap='round'/%3E%3C/svg%3E";
 
     // ──────────────────────────────────────────────────────────────
     // VOP MODAL
@@ -1361,7 +1361,7 @@
     window.showTopPaymentStep = function() {
         if (!_topState.selectedTier) return;
         const tier   = _topState.selectedTier;
-        const vs     = String(Date.now()).slice(-8);
+        const vs     = String(crypto.getRandomValues(new Uint32Array(1))[0]).slice(-8).padStart(8,'0');
         _topState.vs = vs;
 
         const qrData = `SPD*1.0*ACC:${PAYMENT_IBAN}+${PAYMENT_BIC}*AM:${tier.amount}.00*CC:CZK*MSG:TOP FairTrade*X-VS:${vs}`;
@@ -1942,18 +1942,17 @@
     window.incrementViewCount = async function(id, type) {
         if (!id) return;
         const sessionKey = `ft_view_${id}`;
-        if (sessionStorage.getItem(sessionKey)) return; // Již počítáno v této session
+        if (sessionStorage.getItem(sessionKey)) return;
         sessionStorage.setItem(sessionKey, '1');
 
-        const arr  = type === 'aukce' ? dataAukce : dataPevnaCena;
-        const item = arr.find(i => i.id === id);
-        if (item) item.views_count = (item.views_count || 0) + 1;
-
-        if (!supabaseClient) return;
         const table = type === 'aukce' ? 'aukce' : 'pevna_cena';
         try {
-            await supabaseClient.from(table).update({ views_count: item?.views_count || 1 }).eq('id', id);
-        } catch(e) { /* RLS může blokovat anon – tiché selhání */ }
+            await fetch(`${SUPABASE_URL}/rest/v1/rpc/increment_view_count`, {
+                method: 'POST',
+                headers: { 'apikey': SUPABASE_ANON_KEY, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ p_table: table, p_id: id })
+            });
+        } catch(e) { /* tiché selhání */ }
     };
 
     // ──────────────────────────────────────────────────────────────
@@ -1998,6 +1997,7 @@
                     setTimeout(_refreshNotifBadge, 1500);
                     setTimeout(_checkAuctionWins, 2000);
                     setTimeout(_subscribeToPush, 3000);
+                    setTimeout(window._setupUserRTChannels, 500);
                 } else if (event === 'INITIAL_SESSION') {
                     window._jwtReady = true;
                     loadFavoritesFromDB();
@@ -2127,6 +2127,7 @@
         try { localStorage.removeItem('ft_local_bids'); } catch(e) {}
         try { localStorage.removeItem('ft_cart_v1'); } catch(e) {}
         try { _updateCartBadge(); } catch(e) {}
+        try { window._teardownUserRTChannels(); } catch(e) {}
         window.currentUser = null;
         window._userRole = 'user';
         window._banInfo = null;
@@ -2255,10 +2256,39 @@
 
     // ──────────────────────────────────────────────────────────────
     // VLOŽENÍ INZERÁTU
-    window.submitKontaktForm = function(e) {
+    window.submitKontaktForm = async function(e) {
         e.preventDefault();
-        showToast('Zpráva odeslána! Odpovíme do 24 hodin v pracovní dny.', 'success');
-        e.target.reset();
+        const btn = e.target.querySelector('button[type="submit"]');
+        const origText = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = '⌛ Odesílám…';
+        try {
+            const name    = document.getElementById('k-name').value.trim();
+            const email   = document.getElementById('k-email').value.trim();
+            const subject = document.getElementById('k-subject').value;
+            const message = document.getElementById('k-msg').value.trim();
+            const headers = { 'apikey': SUPABASE_ANON_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' };
+            if (window.currentUser) {
+                const token = await _ensureValidToken();
+                headers['Authorization'] = `Bearer ${token}`;
+            }
+            const r = await fetch(`${SUPABASE_URL}/rest/v1/support_tickets`, {
+                method: 'POST',
+                headers,
+                body: JSON.stringify({
+                    user_id: window.currentUser?.id || null,
+                    name, email, subject, message
+                })
+            });
+            if (!r.ok) throw new Error('status ' + r.status);
+            showToast('✅ Zpráva odeslána! Odpovíme do 24 hodin v pracovní dny.', 'success', 6000);
+            e.target.reset();
+        } catch(err) {
+            showToast('Nepodařilo se odeslat zprávu. Zkuste to prosím znovu.', 'error');
+        } finally {
+            btn.disabled = false;
+            btn.textContent = origText;
+        }
     };
 
     // ──────────────────────────────────────────────────────────────
@@ -2615,7 +2645,10 @@
             showToast('Inzerát byl úspěšně zveřejněn!','success');
             navigate('profil');
         } catch (err) {
-            showToast('Chyba: ' + err.message, 'warning');
+            const msg = (err.message||'').includes('rate_limit_exceeded')
+                ? 'Příliš mnoho inzerátů za krátkou dobu. Počkejte hodinu.'
+                : 'Chyba: ' + err.message;
+            showToast(msg, 'warning');
         } finally {
             if (btn) { btn.innerText=origText; btn.disabled=false; }
         }
@@ -2834,15 +2867,18 @@
             else if (s === 'warning')               { dac7Badge.textContent = '⚠️ Blíží se limitu'; dac7Badge.className = 'text-xs px-2 py-0.5 rounded-full font-bold uppercase bg-amber-100 text-amber-700'; }
             else                                    { dac7Badge.textContent = 'V pořádku'; dac7Badge.className = 'text-xs px-2 py-0.5 rounded-full font-bold uppercase bg-green-100 text-green-700'; }
         }
-        // Show existing doc thumbnails
-        if (data.kyc_id_front) {
-            const img = document.getElementById('dac7-front-preview');
-            if (img) { img.src = data.kyc_id_front; img.classList.remove('hidden'); }
-        }
-        if (data.kyc_id_back) {
-            const img = document.getElementById('dac7-back-preview');
-            if (img) { img.src = data.kyc_id_back; img.classList.remove('hidden'); }
-        }
+        // Show existing doc thumbnails via signed URL (bucket is private)
+        const _showKycThumb = async (path, imgId) => {
+            if (!path) return;
+            const img = document.getElementById(imgId);
+            if (!img) return;
+            // Legacy: stored as full URL before private-bucket migration
+            if (path.startsWith('http')) { img.src = path; img.classList.remove('hidden'); return; }
+            const { data: sd } = await supabaseClient.storage.from('kyc-docs').createSignedUrl(path, 3600);
+            if (sd?.signedUrl) { img.src = sd.signedUrl; img.classList.remove('hidden'); }
+        };
+        _showKycThumb(data.kyc_id_front, 'dac7-front-preview');
+        _showKycThumb(data.kyc_id_back,  'dac7-back-preview');
     }
 
     // Získá platný access_token přímo z localStorage, v případě expirace obnoví přes refresh_token
@@ -3051,6 +3087,7 @@
                     <button onclick="window._loadAdminTab('spory')" class="px-4 py-2 rounded-xl text-sm font-semibold bg-red-50 text-red-700 hover:bg-red-100 border border-red-200 transition-colors">⚖️ Spory</button>
                     <button onclick="window._loadAdminTab('dac7')" class="px-4 py-2 rounded-xl text-sm font-semibold bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 transition-colors">🇪🇺 DAC7 report</button>
                     <button onclick="window._loadAdminTab('ban')" class="px-4 py-2 rounded-xl text-sm font-semibold bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-200 transition-colors">🚫 Ruční BAN</button>
+                    <button onclick="window._loadAdminTab('podpora')" class="px-4 py-2 rounded-xl text-sm font-semibold bg-sky-50 text-sky-700 hover:bg-sky-100 border border-sky-200 transition-colors">💬 Podpora</button>
                 </div>
                 <div id="admin-content"><div class="flex justify-center py-12"><div class="w-8 h-8 border-4 border-gray-200 border-t-gray-500 rounded-full animate-spin"></div></div></div>
             </div>`;
@@ -3272,19 +3309,19 @@
     const views = {
         home: () => `
         <div class="grid grid-cols-2 gap-3 w-full fade-in mb-2">
-            <div onclick="navigate('aukce','Vše')" class="card-lift relative h-[120px] sm:h-[150px] rounded-2xl overflow-hidden shadow-md cursor-pointer bg-white group">
-                <img src="https://images.unsplash.com/photo-1589829085413-56de8ae18c73?q=80&w=800&auto=format&fit=crop" alt="Aukce" class="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-700">
-                <div class="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent"></div>
+            <div onclick="navigate('aukce','Vše')" class="card-lift relative h-[120px] sm:h-[150px] rounded-2xl overflow-hidden shadow-md cursor-pointer group">
+                <div class="absolute inset-0 bg-gradient-to-br from-sky-500 via-sky-600 to-indigo-700 group-hover:scale-105 transition-transform duration-700"></div>
+                <div class="absolute inset-0 opacity-20" style="background-image:radial-gradient(circle at 70% 30%, white 0%, transparent 60%)"></div>
                 <div class="absolute inset-x-0 bottom-0 p-3 sm:p-4">
-                    <span class="text-[10px] font-black bg-sky-500 text-white px-2 py-0.5 rounded-full uppercase tracking-wide inline-block mb-1">Aukce</span>
+                    <span class="text-[10px] font-black bg-white/20 text-white px-2 py-0.5 rounded-full uppercase tracking-wide inline-block mb-1">Aukce</span>
                     <h2 class="text-sm sm:text-lg font-extrabold text-white drop-shadow-md leading-tight">Přihazuj a získej nejlepší cenu</h2>
                 </div>
             </div>
-            <div onclick="navigate('pevna-cena','Vše')" class="card-lift relative h-[120px] sm:h-[150px] rounded-2xl overflow-hidden shadow-md cursor-pointer bg-white group">
-                <img src="https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?q=80&w=800&auto=format&fit=crop" alt="Pevná cena" loading="lazy" class="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-700">
-                <div class="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent"></div>
+            <div onclick="navigate('pevna-cena','Vše')" class="card-lift relative h-[120px] sm:h-[150px] rounded-2xl overflow-hidden shadow-md cursor-pointer group">
+                <div class="absolute inset-0 bg-gradient-to-br from-pink-400 via-pink-500 to-rose-600 group-hover:scale-105 transition-transform duration-700"></div>
+                <div class="absolute inset-0 opacity-20" style="background-image:radial-gradient(circle at 30% 30%, white 0%, transparent 60%)"></div>
                 <div class="absolute inset-x-0 bottom-0 p-3 sm:p-4">
-                    <span class="text-[10px] font-black bg-pink-500 text-white px-2 py-0.5 rounded-full uppercase tracking-wide inline-block mb-1">Kup teď</span>
+                    <span class="text-[10px] font-black bg-white/20 text-white px-2 py-0.5 rounded-full uppercase tracking-wide inline-block mb-1">Kup teď</span>
                     <h2 class="text-sm sm:text-lg font-extrabold text-white drop-shadow-md leading-tight">Kup hned bez čekání</h2>
                 </div>
             </div>
@@ -4614,6 +4651,16 @@
 
     // ── VIEWS ──────────────────────────────────────────────────────
 
+    views['not-found'] = (path) => `<div class="w-full max-w-lg mx-auto bg-white/90 backdrop-blur-xl p-10 rounded-[2rem] shadow-xl fade-in border border-white/50 min-h-[60vh] flex flex-col items-center justify-center text-center gap-5">
+        <div class="text-8xl">🔍</div>
+        <h2 class="text-2xl font-extrabold text-gray-800">Stránka nenalezena</h2>
+        <p class="text-gray-400 text-sm">Odkaz <code class="bg-gray-100 px-2 py-0.5 rounded-lg text-xs font-mono text-gray-600">${esc(path||'')}</code> neexistuje nebo byl přesunut.</p>
+        <div class="flex gap-3 flex-wrap justify-center mt-2">
+            <button onclick="navigate('home')" class="bg-sky-500 hover:bg-sky-600 text-white font-bold px-6 py-3 rounded-2xl transition-colors">← Zpět na úvod</button>
+            <button onclick="navigate('pevna-cena','Vše')" class="bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold px-6 py-3 rounded-2xl transition-colors">Procházet inzeráty</button>
+        </div>
+    </div>`;
+
     views['banned'] = () => {
         const info = window._banInfo || {};
         return `<div class="w-full bg-white/90 backdrop-blur-xl p-8 rounded-[2rem] shadow-xl fade-in border border-white/50 min-h-[70vh] flex flex-col items-center justify-center text-center gap-6">
@@ -5557,28 +5604,26 @@
                     html += '<p class="text-[10px] mt-1 ' + (isMine ? 'text-sky-200' : 'text-gray-400') + '">' + dateStr + (isMine ? ' · Odesláno' : ' · Přijato') + '</p>';
                     html += '</div></div>';
                 });
-                // Reply input (jen pokud jsme receiver posledni zpravy)
+                // Reply input — pro obě strany konverzace
                 const lastMsg = thread.messages[thread.messages.length - 1];
-                if (lastMsg.receiver_id === uid) {
-                    const replyId   = 'reply-' + thread.itemId + '_' + thread.otherId;
-                    const safeTitle = encodeURIComponent(thread.itemTitle || '');
-                    const qr = [
-                        ['Ano, dostupné ✅', 'Ano, zboží je stále dostupné.'],
-                        ['Zásilkovna ✅',    'Ano, posílám Zásilkovnou.'],
-                        ['Sleva ne',         'Cena je pevná, slevu nenabízím.'],
-                        ['Sleva možná',      'Malou slevu domluvit lze, napište nabídku.']
-                    ];
-                    html += '<div class="mt-3">';
-                    html += '<div class="flex flex-wrap gap-1.5 mb-2">';
-                    qr.forEach(function(q) {
-                        html += '<button onclick="useQuickReplyInThread(\'' + replyId + '\',\'' + q[1].replace(/'/g,"\\'") + '\')" class="text-xs bg-gray-100 hover:bg-sky-100 hover:text-sky-700 text-gray-600 font-medium px-2.5 py-1 rounded-full transition-colors">' + q[0] + '</button>';
-                    });
-                    html += '</div>';
-                    html += '<div class="flex gap-2">';
-                    html += '<input type="text" maxlength="800" id="' + replyId + '" placeholder="Odpověď…" class="flex-1 min-w-0 px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-sky-400">';
-                    html += '<button onclick="sendReply(\'' + lastMsg.id + '\',\'' + thread.otherId + '\',\'' + thread.itemId + '\',decodeURIComponent(\'' + safeTitle + '\'),\'' + thread.itemType + '\')" class="shrink-0 bg-sky-500 hover:bg-sky-600 text-white font-bold px-4 py-2 rounded-xl text-sm transition-colors whitespace-nowrap">Odpovědět</button>';
-                    html += '</div></div>';
-                }
+                const replyId   = 'reply-' + thread.itemId + '_' + thread.otherId;
+                const safeTitle = encodeURIComponent(thread.itemTitle || '');
+                const qr = [
+                    ['Ano, dostupné ✅', 'Ano, zboží je stále dostupné.'],
+                    ['Zásilkovna ✅',    'Ano, posílám Zásilkovnou.'],
+                    ['Sleva ne',         'Cena je pevná, slevu nenabízím.'],
+                    ['Sleva možná',      'Malou slevu domluvit lze, napište nabídku.']
+                ];
+                html += '<div class="mt-3">';
+                html += '<div class="flex flex-wrap gap-1.5 mb-2">';
+                qr.forEach(function(q) {
+                    html += '<button onclick="useQuickReplyInThread(\'' + replyId + '\',\'' + q[1].replace(/'/g,"\\'") + '\')" class="text-xs bg-gray-100 hover:bg-sky-100 hover:text-sky-700 text-gray-600 font-medium px-2.5 py-1 rounded-full transition-colors">' + q[0] + '</button>';
+                });
+                html += '</div>';
+                html += '<div class="flex gap-2">';
+                html += '<input type="text" maxlength="800" id="' + replyId + '" placeholder="Napsat zprávu…" class="flex-1 min-w-0 px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-sky-400">';
+                html += '<button onclick="sendReply(\'' + lastMsg.id + '\',\'' + thread.otherId + '\',\'' + thread.itemId + '\',decodeURIComponent(\'' + safeTitle + '\'),\'' + thread.itemType + '\')" class="shrink-0 bg-sky-500 hover:bg-sky-600 text-white font-bold px-4 py-2 rounded-xl text-sm transition-colors whitespace-nowrap">Odeslat</button>';
+                html += '</div></div>';
                 html += '</div></div>';
             });
             html += '</div>';
@@ -5619,7 +5664,10 @@
             showToast('Odpověď odeslána.', 'success');
             loadZpravyTab();
         } catch(e) {
-            showToast('Chyba odeslání: ' + e.message, 'warning');
+            const msg = (e.message||'').includes('rate_limit_exceeded')
+                ? 'Příliš mnoho zpráv za krátkou dobu. Počkejte chvíli.'
+                : 'Chyba odeslání: ' + e.message;
+            showToast(msg, 'warning');
         }
     };
 
@@ -5627,20 +5675,22 @@
         if (!confirm('Smazat celou konverzaci? Tato akce je nevratná.')) return;
         const token = await _ensureValidToken();
         if (!token) return;
-        const uid  = window.currentUser.id;
-        const hdrs = { 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + token, 'Prefer': 'return=minimal' };
-        const base = SUPABASE_URL + '/rest/v1/messages?item_id=eq.' + itemId;
-        // Dva samostatné DELETE — odeslané i přijaté zprávy v konverzaci
-        const [r1, r2] = await Promise.all([
-            fetch(base + '&sender_id=eq.' + uid   + '&receiver_id=eq.' + otherId, { method: 'DELETE', headers: hdrs }),
-            fetch(base + '&sender_id=eq.' + otherId + '&receiver_id=eq.' + uid,   { method: 'DELETE', headers: hdrs })
-        ]);
-        if ((r1.ok || r1.status === 204) && (r2.ok || r2.status === 204)) {
-            showToast('Konverzace smazána.', 'success');
-            loadZpravyTab();
-        } else {
-            showToast('Chyba smazání — spusťte SQL pro opravu práv.', 'warning');
-            console.warn('deleteThread:', r1.status, r2.status);
+        const hdrs = { 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' };
+        try {
+            const r = await fetch(SUPABASE_URL + '/rest/v1/rpc/delete_thread', {
+                method: 'POST', headers: hdrs,
+                body: JSON.stringify({ p_item_id: itemId, p_other_id: otherId })
+            });
+            if (r.ok || r.status === 204) {
+                showToast('Konverzace smazána.', 'success');
+                loadZpravyTab();
+            } else {
+                const err = await r.json().catch(() => ({}));
+                const msg = err?.message?.includes('not_participant') ? 'Nemáte oprávnění smazat tuto konverzaci.' : 'Chyba smazání.';
+                showToast(msg, 'warning');
+            }
+        } catch(e) {
+            showToast('Chyba: ' + e.message, 'warning');
         }
     };
 
@@ -5921,7 +5971,7 @@
         if (path.includes('/')) { const parts = path.split('/'); viewName = parts[0]; idOrCategory = parts[1]; }
         if (viewName === 'novy-inzerat' && !window.currentUser) { viewName = 'login'; idOrCategory = null; }
         if (window._banInfo && viewName !== 'banned') { viewName = 'banned'; idOrCategory = null; }
-        if (!views[viewName]) viewName = 'home';
+        if (!views[viewName]) { document.getElementById('app').innerHTML = views['not-found'](viewName); history.pushState({ view:'not-found' }, '', '#'+viewName); return; }
         // Reset podkategorie při přechodu na jinou hlavní kategorii
         if (idOrCategory !== null && vsechnyKategorie.includes(idOrCategory) && idOrCategory !== _currentCategory) {
             _currentSubcategory = null;
@@ -6071,8 +6121,44 @@
         }
     };
 
-    window.requestPushPermission = async function() {
-        if ('Notification' in window && Notification.permission === 'default') await Notification.requestPermission();
+    window.requestPushPermission = function() {
+        if (!('Notification' in window)) return;
+        if (Notification.permission !== 'default') return;
+        if (localStorage.getItem('ft_push_declined')) return;
+
+        // Show contextual prompt instead of immediately asking the browser
+        const toastId = 'push-permission-toast';
+        if (document.getElementById(toastId)) return;
+
+        const el = document.createElement('div');
+        el.id = toastId;
+        el.className = 'fixed bottom-20 left-1/2 -translate-x-1/2 z-[9999] bg-white border border-sky-200 rounded-2xl shadow-xl px-5 py-4 flex flex-col gap-3 w-[min(92vw,380px)] animate-[fadeIn_.25s_ease]';
+        el.innerHTML = `
+            <div class="flex items-start gap-3">
+                <span class="text-2xl leading-none mt-0.5">🔔</span>
+                <div>
+                    <p class="font-semibold text-gray-800 text-sm leading-snug">Upozornění na nové aktivity</p>
+                    <p class="text-gray-500 text-xs mt-1 leading-relaxed">Dostávejte okamžité upozornění o nových objednávkách, zprávách, příhozech a výsledcích aukcí — přímo v prohlížeči.</p>
+                </div>
+            </div>
+            <div class="flex gap-2 justify-end">
+                <button id="push-no" class="px-3 py-1.5 text-xs rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-600 font-medium transition">Nyní ne</button>
+                <button id="push-yes" class="px-4 py-1.5 text-xs rounded-lg bg-sky-500 hover:bg-sky-600 text-white font-semibold transition">Povolit →</button>
+            </div>`;
+        document.body.appendChild(el);
+
+        const remove = () => { el.remove(); };
+        document.getElementById('push-no').addEventListener('click', () => {
+            localStorage.setItem('ft_push_declined', '1');
+            remove();
+        });
+        document.getElementById('push-yes').addEventListener('click', async () => {
+            remove();
+            await Notification.requestPermission();
+        });
+
+        // Auto-dismiss after 12 s without storing refusal
+        setTimeout(() => { if (document.getElementById(toastId)) remove(); }, 12000);
     };
 
     window.sendBrowserNotification = function(title, body, icon = null) {
@@ -6251,6 +6337,7 @@
                         <p class="text-xs text-gray-400">Podáno: ${new Date(p.kyc_submitted_at || p.updated_at).toLocaleDateString('cs-CZ')}</p>
                     </div>
                     <div class="flex gap-2 shrink-0 flex-wrap">
+                        ${p.kyc_id_front ? `<button onclick="adminOpenKycDoc('${esc(p.kyc_id_front)}','${esc(p.kyc_id_back||'')}')" class="bg-sky-50 hover:bg-sky-100 border border-sky-200 text-sky-700 font-bold px-3 py-2 rounded-xl text-xs transition-colors">🪪 Doklady</button>` : ''}
                         <button onclick="adminApproveKYC('${p.id}')" class="bg-green-500 hover:bg-green-600 text-white font-bold px-3 py-2 rounded-xl text-xs transition-colors">✓ Schválit</button>
                         <button onclick="adminRejectKYC('${p.id}',false)" class="bg-amber-50 hover:bg-amber-500 hover:text-white border border-amber-200 text-amber-700 font-bold px-3 py-2 rounded-xl text-xs transition-colors">✗ Odmítnout</button>
                         <button onclick="adminRejectKYC('${p.id}',true)" class="bg-red-50 hover:bg-red-500 hover:text-white border border-red-200 text-red-600 font-bold px-3 py-2 rounded-xl text-xs transition-colors">🚫 Falzum + BAN</button>
@@ -6336,7 +6423,48 @@
                     </div>
                 </div>`;
             }
+            else if (tab === 'podpora') {
+                const r = await fetch(`${SUPABASE_URL}/rest/v1/support_tickets?order=created_at.desc&limit=100`, { headers: hdrs });
+                const rows = await r.json();
+                if (!Array.isArray(rows) || !rows.length) { container.innerHTML = '<p class="text-gray-400 text-center py-8">Žádné zprávy od uživatelů. ✓</p>'; return; }
+                const statusCls = { open:'bg-orange-100 text-orange-700', in_progress:'bg-sky-100 text-sky-700', resolved:'bg-green-100 text-green-700', spam:'bg-gray-100 text-gray-400' };
+                const statusLabel = { open:'Nový', in_progress:'Řeší se', resolved:'Vyřešeno', spam:'Spam' };
+                container.innerHTML = `<div class="fade-in">
+                    <div class="flex items-center justify-between mb-4">
+                        <h4 class="font-extrabold text-gray-800">💬 Support tickety (${rows.filter(r=>r.status==='open').length} nových)</h4>
+                    </div>
+                    ${rows.map(t => `<div class="border border-gray-100 rounded-2xl p-4 mb-3 bg-white ${t.status==='open'?'border-l-4 border-l-orange-400':''}">
+                        <div class="flex items-start justify-between gap-3 mb-2">
+                            <div>
+                                <p class="font-bold text-gray-800 text-sm">${esc(t.subject)}</p>
+                                <p class="text-xs text-gray-400">${esc(t.name)} · ${esc(t.email)} · ${new Date(t.created_at).toLocaleDateString('cs-CZ',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}</p>
+                            </div>
+                            <span class="shrink-0 text-xs font-bold px-2.5 py-1 rounded-full ${statusCls[t.status]||'bg-gray-100 text-gray-500'}">${statusLabel[t.status]||t.status}</span>
+                        </div>
+                        <p class="text-sm text-gray-600 leading-relaxed mb-3 bg-gray-50 rounded-xl p-3">${esc(t.message)}</p>
+                        <div class="flex gap-2 flex-wrap">
+                            ${t.status==='open'?`<button onclick="adminUpdateTicket('${t.id}','in_progress')" class="text-xs bg-sky-50 text-sky-700 border border-sky-200 hover:bg-sky-100 font-bold px-3 py-1.5 rounded-xl transition-colors">▶ Řeším</button>`:''}
+                            ${t.status!=='resolved'?`<button onclick="adminUpdateTicket('${t.id}','resolved')" class="text-xs bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 font-bold px-3 py-1.5 rounded-xl transition-colors">✓ Vyřešeno</button>`:''}
+                            ${t.status!=='spam'?`<button onclick="adminUpdateTicket('${t.id}','spam')" class="text-xs bg-gray-50 text-gray-500 border border-gray-200 hover:bg-gray-100 font-bold px-3 py-1.5 rounded-xl transition-colors">🗑 Spam</button>`:''}
+                        </div>
+                    </div>`).join('')}
+                </div>`;
+            }
         } catch(e) { container.innerHTML = '<p class="text-red-500 text-center py-8">Chyba načítání: ' + e.message + '</p>'; }
+    };
+
+    window.adminUpdateTicket = async function(ticketId, status) {
+        const token = await _ensureValidToken();
+        const hdrs = { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' };
+        try {
+            const r = await fetch(`${SUPABASE_URL}/rest/v1/support_tickets?id=eq.${ticketId}`, {
+                method: 'PATCH', headers: hdrs, body: JSON.stringify({ status })
+            });
+            if (!r.ok) throw new Error('status ' + r.status);
+            const labels = { in_progress:'Přesunuto na Řeší se', resolved:'Označeno jako vyřešeno', spam:'Označeno jako spam' };
+            showToast(labels[status] || 'Uloženo', 'success');
+            setTimeout(() => window._loadAdminTab('podpora'), 300);
+        } catch(e) { showToast('Chyba: ' + e.message, 'error'); }
     };
 
     window._exportDac7Csv = function() {
@@ -6348,6 +6476,19 @@
         a.href = url; a.download = 'dac7_report_' + new Date().getFullYear() + '.csv';
         document.body.appendChild(a); a.click();
         document.body.removeChild(a); URL.revokeObjectURL(url);
+    };
+
+    window.adminOpenKycDoc = async function(frontPath, backPath) {
+        const open = async (path) => {
+            if (!path) return;
+            // Legacy: stored as full URL
+            if (path.startsWith('http')) { window.open(path, '_blank', 'noopener'); return; }
+            const { data: sd, error } = await supabaseClient.storage.from('kyc-docs').createSignedUrl(path, 1800);
+            if (error || !sd?.signedUrl) { showToast('Nepodařilo se načíst doklad.', 'error'); return; }
+            window.open(sd.signedUrl, '_blank', 'noopener');
+        };
+        await open(frontPath);
+        if (backPath) setTimeout(() => open(backPath), 300);
     };
 
     window.adminApproveKYC = async function(userId) {
@@ -6425,8 +6566,7 @@
                 const fileName = `kyc-${uid}-${side}-${Date.now()}.${ext}`;
                 const { data, error } = await supabaseClient.storage.from('kyc-docs').upload(fileName, file, { cacheControl: '3600', upsert: true });
                 if (error) throw new Error('Nahrání dokladu selhalo: ' + error.message);
-                const { data: pu } = supabaseClient.storage.from('kyc-docs').getPublicUrl(fileName);
-                return pu?.publicUrl || null;
+                return fileName; // Store path only — bucket is private, signed URL generated on demand
             };
             const [frontUrl, backUrl] = await Promise.all([
                 uploadDoc(frontFile, 'front'),
@@ -6483,9 +6623,19 @@
     // ──────────────────────────────────────────────────────────────
     // REALTIME SUBSCRIPTIONS
     // ──────────────────────────────────────────────────────────────
+    window._teardownUserRTChannels = function() {
+        if (!supabaseClient) return;
+        const USER_CHANNELS = ['rt_tx_b','rt_tx_s','rt_notif','rt_profile','rt_objednavky_b','rt_objednavky_s','rt_auction_offers_s'];
+        USER_CHANNELS.forEach(name => {
+            try {
+                const ch = supabaseClient.channel(name);
+                supabaseClient.removeChannel(ch);
+            } catch(e) {}
+        });
+    };
+
     window.setupRealtime = function() {
         if (!supabaseClient) return;
-        requestPushPermission();
 
         supabaseClient.channel('rt_aukce').on('postgres_changes',{ event:'UPDATE', schema:'public', table:'aukce' },(p)=>handleRealtimeAuctionUpdate(p.new)).subscribe();
         supabaseClient.channel('rt_bids').on('postgres_changes',{ event:'INSERT', schema:'public', table:'bids' },(p)=>handleRealtimeAuctionUpdate({ id:p.new.auction_id, current_price:p.new.amount, last_bidder_id:p.new.bidder_id })).subscribe();
@@ -6525,55 +6675,53 @@
                 }
             }
         }).subscribe();
-        if (window.currentUser) {
-            const _rtuid = window.currentUser.id;
-            supabaseClient.channel('rt_tx_b')
-                .on('postgres_changes',{ event:'INSERT', schema:'public', table:'transactions', filter:`buyer_id=eq.${_rtuid}` },(p)=>handleRealtimeTransactionUpdate(p.new,'INSERT'))
-                .on('postgres_changes',{ event:'UPDATE', schema:'public', table:'transactions', filter:`buyer_id=eq.${_rtuid}` },(p)=>handleRealtimeTransactionUpdate(p.new,'UPDATE'))
-                .subscribe();
-            supabaseClient.channel('rt_tx_s')
-                .on('postgres_changes',{ event:'INSERT', schema:'public', table:'transactions', filter:`seller_id=eq.${_rtuid}` },(p)=>handleRealtimeTransactionUpdate(p.new,'INSERT'))
-                .on('postgres_changes',{ event:'UPDATE', schema:'public', table:'transactions', filter:`seller_id=eq.${_rtuid}` },(p)=>handleRealtimeTransactionUpdate(p.new,'UPDATE'))
-                .subscribe();
-        }
-        if (window.currentUser) {
-            supabaseClient.channel('rt_notif').on('postgres_changes',{
-                event:'INSERT', schema:'public', table:'notifications',
-                filter:`user_id=eq.${window.currentUser.id}`
-            },(p) => {
-                const n = p.new;
-                // Aktualizuj badge
-                _refreshNotifBadge();
-                _flashTab('aktivity');
-                // Zobraz toast s kliknutím na odkaz
-                const icon = NOTIF_ICONS[n.type] || '🔔';
-                showToast(`${icon} ${n.title} — ${n.body}`, 'info', 6000);
-                // Aktualizuj tab pokud je otevřený
-                const cont = document.getElementById('aktivity-content');
-                if (cont) _loadAktivityTab();
-            }).subscribe();
-        }
-        if (window.currentUser) {
-            supabaseClient.channel('rt_profile').on('postgres_changes',{ event:'UPDATE', schema:'public', table:'profiles', filter:`id=eq.${window.currentUser.id}` },(p)=>{
-                const d=p.new;
-                const eEl=document.getElementById('profile-earned'); const sEl=document.getElementById('profile-spent');
-                if (eEl&&d.total_earned!==undefined) eEl.innerHTML=`${Number(d.total_earned).toLocaleString('cs-CZ')} <span class="text-xs text-gray-400 font-bold">Kč</span>`;
-                if (sEl&&d.total_spent!==undefined)  sEl.innerHTML=`${Number(d.total_spent).toLocaleString('cs-CZ')} <span class="text-xs text-gray-400 font-bold">Kč</span>`;
-                if (d.dac7_status !== undefined) {
-                    window._dac7Status    = d.dac7_status || 'ok';
-                    window._dac7SoldCzk   = d.annual_sold_czk || 0;
-                    window._dac7SoldCount = d.annual_sold_count || 0;
-                    _renderDac7Banner();
-                    if (window._privateProfileCache?.uid === window.currentUser.id) {
-                        window._privateProfileCache.data = { ...window._privateProfileCache.data, ...d };
-                    }
+
+        window._setupUserRTChannels();
+    };
+
+    window._setupUserRTChannels = function() {
+        if (!supabaseClient || !window.currentUser) return;
+        window._teardownUserRTChannels();
+        const _rtuid = window.currentUser.id;
+        // Ask for push permission now that user is logged in and has context
+        setTimeout(requestPushPermission, 2000);
+
+        supabaseClient.channel('rt_tx_b')
+            .on('postgres_changes',{ event:'INSERT', schema:'public', table:'transactions', filter:`buyer_id=eq.${_rtuid}` },(p)=>handleRealtimeTransactionUpdate(p.new,'INSERT'))
+            .on('postgres_changes',{ event:'UPDATE', schema:'public', table:'transactions', filter:`buyer_id=eq.${_rtuid}` },(p)=>handleRealtimeTransactionUpdate(p.new,'UPDATE'))
+            .subscribe();
+        supabaseClient.channel('rt_tx_s')
+            .on('postgres_changes',{ event:'INSERT', schema:'public', table:'transactions', filter:`seller_id=eq.${_rtuid}` },(p)=>handleRealtimeTransactionUpdate(p.new,'INSERT'))
+            .on('postgres_changes',{ event:'UPDATE', schema:'public', table:'transactions', filter:`seller_id=eq.${_rtuid}` },(p)=>handleRealtimeTransactionUpdate(p.new,'UPDATE'))
+            .subscribe();
+        supabaseClient.channel('rt_notif').on('postgres_changes',{
+            event:'INSERT', schema:'public', table:'notifications',
+            filter:`user_id=eq.${_rtuid}`
+        },(p) => {
+            const n = p.new;
+            _refreshNotifBadge();
+            _flashTab('aktivity');
+            const icon = NOTIF_ICONS[n.type] || '🔔';
+            showToast(`${icon} ${n.title} — ${n.body}`, 'info', 6000);
+            const cont = document.getElementById('aktivity-content');
+            if (cont) _loadAktivityTab();
+        }).subscribe();
+        supabaseClient.channel('rt_profile').on('postgres_changes',{ event:'UPDATE', schema:'public', table:'profiles', filter:`id=eq.${_rtuid}` },(p)=>{
+            const d=p.new;
+            const eEl=document.getElementById('profile-earned'); const sEl=document.getElementById('profile-spent');
+            if (eEl&&d.total_earned!==undefined) eEl.innerHTML=`${Number(d.total_earned).toLocaleString('cs-CZ')} <span class="text-xs text-gray-400 font-bold">Kč</span>`;
+            if (sEl&&d.total_spent!==undefined)  sEl.innerHTML=`${Number(d.total_spent).toLocaleString('cs-CZ')} <span class="text-xs text-gray-400 font-bold">Kč</span>`;
+            if (d.dac7_status !== undefined) {
+                window._dac7Status    = d.dac7_status || 'ok';
+                window._dac7SoldCzk   = d.annual_sold_czk || 0;
+                window._dac7SoldCount = d.annual_sold_count || 0;
+                _renderDac7Banner();
+                if (window._privateProfileCache?.uid === window.currentUser.id) {
+                    window._privateProfileCache.data = { ...window._privateProfileCache.data, ...d };
                 }
-            }).subscribe();
-        }
-        // Objednávky — filtrováno per-user, dvě subscription (kupující / prodejce)
-        if (window.currentUser) {
-            const _rtuid = window.currentUser.id;
-            supabaseClient.channel('rt_objednavky_b')
+            }
+        }).subscribe();
+        supabaseClient.channel('rt_objednavky_b')
                 .on('postgres_changes', { event:'UPDATE', schema:'public', table:'objednavky', filter:`buyer_id=eq.${_rtuid}` }, (p) => {
                     const o = p.new;
                     _flashTab('objednavky');
@@ -6611,11 +6759,8 @@
                     if (h.includes('prodejce-objednavky')) window.loadProdejceObjednavky();
                 })
                 .subscribe();
-        }
 
-        if (window.currentUser) {
-            const _rtuid = window.currentUser.id;
-            supabaseClient.channel('rt_auction_offers_b')
+        supabaseClient.channel('rt_auction_offers_b')
                 .on('postgres_changes', { event:'UPDATE', schema:'public', table:'auction_offers', filter:`bidder_id=eq.${_rtuid}` }, (p) => {
                     const u = p.new;
                     if (u.status === 'offer_sent') {
@@ -6625,16 +6770,15 @@
                         if (h.includes('moje-objednavky')) window.loadMojeObjednavky();
                     }
                 }).subscribe();
-            supabaseClient.channel('rt_auction_offers_s')
-                .on('postgres_changes', { event:'UPDATE', schema:'public', table:'auction_offers', filter:`seller_id=eq.${_rtuid}` }, (p) => {
-                    const u = p.new;
-                    if (u.status === 'accepted') {
-                        showToast('✅ Druhý kupující přijal nabídku a objednal!', 'success');
-                        const h = window.location.hash;
-                        if (h.includes('prodejce-objednavky')) window.loadProdejceObjednavky();
-                    }
-                }).subscribe();
-        }
+        supabaseClient.channel('rt_auction_offers_s')
+            .on('postgres_changes', { event:'UPDATE', schema:'public', table:'auction_offers', filter:`seller_id=eq.${_rtuid}` }, (p) => {
+                const u = p.new;
+                if (u.status === 'accepted') {
+                    showToast('✅ Druhý kupující přijal nabídku a objednal!', 'success');
+                    const h = window.location.hash;
+                    if (h.includes('prodejce-objednavky')) window.loadProdejceObjednavky();
+                }
+            }).subscribe();
     };
 
     // ──────────────────────────────────────────────────────────────
@@ -6711,34 +6855,53 @@
     // ──────────────────────────────────────────────────────────────
     // PŘÍHOZ
     // ──────────────────────────────────────────────────────────────
-    window.placeBid = async function(id, amount) {
+    window.placeBid = async function(id, increment) {
         // Rate limit: max 1 příhoz / 1.5s
         const now = Date.now();
-        if (now - _lastBidTime < 1500) { showToast('Příliš rychle. Počkejte chvíli.','warning'); return; }
+        if (now - _lastBidTime < 1500) { showToast('Příliš rychle. Počkejte chvíli.', 'warning'); return; }
         _lastBidTime = now;
 
-        if (!window.currentUser) { showToast('Pro příhoz se musíte přihlásit.','warning'); navigate('login'); return; }
-        const pEl = document.getElementById('price-'+id);
-        if (!pEl) return showToast('Aukce nenalezena, obnovte stránku.','warning');
-        let currentPrice = parseInt(pEl.getAttribute('data-price'), 10);
-        amount = parseInt(amount, 10);
-        if (!Number.isFinite(currentPrice)||!Number.isFinite(amount)||amount<=0||amount>1000000) return showToast('Neplatná částka příhozu.','warning');
-        let val = currentPrice + amount;
-        if (val > 100000000) return showToast('Příhoz překračuje maximální povolenou cenu.','warning');
+        if (!window.currentUser) { showToast('Pro příhoz se musíte přihlásit.', 'warning'); navigate('login'); return; }
+        increment = parseInt(increment, 10);
+        if (!Number.isFinite(increment) || increment <= 0) return showToast('Neplatná částka příhozu.', 'warning');
 
-        if (supabaseClient) {
-            const { error:bidError } = await supabaseClient.from('bids').insert([{ auction_id:id, bidder_id:window.currentUser.id, amount:val }]);
-            if (bidError) { showToast('Chyba DB: '+bidError.message,'warning'); return; }
-            const { error:aukceError } = await supabaseClient.from('aukce').update({ current_price:val, last_bidder_id:window.currentUser.id }).eq('id',id);
-            if (aukceError) { showToast('Příhoz uložen, ale chyba aktualizace aukce — obnovte stránku.','warning'); }
+        try {
+            const token = await _ensureValidToken();
+            const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/place_bid`, {
+                method: 'POST',
+                headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ p_auction_id: id, p_increment: increment })
+            });
+            const result = await r.json();
+
+            const ERROR_MSGS = {
+                not_authenticated:      'Pro příhoz se musíte přihlásit.',
+                auction_not_found:      'Aukce nenalezena — obnovte stránku.',
+                auction_not_active:     'Tato aukce již není aktivní.',
+                auction_ended:          'Čas aukce vypršel.',
+                cannot_bid_own_auction: 'Na vlastní aukci nelze příhozit.',
+                invalid_increment:      'Neplatná částka příhozu.',
+                price_too_high:         'Příhoz překračuje maximální povolenou cenu.',
+                rate_limit_exceeded:    'Příliš mnoho příhozů za krátkou dobu. Počkejte chvíli.',
+            };
+
+            if (!r.ok || result?.error) {
+                const msg = ERROR_MSGS[result?.error] || result?.message || 'Příhoz se nepodařilo uložit.';
+                showToast(msg, 'warning');
+                return;
+            }
+
+            const newPrice = result.new_price;
+            let localBids = safeParse(localStorage.getItem('ft_local_bids'), {});
+            localBids[id] = { price: newPrice, last_bidder_id: window.currentUser.id };
+            localStorage.setItem('ft_local_bids', JSON.stringify(localBids));
+
+            showToast(`Váš příhoz ${newPrice.toLocaleString('cs-CZ')} Kč byl úspěšně přijat!`, 'success');
+            toggleBidMenu(id);
+            handleRealtimeAuctionUpdate({ id, current_price: newPrice, last_bidder_id: window.currentUser.id });
+        } catch(e) {
+            showToast('Chyba sítě — příhoz nebyl uložen.', 'error');
         }
-        let localBids = safeParse(localStorage.getItem('ft_local_bids'),{});
-        localBids[id] = { price:val, last_bidder_id:window.currentUser.id };
-        localStorage.setItem('ft_local_bids', JSON.stringify(localBids));
-
-        showToast(`Váš příhoz ${val.toLocaleString('cs-CZ')} Kč byl úspěšně přijat!`,'success');
-        toggleBidMenu(id);
-        handleRealtimeAuctionUpdate({ id, current_price:val, last_bidder_id:window.currentUser.id });
     };
 
     // ──────────────────────────────────────────────────────────────
