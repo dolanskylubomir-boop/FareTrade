@@ -1998,6 +1998,7 @@
                     setTimeout(_checkAuctionWins, 2000);
                     setTimeout(_subscribeToPush, 3000);
                     setTimeout(window._setupUserRTChannels, 500);
+                    setTimeout(window._checkAdminBadge, 3000);
                 } else if (event === 'INITIAL_SESSION') {
                     window._jwtReady = true;
                     loadFavoritesFromDB();
@@ -2005,6 +2006,7 @@
                     setTimeout(_refreshNotifBadge, 2000);
                     setTimeout(_checkAuctionWins, 2500);
                     setTimeout(_subscribeToPush, 3500);
+                    setTimeout(window._checkAdminBadge, 4000);
                 } else if (event === 'TOKEN_REFRESHED') {
                     window._jwtReady = true;
                     loadFavoritesFromDB();
@@ -3912,7 +3914,7 @@
                             <button onclick="navigate('profil/zpravy')"    class="${tab('zpravy')} relative" id="tab-btn-zpravy">Zprávy 💬<span id="zpravy-unread-dot" class="unread-dot hidden"></span></button>
                             <button onclick="navigate('profil/aktivity')"  class="${tab('aktivity')} relative" id="tab-btn-aktivity">🔔 Aktivity<span id="aktivity-unread-dot" class="unread-dot hidden"></span></button>
                         </div>
-                        ${window._userRole === 'admin' ? `<button onclick="navigate('profil/admin')" class="${tab('admin')} shrink-0 border-l border-gray-100 bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-700 font-extrabold">⚙️ Admin</button>` : ''}
+                        ${window._userRole === 'admin' ? `<button onclick="navigate('profil/admin')" class="${tab('admin')} shrink-0 border-l border-gray-100 bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-700 font-extrabold">⚙️ Admin<span id="admin-activity-badge" class="${(window._adminBadgeCount||0) > 0 ? '' : 'hidden'} ml-1 min-w-[16px] h-4 rounded-full bg-red-600 text-white text-[9px] font-black inline-flex items-center justify-center px-1 shadow">${(window._adminBadgeCount||0) > 0 ? ((window._adminBadgeCount > 99 ? '99+' : window._adminBadgeCount)) : ''}</span></button>` : ''}
                     </div>
                     <div class="p-5 md:p-8" id="profile-tab-content">${renderProfileTabContent(activeTab)}</div>
                 </div>
@@ -6528,6 +6530,7 @@
             if (!r.ok) throw new Error('status ' + r.status);
             const labels = { in_progress:'Přesunuto na Řeší se', resolved:'Označeno jako vyřešeno', spam:'Označeno jako spam' };
             showToast(labels[status] || 'Uloženo', 'success');
+            window._checkAdminBadge();
             setTimeout(() => window._loadAdminTab('podpora'), 300);
         } catch(e) { showToast('Chyba: ' + e.message, 'error'); }
     };
@@ -6564,6 +6567,7 @@
             const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/admin_approve_kyc`, { method: 'POST', headers: hdrs, body: JSON.stringify({ p_user_id: userId }) });
             if (!r.ok) throw new Error(await r.text());
             showToast('KYC schváleno.', 'success');
+            window._checkAdminBadge();
             setTimeout(() => window._loadAdminTab('kyc'), 500);
         } catch(e) { showToast('Chyba: ' + e.message, 'error'); }
     };
@@ -6577,6 +6581,7 @@
             const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/admin_reject_kyc`, { method: 'POST', headers: hdrs, body: JSON.stringify({ p_user_id: userId, p_is_fraud: isFraud }) });
             if (!r.ok) throw new Error(await r.text());
             showToast(isFraud ? 'KYC odmítnuto a BAN udělen.' : 'KYC odmítnuto.', 'success');
+            window._checkAdminBadge();
             setTimeout(() => window._loadAdminTab('kyc'), 500);
         } catch(e) { showToast('Chyba: ' + e.message, 'error'); }
     };
@@ -6665,6 +6670,7 @@
             const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/admin_resolve_dispute`, { method: 'POST', headers: hdrs, body: JSON.stringify({ p_order_id: orderId, p_dispute_id: disputeId, p_outcome: outcome, p_ban_user_id: banUserId, p_ban_reason: banReason }) });
             if (!r.ok) throw new Error(await r.text());
             showToast('Spor byl vyřešen.', 'success');
+            window._checkAdminBadge();
             setTimeout(() => window._loadAdminTab('spory'), 500);
         } catch(e) { showToast('Chyba: ' + e.message, 'error'); }
     };
@@ -6824,6 +6830,34 @@
         } catch(e) { showToast('Chyba: ' + e.message, 'error'); }
     };
 
+    window._checkAdminBadge = async function() {
+        if (window._userRole !== 'admin') return;
+        const token = await _ensureValidToken();
+        if (!token) return;
+        const hdrs = { 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' };
+        try {
+            const [r1, r2, r3] = await Promise.all([
+                fetch(SUPABASE_URL + '/rest/v1/rpc/get_pending_kyc',      { method: 'POST', headers: hdrs, body: '{}' }),
+                fetch(SUPABASE_URL + '/rest/v1/rpc/get_disputed_orders',   { method: 'POST', headers: hdrs, body: '{}' }),
+                fetch(SUPABASE_URL + '/rest/v1/support_tickets?status=eq.open&select=id', { headers: hdrs })
+            ]);
+            const [kyc, disputes, tickets] = await Promise.all([
+                r1.ok ? r1.json().catch(function() { return []; }) : Promise.resolve([]),
+                r2.ok ? r2.json().catch(function() { return []; }) : Promise.resolve([]),
+                r3.ok ? r3.json().catch(function() { return []; }) : Promise.resolve([])
+            ]);
+            const total = (Array.isArray(kyc)      ? kyc.length      : 0)
+                        + (Array.isArray(disputes)  ? disputes.length  : 0)
+                        + (Array.isArray(tickets)   ? tickets.length   : 0);
+            window._adminBadgeCount = total;
+            const badge = document.getElementById('admin-activity-badge');
+            if (badge) {
+                badge.textContent = total > 99 ? '99+' : (total > 0 ? String(total) : '');
+                badge.classList.toggle('hidden', total === 0);
+            }
+        } catch(e) { /* silent */ }
+    };
+
     // ──────────────────────────────────────────────────────────────
     // REALTIME SUBSCRIPTIONS
     // ──────────────────────────────────────────────────────────────
@@ -6887,6 +6921,11 @@
         if (!supabaseClient || !window.currentUser) return;
         window._teardownUserRTChannels();
         const _rtuid = window.currentUser.id;
+        // Periodická obnova admin badge každých 5 minut
+        if (window._adminBadgeInterval) clearInterval(window._adminBadgeInterval);
+        if (window._userRole === 'admin') {
+            window._adminBadgeInterval = setInterval(window._checkAdminBadge, 5 * 60 * 1000);
+        }
         // Ask for push permission now that user is logged in and has context
         setTimeout(requestPushPermission, 2000);
 
