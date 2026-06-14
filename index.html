@@ -196,10 +196,18 @@
                 </button>
             </div>
 
-            <nav class="hidden lg:flex gap-6 text-gray-600 font-bold text-sm uppercase tracking-wider ml-auto">
-                <button onclick="navigate('jak-to-funguje')" class="hover:text-sky-500 transition-colors">Jak to funguje</button>
-                <button onclick="navigate('kontakt')" class="hover:text-sky-500 transition-colors">Kontakt</button>
-                <button onclick="navigate('vop')" class="hover:text-sky-500 transition-colors">VOP</button>
+            <nav class="hidden lg:flex items-center gap-2 text-sm font-bold ml-auto">
+                <button onclick="navigate('pevna-cena','Vše')" class="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gray-50 hover:bg-sky-50 text-gray-600 hover:text-sky-600 border border-gray-200 hover:border-sky-300 transition-all">
+                    <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"/></svg>
+                    Inzerce
+                </button>
+                <button onclick="navigate('aukce','Vše')" class="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gray-50 hover:bg-amber-50 text-gray-600 hover:text-amber-600 border border-gray-200 hover:border-amber-300 transition-all">
+                    <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.121 14.121L19 19m-7-7l7-7m-7 7l-2.879 2.879M12 12L9.121 9.121m0 5.758a3 3 0 10-4.243 4.243 3 3 0 004.243-4.243zm0-5.758a3 3 0 10-4.243-4.243 3 3 0 004.243 4.243z"/></svg>
+                    Aukce
+                </button>
+                <div class="w-px h-5 bg-gray-200 mx-1"></div>
+                <button onclick="navigate('jak-to-funguje')" class="px-3 py-2 text-gray-500 hover:text-sky-500 transition-colors uppercase tracking-wider text-xs">Jak to funguje</button>
+                <button onclick="navigate('kontakt')" class="px-3 py-2 text-gray-500 hover:text-sky-500 transition-colors uppercase tracking-wider text-xs">Kontakt</button>
             </nav>
             <div class="flex items-center gap-2 sm:gap-3 ml-auto md:ml-0">
                 <!-- Košík ikona -->
