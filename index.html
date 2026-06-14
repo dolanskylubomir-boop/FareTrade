@@ -4941,6 +4941,107 @@
         return `<div class="w-full bg-white/90 backdrop-blur-xl p-5 md:p-8 rounded-[2rem] shadow-xl fade-in border border-white/50"><h2 class="text-2xl font-extrabold text-pastel-text mb-6 flex items-center gap-3"><svg class="w-6 h-6 text-sky-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>Moje objednávky</h2><div id="moje-obj-content"><div class="flex justify-center py-12"><div class="w-8 h-8 border-4 border-sky-200 border-t-sky-500 rounded-full animate-spin"></div></div></div></div>`;
     };
 
+    views['objednavka-detail'] = (orderId) => {
+        if (!window.currentUser) return `<div class="w-full bg-white/90 backdrop-blur-xl p-8 rounded-[2rem] shadow-xl fade-in text-center"><p class="text-gray-500 mb-4">Přihlaste se.</p><button onclick="navigate('login')" class="bg-sky-500 text-white font-bold px-6 py-3 rounded-2xl">Přihlásit se</button></div>`;
+        setTimeout(() => _loadObjednavkaDetail(orderId), 0);
+        return `<div class="w-full max-w-2xl mx-auto bg-white/90 backdrop-blur-xl p-5 md:p-8 rounded-[2rem] shadow-xl fade-in border border-white/50">
+            <button onclick="navigate('moje-objednavky')" class="flex items-center gap-2 text-gray-400 hover:text-gray-600 text-sm font-medium mb-5 transition-colors group"><svg class="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>Zpět na objednávky</button>
+            <div id="objednavka-detail-content"><div class="flex justify-center py-12"><div class="w-8 h-8 border-4 border-sky-200 border-t-sky-500 rounded-full animate-spin"></div></div></div>
+        </div>`;
+    };
+
+    async function _loadObjednavkaDetail(orderId) {
+        const container = document.getElementById('objednavka-detail-content');
+        if (!container || !window.currentUser) return;
+        const token = await _ensureValidToken();
+        const hdrs = { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${token}` };
+        const FI = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23f1f5f9'/%3E%3C/svg%3E";
+        try {
+            const [rOrder, rReview, rDispute] = await Promise.all([
+                fetch(`${SUPABASE_URL}/rest/v1/objednavky?id=eq.${orderId}&buyer_id=eq.${window.currentUser.id}&select=*,objednavka_polozky(*)`, { headers: hdrs }),
+                fetch(`${SUPABASE_URL}/rest/v1/reviews?order_id=eq.${orderId}&reviewer_id=eq.${window.currentUser.id}&select=id,rating,comment,seller_reply&limit=1`, { headers: hdrs }),
+                fetch(`${SUPABASE_URL}/rest/v1/disputes?order_id=eq.${orderId}&select=*&limit=1`, { headers: hdrs })
+            ]);
+            const orders   = await rOrder.json();
+            const reviews  = await rReview.json().catch(() => []);
+            const disputes = await rDispute.json().catch(() => []);
+            const o = Array.isArray(orders) && orders[0];
+            if (!o) { container.innerHTML = '<p class="text-center text-gray-500 py-12">Objednávka nenalezena.</p>'; return; }
+
+            const st       = ORDER_STATUS_MAP[o.status] || { label: o.status, cls:'bg-gray-100 text-gray-500' };
+            const carr     = DOPRAVCI.find(d => d.id === o.carrier) || { name: o.carrier || '—', icon:'📦' };
+            const items    = o.objednavka_polozky || [];
+            const isAuc    = o.item_type === 'aukce';
+            const reviewed = Array.isArray(reviews) && reviews.length > 0;
+            const rev      = reviewed ? reviews[0] : null;
+            const dispute  = disputes[0] || null;
+            const shipPhotos = Array.isArray(o.shipping_photos) ? o.shipping_photos : (o.shipping_photos ? JSON.parse(o.shipping_photos) : []);
+            const evPhotos   = dispute && Array.isArray(dispute.evidence_photos) ? dispute.evidence_photos : [];
+            const addr     = o.shipping_address || {};
+
+            const starsFilled = n => '★'.repeat(n) + '☆'.repeat(5 - n);
+
+            container.innerHTML = `
+            <div class="flex items-center justify-between mb-1">
+                <p class="font-mono text-sm font-bold text-gray-700">#${o.id.substring(0,8).toUpperCase()}${isAuc?' 🏆':''}</p>
+                <span class="order-status-badge ${st.cls}">${st.label}</span>
+            </div>
+            <p class="text-xs text-gray-400 mb-5">${new Date(o.created_at).toLocaleDateString('cs-CZ',{day:'numeric',month:'long',year:'numeric',hour:'2-digit',minute:'2-digit'})}</p>
+
+            <h3 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Položky</h3>
+            <div class="flex flex-col gap-2 mb-5">
+                ${items.map(i=>`<div class="flex items-center gap-3 p-3 bg-gray-50 rounded-2xl"><img src="${i.img||FI}" onerror="this.onerror=null;this.src='${FI}'" class="w-12 h-12 rounded-xl object-cover bg-gray-100 shrink-0"><div class="flex-1 min-w-0"><p class="font-semibold text-gray-800 text-sm truncate">${esc(i.title)}</p></div><span class="font-bold text-gray-700 shrink-0 whitespace-nowrap">${Number(i.price).toLocaleString('cs-CZ')} Kč</span></div>`).join('')}
+            </div>
+
+            <div class="grid grid-cols-2 gap-3 mb-5 text-xs">
+                <div class="bg-gray-50 rounded-2xl p-3"><p class="text-gray-400 mb-0.5 font-semibold uppercase tracking-wide">Cena zboží</p><p class="font-bold text-gray-800">${Number(o.subtotal||0).toLocaleString('cs-CZ')} Kč</p></div>
+                <div class="bg-gray-50 rounded-2xl p-3"><p class="text-gray-400 mb-0.5 font-semibold uppercase tracking-wide">Doprava</p><p class="font-bold text-gray-800">${Number(o.shipping_fee||0).toLocaleString('cs-CZ')} Kč · ${carr.icon} ${esc(carr.name)}</p></div>
+                <div class="bg-gray-50 rounded-2xl p-3"><p class="text-gray-400 mb-0.5 font-semibold uppercase tracking-wide">Poplatek platformy</p><p class="font-bold text-gray-800">${Number(o.platform_fee||0).toLocaleString('cs-CZ')} Kč</p></div>
+                <div class="bg-pink-50 rounded-2xl p-3 border border-pink-100"><p class="text-pink-400 mb-0.5 font-semibold uppercase tracking-wide">Celkem zaplaceno</p><p class="font-extrabold text-pink-600 text-base">${Number(o.total||0).toLocaleString('cs-CZ')} Kč</p></div>
+            </div>
+
+            ${addr.name ? `<h3 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Doručovací adresa</h3>
+            <div class="bg-gray-50 rounded-2xl p-3 mb-5 text-sm text-gray-700 leading-relaxed">
+                <p class="font-bold">${esc(addr.name||'')}</p>
+                <p>${esc(addr.street||'')}${addr.city?', '+esc(addr.city):''}${addr.zip?' '+esc(addr.zip):''}</p>
+                ${addr.phone?`<p class="text-gray-400 text-xs mt-0.5">📞 ${esc(addr.phone)}</p>`:''}
+            </div>`:''}
+
+            ${o.tracking_number ? `<h3 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Sledování zásilky</h3>
+            <div class="bg-gray-50 rounded-2xl p-3 mb-5 text-sm">${_trackingHtml(o.carrier, o.tracking_number)}</div>` : ''}
+
+            ${shipPhotos.length ? `<h3 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">📦 Fotky zásilky od prodejce</h3>
+            <div class="flex gap-2 flex-wrap mb-5">${shipPhotos.map(u=>`<a href="${u}" target="_blank"><img src="${u}" class="w-16 h-16 rounded-xl object-cover border border-gray-200 hover:opacity-80 transition-opacity cursor-zoom-in"></a>`).join('')}</div>` : ''}
+
+            ${o.status==='shipped'?`<div class="bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 flex items-start gap-3 mb-5">
+                <span class="text-2xl shrink-0">⚠️</span>
+                <div><p class="text-sm font-extrabold text-amber-800 mb-0.5">Zkontrolujte zboží!</p>
+                <p class="text-xs text-amber-700 leading-relaxed">Kliknutím na <strong>✓ Doručeno</strong> okamžitě uvolníte platbu prodejci. Je-li cokoliv v nepořádku, zahajte <strong>⚖️ Spor</strong>.</p></div>
+            </div>`:''}
+
+            ${dispute ? `<h3 class="text-xs font-bold text-red-400 uppercase tracking-wider mb-2">⚖️ Detail sporu</h3>
+            <div class="bg-red-50 border border-red-100 rounded-2xl p-4 mb-5 text-sm">
+                <p class="font-bold text-red-700 mb-1">${esc(dispute.reason||'—')}</p>
+                <p class="text-gray-700">${esc(dispute.description||'—')}</p>
+                ${evPhotos.length?`<div class="flex gap-2 flex-wrap mt-3">${evPhotos.map(u=>`<a href="${u}" target="_blank"><img src="${u}" class="w-14 h-14 rounded-xl object-cover border border-red-200 cursor-zoom-in"></a>`).join('')}</div>`:''}
+            </div>`:''}
+
+            ${rev ? `<h3 class="text-xs font-bold text-yellow-500 uppercase tracking-wider mb-2">Vaše hodnocení</h3>
+            <div class="bg-yellow-50 border border-yellow-100 rounded-2xl p-4 mb-5">
+                <p class="text-yellow-400 text-lg tracking-widest">${starsFilled(rev.rating)}</p>
+                ${rev.comment?`<p class="text-sm text-gray-600 mt-1">${esc(rev.comment)}</p>`:''}
+                ${rev.seller_reply?`<div class="mt-2 pl-3 border-l-2 border-yellow-300 text-xs text-gray-600"><p class="font-bold text-yellow-700 mb-0.5">Reakce prodejce:</p>${esc(rev.seller_reply)}</div>`:''}
+            </div>`:''}
+
+            <div class="flex gap-2 flex-wrap pt-4 border-t border-gray-100">
+                ${o.status==='shipped'?`<button onclick="openDisputeModal('${o.id}')" class="flex-1 bg-white border border-red-200 hover:bg-red-50 text-red-500 font-bold px-4 py-3 rounded-2xl text-sm transition-colors">⚖️ Zahájit spor</button><button onclick="confirmDelivery('${o.id}','${o.seller_id}')" class="flex-1 bg-green-500 hover:bg-green-600 text-white font-bold px-4 py-3 rounded-2xl text-sm transition-colors">✓ Potvrdit doručení</button>`:''}
+                ${(o.status==='pending'||o.status==='created')&&!isAuc?`<button onclick="navigate('platba-objednavky','${o.id}')" class="flex-1 bg-pink-500 hover:bg-pink-600 text-white font-bold px-4 py-3 rounded-2xl text-sm transition-colors">💳 Zaplatit →</button>`:''}
+                ${(o.status==='completed'||o.status==='resolved_buyer'||o.status==='refunded')&&!reviewed?`<button onclick="_openRatingModal('${o.id}','${o.seller_id}')" class="flex-1 bg-yellow-400 hover:bg-yellow-500 text-white font-bold px-4 py-3 rounded-2xl text-sm transition-colors">⭐ Ohodnotit prodejce</button>`:''}
+                ${o.status==='dispute'?`<span class="text-sm bg-red-100 text-red-700 px-4 py-3 rounded-2xl font-semibold">⚖️ Spor probíhá — šetření adminem</span>`:''}
+            </div>`;
+        } catch(e) { container.innerHTML = '<p class="text-red-500 text-center py-8">Chyba načítání objednávky.</p>'; }
+    }
+
     views['platba-objednavky'] = (orderId) => {
         if (!window.currentUser) return `<div class="w-full bg-white/90 backdrop-blur-xl p-8 rounded-[2rem] shadow-xl fade-in text-center"><p class="text-gray-500">Přihlaste se.</p></div>`;
         setTimeout(() => _loadPlatbaObjednavky(orderId), 0);
@@ -5096,8 +5197,8 @@
                     const items = o.objednavka_polozky || [];
                     const carr = DOPRAVCI.find(d => d.id === o.carrier) || { name: o.carrier || '—', icon:'📦' };
                     const isAucOrder = o.item_type === 'aukce';
-                    return `<div class="border ${isAucOrder ? 'border-amber-200 bg-amber-50/20' : 'border-gray-100'} rounded-3xl p-5 mb-4 hover:shadow-md transition-shadow">
-                        <div class="flex items-start justify-between gap-3 mb-4"><div><p class="font-mono text-xs text-gray-400 mb-0.5">#${o.id.substring(0,8).toUpperCase()}${isAucOrder ? ' 🏆' : ''}</p><p class="text-xs text-gray-400">${new Date(o.created_at).toLocaleDateString('cs-CZ',{day:'numeric',month:'long',year:'numeric'})}</p></div><span class="order-status-badge ${st.cls} shrink-0">${st.label}</span></div>
+                    return `<div onclick="navigate('objednavka-detail','${o.id}')" class="border ${isAucOrder ? 'border-amber-200 bg-amber-50/20' : 'border-gray-100'} rounded-3xl p-5 mb-4 hover:shadow-lg transition-shadow cursor-pointer group">
+                        <div class="flex items-start justify-between gap-3 mb-4"><div><p class="font-mono text-xs text-gray-400 mb-0.5 group-hover:text-sky-500 transition-colors">#${o.id.substring(0,8).toUpperCase()}${isAucOrder ? ' 🏆' : ''} <span class="text-[10px] text-sky-400 font-normal">→ detail</span></p><p class="text-xs text-gray-400">${new Date(o.created_at).toLocaleDateString('cs-CZ',{day:'numeric',month:'long',year:'numeric'})}</p></div><span class="order-status-badge ${st.cls} shrink-0">${st.label}</span></div>
                         <div class="flex flex-col gap-2 mb-4">${items.map(i=>`<div class="flex items-center gap-2"><img src="${i.img||FI}" onerror="this.onerror=null;this.src='${FI}'" class="w-10 h-10 rounded-lg object-cover bg-gray-100 shrink-0"><span class="text-sm flex-1 min-w-0 truncate">${esc(i.title)}</span><span class="text-sm font-semibold shrink-0 whitespace-nowrap">${Number(i.price).toLocaleString('cs-CZ')} Kč</span></div>`).join('')}</div>
                         ${o.status==='shipped'?`<div class="mt-3 mx-0 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 flex items-start gap-3">
                             <span class="text-2xl shrink-0 mt-0.5">⚠️</span>
@@ -5109,10 +5210,10 @@
                         <div class="flex flex-col sm:flex-row gap-3 justify-between items-start sm:items-center pt-3 border-t border-gray-100">
                             <div class="text-xs text-gray-400 flex flex-col gap-0.5"><span>${carr.icon} ${carr.name} · doprava: ${Number(o.shipping_fee||0).toLocaleString('cs-CZ')} Kč</span>${o.tracking_number ? _trackingHtml(o.carrier, o.tracking_number) : ''}</div>
                             <div class="flex items-center gap-3 shrink-0"><span class="font-extrabold text-lg text-pastel-text whitespace-nowrap">${Number(o.total).toLocaleString('cs-CZ')} Kč</span>
-                                ${o.status==='shipped'?`<div class="flex gap-2 flex-wrap justify-end"><button onclick="openDisputeModal('${o.id}')" class="bg-white border border-red-200 hover:bg-red-50 text-red-500 font-bold px-3 py-2 rounded-xl text-xs transition-colors whitespace-nowrap">⚖️ Spor</button><button onclick="confirmDelivery('${o.id}','${o.seller_id}')" class="bg-green-500 hover:bg-green-600 text-white font-bold px-4 py-2 rounded-xl text-sm transition-colors whitespace-nowrap">✓ Doručeno</button></div>`:''}
+                                ${o.status==='shipped'?`<div class="flex gap-2 flex-wrap justify-end"><button onclick="event.stopPropagation();openDisputeModal('${o.id}')" class="bg-white border border-red-200 hover:bg-red-50 text-red-500 font-bold px-3 py-2 rounded-xl text-xs transition-colors whitespace-nowrap">⚖️ Spor</button><button onclick="event.stopPropagation();confirmDelivery('${o.id}','${o.seller_id}')" class="bg-green-500 hover:bg-green-600 text-white font-bold px-4 py-2 rounded-xl text-sm transition-colors whitespace-nowrap">✓ Doručeno</button></div>`:''}
                                 ${o.status==='dispute'?`<span class="text-xs bg-red-100 text-red-700 px-3 py-1.5 rounded-xl font-semibold whitespace-nowrap">⚖️ Spor — probíhá šetření</span>`:''}
-                                ${(o.status==='pending'||o.status==='created')&&!isAucOrder?`<button onclick="navigate('platba-objednavky','${o.id}')" class="bg-pink-500 hover:bg-pink-600 active:scale-95 text-white font-bold px-4 py-2.5 rounded-xl text-sm transition-all whitespace-nowrap flex items-center gap-2">💳 Zaplatit →</button>`:''}
-                                ${(o.status==='completed'||o.status==='resolved_buyer'||o.status==='refunded')?`<div class="flex items-center gap-2 flex-wrap justify-end"><span class="text-xs bg-green-100 text-green-700 px-3 py-1.5 rounded-xl font-semibold whitespace-nowrap">${o.status==='resolved_buyer'?'⚖️ Spor vyřešen':o.status==='refunded'?'↩️ Vráceno':'✓ Dokončeno'}</span>${!_reviewedIds.has(o.id)?`<button onclick="_openRatingModal('${o.id}','${o.seller_id}')" class="text-xs bg-yellow-50 hover:bg-yellow-100 border border-yellow-200 text-yellow-700 font-bold px-3 py-1.5 rounded-xl transition-colors whitespace-nowrap">⭐ Hodnotit</button>`:`<span class="text-xs text-gray-400 whitespace-nowrap">✓ Hodnoceno</span>`}</div>`:''}
+                                ${(o.status==='pending'||o.status==='created')&&!isAucOrder?`<button onclick="event.stopPropagation();navigate('platba-objednavky','${o.id}')" class="bg-pink-500 hover:bg-pink-600 active:scale-95 text-white font-bold px-4 py-2.5 rounded-xl text-sm transition-all whitespace-nowrap flex items-center gap-2">💳 Zaplatit →</button>`:''}
+                                ${(o.status==='completed'||o.status==='resolved_buyer'||o.status==='refunded')?`<div class="flex items-center gap-2 flex-wrap justify-end"><span class="text-xs bg-green-100 text-green-700 px-3 py-1.5 rounded-xl font-semibold whitespace-nowrap">${o.status==='resolved_buyer'?'⚖️ Spor vyřešen':o.status==='refunded'?'↩️ Vráceno':'✓ Dokončeno'}</span>${!_reviewedIds.has(o.id)?`<button onclick="event.stopPropagation();_openRatingModal('${o.id}','${o.seller_id}')" class="text-xs bg-yellow-50 hover:bg-yellow-100 border border-yellow-200 text-yellow-700 font-bold px-3 py-1.5 rounded-xl transition-colors whitespace-nowrap">⭐ Hodnotit</button>`:`<span class="text-xs text-gray-400 whitespace-nowrap">✓ Hodnoceno</span>`}</div>`:''}
                             </div>
                         </div>
                         ${(()=>{const sp=Array.isArray(o.shipping_photos)?o.shipping_photos:(o.shipping_photos?JSON.parse(o.shipping_photos):[]);return (o.status==='shipped'&&sp.length)?`<div class="mt-3 pt-3 border-t border-gray-100"><p class="text-xs text-gray-400 mb-2">📦 Fotky zásilky od prodejce</p><div class="flex gap-2 flex-wrap">${sp.map(u=>`<a href="${u}" target="_blank"><img src="${u}" class="w-14 h-14 rounded-lg object-cover border border-gray-200 hover:opacity-80 transition-opacity cursor-zoom-in"></a>`).join('')}</div>${o.shipped_at?`<p class="text-xs text-gray-400 mt-2">Odesláno: ${new Date(o.shipped_at).toLocaleDateString('cs-CZ')} · Platba se automaticky uvolní za 14 dní od odeslání.</p>`:''}</div>`:''})()}
