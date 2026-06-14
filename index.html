@@ -1064,7 +1064,7 @@
         } catch {}
     };
 
-    // Nominatim address autocomplete — config per input ID
+    // Address autocomplete via native <datalist> + Nominatim
     const _ADDR_CFG = {
         'kyc-street': { cityId: 'kyc-city', zipId: 'kyc-zip', combined: false },
         'co-street':  { cityId: 'co-city',  zipId: 'co-zip',  combined: true  }
@@ -1077,98 +1077,72 @@
         var cfg = _ADDR_CFG[el.id];
         if (!cfg) return;
         var q = el.value.trim();
-        var dropId = '_addrdrop_' + el.id;
-        function removeDrop() { var d = document.getElementById(dropId); if (d) d.remove(); }
-        if (q.length < 3) { removeDrop(); return; }
+
+        // Pokud hodnota presne odpovida ulozene nabidce -> doplnit mesto+PSC
+        var stored = window._addrResults[el.id] || [];
+        for (var i = 0; i < stored.length; i++) {
+            if (stored[i].label === q) {
+                var r = stored[i];
+                if (cfg.cityId && r.city) {
+                    var cityEl = document.getElementById(cfg.cityId);
+                    if (cityEl) cityEl.value = r.city;
+                }
+                if (cfg.zipId && r.zip) {
+                    var zipEl = document.getElementById(cfg.zipId);
+                    if (zipEl) zipEl.value = r.zip.length === 5 ? r.zip.slice(0,3) + ' ' + r.zip.slice(3) : r.zip;
+                }
+                return;
+            }
+        }
+
+        if (q.length < 3) return;
+
+        // Vytvor datalist pokud neexistuje
+        var listId = '_addrlist_' + el.id;
+        if (!document.getElementById(listId)) {
+            var dl = document.createElement('datalist');
+            dl.id = listId;
+            document.body.appendChild(dl);
+            el.setAttribute('list', listId);
+        }
+
         clearTimeout(_addrDebounce);
         _addrDebounce = setTimeout(function() {
-            var cached = window._addrCache[q];
-            if (cached) {
-                _renderAddrDrop(el, dropId, cached, cfg);
+            if (window._addrCache[q]) {
+                _fillAddrDatalist(listId, el.id, window._addrCache[q]);
                 return;
             }
             fetch('https://nominatim.openstreetmap.org/search?q=' + encodeURIComponent(q) +
-                  '&countrycodes=cz&format=json&limit=5&addressdetails=1')
-            .then(function(r) { return r.ok ? r.json() : []; })
+                  '&countrycodes=cz&format=json&limit=6&addressdetails=1')
+            .then(function(resp) { return resp.ok ? resp.json() : []; })
             .then(function(data) {
                 var results = (Array.isArray(data) ? data : []).map(function(item) {
                     var a = item.address || {};
-                    return {
-                        street:      a.road || a.pedestrian || a.path || a.footway || item.name || '',
-                        housenumber: a.house_number || '',
-                        city:        a.city || a.town || a.village || a.municipality || a.county || '',
-                        zip:        (a.postcode || '').replace(/\s/g, '')
-                    };
-                }).filter(function(x) { return x.street || x.city; });
+                    var street = a.road || a.pedestrian || a.path || a.footway || item.name || '';
+                    var city   = a.city || a.town || a.village || a.municipality || a.county || '';
+                    var zip    = (a.postcode || '').replace(/\s/g, '');
+                    return { label: street, city: city, zip: zip };
+                }).filter(function(x) { return x.label; });
                 window._addrCache[q] = results;
-                _renderAddrDrop(el, dropId, results, cfg);
+                var existing = window._addrResults[el.id] || [];
+                results.forEach(function(r) {
+                    if (!existing.some(function(x) { return x.label === r.label; })) existing.push(r);
+                });
+                window._addrResults[el.id] = existing;
+                _fillAddrDatalist(listId, el.id, results);
             })
             .catch(function() {});
-        }, 350);
+        }, 400);
     };
 
-    function _renderAddrDrop(el, dropId, results, cfg) {
-        var old = document.getElementById(dropId);
-        if (old) old.remove();
-        if (!results.length) return;
-        window._addrResults[el.id] = results;
-        var rect = el.getBoundingClientRect();
-        var drop = document.createElement('div');
-        drop.id = dropId;
-        drop.style.position   = 'fixed';
-        drop.style.zIndex     = '9999';
-        drop.style.top        = (rect.bottom + 2) + 'px';
-        drop.style.left       = rect.left + 'px';
-        drop.style.width      = rect.width + 'px';
-        drop.style.background = '#fff';
-        drop.style.border     = '1px solid #e5e7eb';
-        drop.style.borderRadius = '12px';
-        drop.style.boxShadow  = '0 8px 30px rgba(0,0,0,.13)';
-        drop.style.overflow   = 'hidden';
-        document.body.appendChild(drop);
-        var html = '';
-        for (var i = 0; i < results.length; i++) {
-            var r = results[i];
-            var sf = [r.street, r.housenumber].filter(Boolean).join(' ');
-            var zf = r.zip.length === 5 ? r.zip.slice(0,3) + ' ' + r.zip.slice(3) : r.zip;
-            var sub = [r.city, zf].filter(Boolean).join(', ');
-            html += '<div style="padding:10px 16px;font-size:13px;cursor:pointer;border-bottom:1px solid #f3f4f6"' +
-                ' onmouseover="this.style.background=\'#f0f9ff\'" onmouseout="this.style.background=\'\'"' +
-                ' data-i="' + i + '" data-cfgid="' + el.id + '"' +
-                ' onmousedown="window._pickAddress(this,event)">' +
-                '<div style="font-weight:600;color:#1f2937">' + esc(sf || r.city) + '</div>' +
-                '<div style="font-size:11px;color:#9ca3af;margin-top:2px">' + esc(sub) + '</div>' +
-                '</div>';
-        }
-        drop.innerHTML = html;
+    function _fillAddrDatalist(listId, inputId, results) {
+        var list = document.getElementById(listId);
+        if (!list) return;
+        list.innerHTML = results.map(function(r) {
+            var v = r.label.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+            return '<option value="' + v + '">';
+        }).join('');
     }
-
-    window._pickAddress = function(el, e) {
-        e.preventDefault();
-        var cfgId   = el.getAttribute('data-cfgid');
-        var idx     = +el.getAttribute('data-i');
-        var cfg     = _ADDR_CFG[cfgId];
-        if (!cfg) return;
-        var results = window._addrResults[cfgId] || [];
-        var r       = results[idx];
-        if (!r) return;
-        var sf = cfg.combined ? [r.street, r.housenumber].filter(Boolean).join(' ') : r.street;
-        var inp = document.getElementById(cfgId);
-        if (inp) inp.value = sf;
-        if (cfg.cityId) { var c = document.getElementById(cfg.cityId); if (c) c.value = r.city; }
-        if (cfg.zipId && r.zip) {
-            var z = document.getElementById(cfg.zipId);
-            if (z) z.value = r.zip.length === 5 ? r.zip.slice(0,3) + ' ' + r.zip.slice(3) : r.zip;
-        }
-        var drop = document.getElementById('_addrdrop_' + cfgId);
-        if (drop) drop.remove();
-    };
-
-    document.addEventListener('click', function(e) {
-        document.querySelectorAll('[id^="_addrdrop_"]').forEach(function(d) {
-            if (!d.contains(e.target)) d.remove();
-        });
-    });
     window.validateAge = function(input) {
         if (!input.value) return true;
         const birth = new Date(input.value);
