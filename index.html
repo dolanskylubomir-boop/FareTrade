@@ -1078,11 +1078,20 @@
         if (!cfg) return;
         var q = el.value.trim();
 
-        // Uzivatel vybral polozku z datalistu -> doplnit mesto + PSC
-        var list = window._addrSuggestions[el.id] || [];
-        for (var i = 0; i < list.length; i++) {
-            if (list[i].street === q) {
-                var hit = list[i];
+        // Vytvor datalist okamzite pri prvnim volani (nezavisle na delce q)
+        var dlId = '_dl_' + el.id;
+        if (!document.getElementById(dlId)) {
+            var dl = document.createElement('datalist');
+            dl.id = dlId;
+            document.body.appendChild(dl);
+            el.setAttribute('list', dlId);
+        }
+
+        // Uzivatel vybral polozku -> doplnit mesto + PSC
+        var hits = window._addrSuggestions[el.id] || [];
+        for (var i = 0; i < hits.length; i++) {
+            if (hits[i].street === q) {
+                var hit = hits[i];
                 if (cfg.cityId && hit.city) {
                     var ce = document.getElementById(cfg.cityId);
                     if (ce) ce.value = hit.city;
@@ -1096,6 +1105,7 @@
         }
 
         if (q.length < 3) return;
+
         clearTimeout(_addrTimer);
         _addrTimer = setTimeout(function() {
             var url = 'https://api.mapy.cz/v1/suggest?lang=cs&limit=6&type=regional.address&apikey='
@@ -1103,6 +1113,7 @@
             fetch(url)
             .then(function(r) { return r.json(); })
             .then(function(data) {
+                console.log('[Mapy]', data);
                 var items = data.items || [];
                 var results = items.map(function(item) {
                     var city = '';
@@ -1117,24 +1128,21 @@
                     }
                     var zip = (item.zip || '').replace(/\s/g, '');
                     if (zip.length === 5) zip = zip.slice(0,3) + ' ' + zip.slice(3);
-                    return { street: item.name || '', city: city, zip: zip };
+                    var street = item.name || item.label || '';
+                    return { street: street, city: city, zip: zip };
                 }).filter(function(x) { return x.street; });
 
+                console.log('[Mapy] parsed:', results);
                 window._addrSuggestions[el.id] = results;
 
-                var dlId = '_dl_' + el.id;
-                var dl = document.getElementById(dlId);
-                if (!dl) {
-                    dl = document.createElement('datalist');
-                    dl.id = dlId;
-                    document.body.appendChild(dl);
-                    el.setAttribute('list', dlId);
+                var dl2 = document.getElementById(dlId);
+                if (dl2) {
+                    dl2.innerHTML = results.map(function(s) {
+                        return '<option value="' + s.street.replace(/&/g,'&amp;').replace(/"/g,'&quot;') + '">';
+                    }).join('');
                 }
-                dl.innerHTML = results.map(function(s) {
-                    return '<option value="' + s.street.replace(/&/g,'&amp;').replace(/"/g,'&quot;') + '">';
-                }).join('');
             })
-            .catch(function(e) { console.error('Mapy suggest error:', e); });
+            .catch(function(e) { console.error('[Mapy] error:', e); });
         }, 300);
     };
     window.validateAge = function(input) {
