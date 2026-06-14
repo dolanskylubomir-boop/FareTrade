@@ -1077,7 +1077,6 @@
     document.addEventListener('input', function(e) {
         var id = e.target && e.target.id;
         if (!window._ADDR_CFG[id]) return;
-        console.log('[addr] input fired on', id);
         var cfg = window._ADDR_CFG[id];
         var q   = e.target.value.trim();
 
@@ -1100,7 +1099,6 @@
             dl.id  = dlId;
             document.body.appendChild(dl);
             e.target.setAttribute('list', dlId);
-            console.log('[addr] datalist created:', dlId);
         }
 
         if (q.length < 3) return;
@@ -1109,11 +1107,9 @@
         window._addrTimer = setTimeout(function() {
             var url = 'https://api.mapy.cz/v1/suggest?lang=cs&limit=6&type=regional.address&apikey='
                       + window.MAPY_KEY + '&query=' + encodeURIComponent(q);
-            console.log('[addr] fetching:', url);
             fetch(url)
             .then(function(r) { return r.json(); })
             .then(function(data) {
-                console.log('[addr] response:', data);
                 var items   = data.items || [];
                 var results = items.map(function(item) {
                     var city = '';
@@ -1128,7 +1124,6 @@
                     return { street: street, city: city, zip: zip, full: full };
                 }).filter(function(x) { return x.street; });
 
-                console.log('[addr] parsed:', results);
                 window._addrHits[id] = results;
 
                 var dl2 = document.getElementById(dlId);
@@ -1136,7 +1131,7 @@
                     return '<option value="' + s.full.replace(/&/g,'&amp;').replace(/"/g,'&quot;') + '">';
                 }).join('');
             })
-            .catch(function(e2) { console.error('[addr] fetch error:', e2); });
+            .catch(function() {});
         }, 300);
     });
     window.validateAge = function(input) {
@@ -1703,7 +1698,7 @@
                 return `<div class="flex items-center gap-3 p-3 border border-yellow-200 rounded-2xl bg-yellow-50/60 opacity-75">
                     <img src="${img}" onerror="this.onerror=null;this.src='${FI}'" class="w-12 h-12 rounded-xl object-cover bg-gray-100 shrink-0 grayscale">
                     <div class="flex-grow min-w-0">
-                        <h4 class="font-bold text-gray-500 truncate text-sm">${item.title}</h4>
+                        <h4 class="font-bold text-gray-500 truncate text-sm">${esc(item.title)}</h4>
                         <p class="text-[11px] text-yellow-700 font-semibold mt-0.5">Kupující má 2 hod. na zaplacení — inzerát je zablokován</p>
                     </div>
                     <div class="text-right shrink-0">
