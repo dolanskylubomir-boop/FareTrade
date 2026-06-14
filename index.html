@@ -1101,19 +1101,20 @@
             }
             removeDrop();
             if (!results.length) return;
+            const rect = el.getBoundingClientRect();
             const drop = document.createElement('div');
             drop.id = dropId;
-            drop.className = 'absolute left-0 right-0 top-full z-50 bg-white border border-gray-200 rounded-xl shadow-xl mt-1 overflow-hidden text-left';
-            el.parentElement.style.position = 'relative';
-            el.parentElement.appendChild(drop);
+            drop.style.cssText = `position:fixed;z-index:9999;top:${rect.bottom+2}px;left:${rect.left}px;width:${rect.width}px;background:#fff;border:1px solid #e5e7eb;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,.13);overflow:hidden;`;
+            document.body.appendChild(drop);
             drop.innerHTML = results.map((r, i) => {
                 const streetFull = [r.street, r.housenumber].filter(Boolean).join(' ');
                 const sub = [r.city, r.zip ? r.zip.slice(0,3)+' '+r.zip.slice(3) : ''].filter(Boolean).join(', ');
-                return `<div class="px-4 py-2.5 hover:bg-sky-50 cursor-pointer border-b border-gray-100 last:border-0 transition-colors"
+                return `<div style="padding:10px 16px;font-size:13px;cursor:pointer;border-bottom:1px solid #f3f4f6"
+                    onmouseover="this.style.background='#f0f9ff'" onmouseout="this.style.background=''"
                     data-i="${i}" data-cfgid="${el.id}"
                     onmousedown="window._pickAddress(this,event)">
-                  <div class="text-sm font-medium text-gray-800">${esc(streetFull || r.city)}</div>
-                  <div class="text-xs text-gray-400">${esc(sub)}</div>
+                  <div style="font-weight:600;color:#1f2937">${esc(streetFull || r.city)}</div>
+                  <div style="font-size:11px;color:#9ca3af;margin-top:2px">${esc(sub)}</div>
                 </div>`;
             }).join('');
             // Ulož výsledky pro onmousedown handler
