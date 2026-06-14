@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="cs">
 <head>
     <meta charset="UTF-8">
@@ -1064,93 +1064,111 @@
         } catch {}
     };
 
-    // Photon (OSM) address autocomplete — config per input ID
+    // Nominatim address autocomplete — config per input ID
     const _ADDR_CFG = {
         'kyc-street': { cityId: 'kyc-city', zipId: 'kyc-zip', combined: false },
         'co-street':  { cityId: 'co-city',  zipId: 'co-zip',  combined: true  }
     };
-    window._addrCache = {};
-    let _addrDebounce = null;
+    window._addrCache   = {};
+    window._addrResults = {};
+    var _addrDebounce   = null;
 
-    window._streetAutocomplete = async function(el) {
-        const cfg = _ADDR_CFG[el.id];
+    window._streetAutocomplete = function(el) {
+        var cfg = _ADDR_CFG[el.id];
         if (!cfg) return;
-        const q = el.value.trim();
-        const dropId = '_addrdrop_' + el.id;
-        const removeDrop = () => { const d = document.getElementById(dropId); if (d) d.remove(); };
+        var q = el.value.trim();
+        var dropId = '_addrdrop_' + el.id;
+        function removeDrop() { var d = document.getElementById(dropId); if (d) d.remove(); }
         if (q.length < 3) { removeDrop(); return; }
         clearTimeout(_addrDebounce);
-        _addrDebounce = setTimeout(async () => {
-            let results = window._addrCache[q];
-            if (!results) {
-                try {
-                    const r = await fetch(
-                        `https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&lang=cs&limit=5&bbox=12.09,48.55,18.87,51.06`,
-                        { headers: { 'User-Agent': 'FairTrade-Trziste/1.0' } }
-                    );
-                    if (!r.ok) return;
-                    const data = await r.json();
-                    results = (data.features || []).map(f => ({
-                        street:      f.properties.street || f.properties.name || '',
-                        housenumber: f.properties.housenumber || '',
-                        city:        f.properties.city || f.properties.town || f.properties.village || f.properties.municipality || '',
-                        zip:        (f.properties.postcode || '').replace(/\s/g, '')
-                    })).filter(r => r.street || r.city);
-                    window._addrCache[q] = results;
-                } catch { return; }
+        _addrDebounce = setTimeout(function() {
+            var cached = window._addrCache[q];
+            if (cached) {
+                _renderAddrDrop(el, dropId, cached, cfg);
+                return;
             }
-            removeDrop();
-            if (!results.length) return;
-            const rect = el.getBoundingClientRect();
-            const drop = document.createElement('div');
-            drop.id = dropId;
-            drop.style.cssText = `position:fixed;z-index:9999;top:${rect.bottom+2}px;left:${rect.left}px;width:${rect.width}px;background:#fff;border:1px solid #e5e7eb;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,.13);overflow:hidden;`;
-            document.body.appendChild(drop);
-            drop.innerHTML = results.map((r, i) => {
-                const streetFull = [r.street, r.housenumber].filter(Boolean).join(' ');
-                const sub = [r.city, r.zip ? r.zip.slice(0,3)+' '+r.zip.slice(3) : ''].filter(Boolean).join(', ');
-                return `<div style="padding:10px 16px;font-size:13px;cursor:pointer;border-bottom:1px solid #f3f4f6"
-                    onmouseover="this.style.background='#f0f9ff'" onmouseout="this.style.background=''"
-                    data-i="${i}" data-cfgid="${el.id}"
-                    onmousedown="window._pickAddress(this,event)">
-                  <div style="font-weight:600;color:#1f2937">${esc(streetFull || r.city)}</div>
-                  <div style="font-size:11px;color:#9ca3af;margin-top:2px">${esc(sub)}</div>
-                </div>`;
-            }).join('');
-            // Ulož výsledky pro onmousedown handler
-            drop._results = results;
-        }, 280);
+            fetch('https://nominatim.openstreetmap.org/search?q=' + encodeURIComponent(q) +
+                  '&countrycodes=cz&format=json&limit=5&addressdetails=1')
+            .then(function(r) { return r.ok ? r.json() : []; })
+            .then(function(data) {
+                var results = (Array.isArray(data) ? data : []).map(function(item) {
+                    var a = item.address || {};
+                    return {
+                        street:      a.road || a.pedestrian || a.path || a.footway || item.name || '',
+                        housenumber: a.house_number || '',
+                        city:        a.city || a.town || a.village || a.municipality || a.county || '',
+                        zip:        (a.postcode || '').replace(/\s/g, '')
+                    };
+                }).filter(function(x) { return x.street || x.city; });
+                window._addrCache[q] = results;
+                _renderAddrDrop(el, dropId, results, cfg);
+            })
+            .catch(function() {});
+        }, 350);
     };
+
+    function _renderAddrDrop(el, dropId, results, cfg) {
+        var old = document.getElementById(dropId);
+        if (old) old.remove();
+        if (!results.length) return;
+        window._addrResults[el.id] = results;
+        var rect = el.getBoundingClientRect();
+        var drop = document.createElement('div');
+        drop.id = dropId;
+        drop.style.position   = 'fixed';
+        drop.style.zIndex     = '9999';
+        drop.style.top        = (rect.bottom + 2) + 'px';
+        drop.style.left       = rect.left + 'px';
+        drop.style.width      = rect.width + 'px';
+        drop.style.background = '#fff';
+        drop.style.border     = '1px solid #e5e7eb';
+        drop.style.borderRadius = '12px';
+        drop.style.boxShadow  = '0 8px 30px rgba(0,0,0,.13)';
+        drop.style.overflow   = 'hidden';
+        document.body.appendChild(drop);
+        var html = '';
+        for (var i = 0; i < results.length; i++) {
+            var r = results[i];
+            var sf = [r.street, r.housenumber].filter(Boolean).join(' ');
+            var zf = r.zip.length === 5 ? r.zip.slice(0,3) + ' ' + r.zip.slice(3) : r.zip;
+            var sub = [r.city, zf].filter(Boolean).join(', ');
+            html += '<div style="padding:10px 16px;font-size:13px;cursor:pointer;border-bottom:1px solid #f3f4f6"' +
+                ' onmouseover="this.style.background=\'#f0f9ff\'" onmouseout="this.style.background=\'\'"' +
+                ' data-i="' + i + '" data-cfgid="' + el.id + '"' +
+                ' onmousedown="window._pickAddress(this,event)">' +
+                '<div style="font-weight:600;color:#1f2937">' + esc(sf || r.city) + '</div>' +
+                '<div style="font-size:11px;color:#9ca3af;margin-top:2px">' + esc(sub) + '</div>' +
+                '</div>';
+        }
+        drop.innerHTML = html;
+    }
 
     window._pickAddress = function(el, e) {
         e.preventDefault();
-        const cfgId = el.dataset.cfgid;
-        const cfg = _ADDR_CFG[cfgId];
+        var cfgId   = el.getAttribute('data-cfgid');
+        var idx     = +el.getAttribute('data-i');
+        var cfg     = _ADDR_CFG[cfgId];
         if (!cfg) return;
-        const drop = el.closest('[id^="_addrdrop_"]');
-        const results = drop?._results;
-        const r = results?.[+el.dataset.i];
+        var results = window._addrResults[cfgId] || [];
+        var r       = results[idx];
         if (!r) return;
-        const streetFull = cfg.combined
-            ? [r.street, r.housenumber].filter(Boolean).join(' ')
-            : r.street;
-        const inp = document.getElementById(cfgId);
-        if (inp) inp.value = streetFull;
-        if (cfg.cityId) { const c = document.getElementById(cfg.cityId); if (c) c.value = r.city; }
+        var sf = cfg.combined ? [r.street, r.housenumber].filter(Boolean).join(' ') : r.street;
+        var inp = document.getElementById(cfgId);
+        if (inp) inp.value = sf;
+        if (cfg.cityId) { var c = document.getElementById(cfg.cityId); if (c) c.value = r.city; }
         if (cfg.zipId && r.zip) {
-            const z = document.getElementById(cfg.zipId);
-            if (z) z.value = r.zip.length === 5 ? r.zip.slice(0,3)+' '+r.zip.slice(3) : r.zip;
+            var z = document.getElementById(cfg.zipId);
+            if (z) z.value = r.zip.length === 5 ? r.zip.slice(0,3) + ' ' + r.zip.slice(3) : r.zip;
         }
+        var drop = document.getElementById('_addrdrop_' + cfgId);
         if (drop) drop.remove();
     };
 
-    // Zavři dropdown při kliku mimo
     document.addEventListener('click', function(e) {
-        document.querySelectorAll('[id^="_addrdrop_"]').forEach(d => {
+        document.querySelectorAll('[id^="_addrdrop_"]').forEach(function(d) {
             if (!d.contains(e.target)) d.remove();
         });
     });
-
     window.validateAge = function(input) {
         if (!input.value) return true;
         const birth = new Date(input.value);
