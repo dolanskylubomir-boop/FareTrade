@@ -6491,22 +6491,28 @@
                     </div>
                     <p class="text-xs text-gray-400 mb-3">${Array.isArray(rows) ? rows.length : 0} inzerátů</p>
                     ${!Array.isArray(rows) || !rows.length ? '<p class="text-gray-400 text-center py-8">Žádné inzeráty nenalezeny.</p>' :
-                    rows.map(it => {
-                        const isActive = it.status === 'aktivní';
-                        const isDeact  = it.status === 'deaktivován_adminem';
-                        return '<div class="border border-gray-100 rounded-2xl p-3 mb-2 bg-white flex items-center gap-3 flex-wrap">' +
-                            '<div class="flex-1 min-w-0">' +
-                                '<div class="flex items-center gap-1.5 mb-0.5">' + typeBadge(it.item_type) + statusBadge(it.status) + '</div>' +
-                                '<p class="font-bold text-gray-800 text-sm truncate">' + esc(it.title) + '</p>' +
-                                '<p class="text-xs text-gray-400">' + esc(it.seller_name) + ' · ' + Number(it.price).toLocaleString('cs-CZ') + ' Kč · ' + new Date(it.created_at).toLocaleDateString('cs-CZ') + '</p>' +
-                                (isDeact && it.admin_deact_reason ? '<p class="text-xs text-red-500 mt-0.5">Důvod: ' + esc(deactReasons[it.admin_deact_reason] || it.admin_deact_reason) + '</p>' : '') +
-                            '</div>' +
-                            '<div class="flex gap-1.5 shrink-0">' +
-                                (isActive  ? '<button onclick="adminDeactivateListing(\'' + it.item_id + '\',\'' + it.item_type + '\',\'' + it.seller_id + '\',' + JSON.stringify(it.title) + ')" class="bg-red-50 hover:bg-red-500 hover:text-white border border-red-200 text-red-600 font-bold px-3 py-2 rounded-xl text-xs transition-colors">🚫 Deaktivovat</button>' : '') +
-                                (isDeact   ? '<button onclick="adminReactivateListing(\'' + it.item_id + '\',\'' + it.item_type + '\',\'' + it.seller_id + '\')" class="bg-green-50 hover:bg-green-500 hover:text-white border border-green-200 text-green-600 font-bold px-3 py-2 rounded-xl text-xs transition-colors">✓ Obnovit</button>' : '') +
-                            '</div>' +
-                        '</div>';
-                    }).join('')}
+                    (() => {
+                        window._adminListingData = {};
+                        rows.forEach(function(it) { window._adminListingData[it.item_id] = it; });
+                        return rows.map(function(it) {
+                            const isActive = it.status === 'aktivní';
+                            const isDeact  = it.status === 'deaktivován_adminem';
+                            const id = it.item_id;
+                            return '<div class="border border-gray-100 rounded-2xl p-3 mb-2 bg-white flex items-center gap-3 flex-wrap">' +
+                                '<div class="flex-1 min-w-0">' +
+                                    '<div class="flex items-center gap-1.5 mb-0.5">' + typeBadge(it.item_type) + statusBadge(it.status) + '</div>' +
+                                    '<p class="font-bold text-gray-800 text-sm truncate">' + esc(it.title) + '</p>' +
+                                    '<p class="text-xs text-gray-400">' + esc(it.seller_name) + ' · ' + Number(it.price).toLocaleString('cs-CZ') + ' Kč · ' + new Date(it.created_at).toLocaleDateString('cs-CZ') + '</p>' +
+                                    (isDeact && it.admin_deact_reason ? '<p class="text-xs text-red-500 mt-0.5">Důvod: ' + esc(deactReasons[it.admin_deact_reason] || it.admin_deact_reason) + '</p>' : '') +
+                                '</div>' +
+                                '<div class="flex gap-1.5 shrink-0">' +
+                                    '<button onclick="adminShowListingDetail(\'' + id + '\')" class="bg-gray-50 hover:bg-gray-100 border border-gray-200 text-gray-600 font-bold px-3 py-2 rounded-xl text-xs transition-colors">👁 Detail</button>' +
+                                    (isActive ? '<button onclick="adminDeactivateListing(\'' + id + '\')" class="bg-red-50 hover:bg-red-500 hover:text-white border border-red-200 text-red-600 font-bold px-3 py-2 rounded-xl text-xs transition-colors">🚫 Deaktivovat</button>' : '') +
+                                    (isDeact  ? '<button onclick="adminReactivateListing(\'' + id + '\')" class="bg-green-50 hover:bg-green-500 hover:text-white border border-green-200 text-green-600 font-bold px-3 py-2 rounded-xl text-xs transition-colors">✓ Obnovit</button>' : '') +
+                                '</div>' +
+                            '</div>';
+                        }).join('');
+                    })()}
                 </div>`;
             }
         } catch(e) { container.innerHTML = '<p class="text-red-500 text-center py-8">Chyba načítání: ' + e.message + '</p>'; }
@@ -6679,7 +6685,62 @@
         } catch(e) { showToast('Chyba: ' + e.message, 'error'); }
     };
 
-    window.adminDeactivateListing = function(itemId, itemType, sellerId, titleVal) {
+    window.adminShowListingDetail = function(itemId) {
+        const it = (window._adminListingData || {})[itemId];
+        if (!it) { showToast('Data inzerátu nejsou k dispozici.', 'warning'); return; }
+        const modalId = 'admin-listing-detail-modal';
+        if (document.getElementById(modalId)) document.getElementById(modalId).remove();
+        const deactReasonLabels = {
+            zakaz_zbozi:'Zakázané nebo nelegální zboží', nepravdive_info:'Nepravdivé informace nebo falzifikát',
+            nevhodny_obsah:'Nevhodný obsah nebo fotografie', podvod:'Podezření na podvod',
+            duplicita:'Duplicitní inzerát', spam:'Spam nebo hromadné inzeráty',
+            chybi_popis:'Nedostatečný nebo zavádějící popis', jine:'Jiný důvod'
+        };
+        const typeLbl   = it.item_type === 'aukce' ? 'Aukce' : 'Kup teď';
+        const viewRoute = it.item_type === 'aukce' ? 'aukce-detail' : 'pevna-cena-detail';
+        const isActive  = it.status === 'aktivní';
+        const isDeact   = it.status === 'deaktivován_adminem';
+        const modal = document.createElement('div');
+        modal.id = modalId;
+        modal.className = 'fixed inset-0 z-[9999] flex items-end sm:items-center justify-center p-4 bg-black/50 backdrop-blur-sm';
+        modal.innerHTML =
+            '<div class="bg-white rounded-3xl shadow-2xl w-full max-w-md p-6 fade-in">' +
+                '<div class="flex items-center justify-between mb-4">' +
+                    '<h3 class="font-extrabold text-gray-800">👁 Detail inzerátu</h3>' +
+                    '<button onclick="document.getElementById(\'' + modalId + '\').remove()" class="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-500 font-bold text-lg flex items-center justify-center transition-colors">×</button>' +
+                '</div>' +
+                '<div class="bg-gray-50 rounded-2xl p-4 mb-4 flex flex-col gap-2">' +
+                    '<div class="flex items-center gap-2 flex-wrap">' +
+                        '<span class="text-[10px] ' + (it.item_type === 'aukce' ? 'bg-sky-100 text-sky-700' : 'bg-pink-100 text-pink-700') + ' px-2 py-0.5 rounded-full font-bold uppercase">' + typeLbl + '</span>' +
+                        '<span class="text-[10px] ' + (isActive ? 'bg-green-100 text-green-700' : isDeact ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-500') + ' px-2 py-0.5 rounded-full font-bold uppercase">' + esc(it.status) + '</span>' +
+                    '</div>' +
+                    '<p class="font-extrabold text-gray-800 text-base leading-snug">' + esc(it.title) + '</p>' +
+                    '<div class="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-gray-500 mt-1">' +
+                        '<span>Prodejce</span><span class="font-semibold text-gray-700">' + esc(it.seller_name) + '</span>' +
+                        '<span>Cena</span><span class="font-semibold text-gray-700">' + Number(it.price).toLocaleString('cs-CZ') + ' Kč</span>' +
+                        '<span>Typ</span><span class="font-semibold text-gray-700">' + typeLbl + '</span>' +
+                        '<span>Vytvořeno</span><span class="font-semibold text-gray-700">' + new Date(it.created_at).toLocaleDateString('cs-CZ') + '</span>' +
+                        '<span class="font-mono text-[10px] text-gray-300 col-span-2 mt-1">' + it.item_id + '</span>' +
+                    '</div>' +
+                '</div>' +
+                (isDeact ? '<div class="bg-red-50 border border-red-100 rounded-xl px-4 py-3 mb-4">' +
+                    '<p class="text-xs font-bold text-red-700 mb-0.5">Důvod deaktivace</p>' +
+                    '<p class="text-sm text-red-800">' + esc(deactReasonLabels[it.admin_deact_reason] || it.admin_deact_reason || '—') + '</p>' +
+                '</div>' : '') +
+                '<div class="flex gap-2">' +
+                    '<button onclick="document.getElementById(\'' + modalId + '\').remove()" class="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-600 font-semibold text-sm hover:bg-gray-50 transition-colors">Zavřít</button>' +
+                    (isActive ? '<button onclick="document.getElementById(\'' + modalId + '\').remove();navigate(\'' + viewRoute + '\',\'' + it.item_id + '\')" class="flex-1 py-2.5 rounded-xl bg-sky-500 hover:bg-sky-600 text-white font-bold text-sm transition-colors">🔗 Otevřít inzerát</button>' : '') +
+                    (isActive ? '<button onclick="document.getElementById(\'' + modalId + '\').remove();adminDeactivateListing(\'' + it.item_id + '\')" class="flex-1 py-2.5 rounded-xl bg-red-500 hover:bg-red-600 text-white font-bold text-sm transition-colors">🚫 Deaktivovat</button>' : '') +
+                    (isDeact  ? '<button onclick="document.getElementById(\'' + modalId + '\').remove();adminReactivateListing(\'' + it.item_id + '\')" class="flex-1 py-2.5 rounded-xl bg-green-500 hover:bg-green-600 text-white font-bold text-sm transition-colors">✓ Obnovit</button>' : '') +
+                '</div>' +
+            '</div>';
+        document.body.appendChild(modal);
+        modal.addEventListener('click', function(e) { if (e.target === modal) modal.remove(); });
+    };
+
+    window.adminDeactivateListing = function(itemId) {
+        const it = (window._adminListingData || {})[itemId];
+        if (!it) { showToast('Data inzerátu nejsou k dispozici — obnovte seznam.', 'warning'); return; }
         const modalId = 'admin-deact-modal';
         if (document.getElementById(modalId)) return;
         const reasons = [
@@ -6701,7 +6762,7 @@
                     '<h3 class="font-extrabold text-gray-800">🚫 Deaktivovat inzerát</h3>' +
                     '<button onclick="document.getElementById(\'' + modalId + '\').remove()" class="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-500 font-bold text-lg flex items-center justify-center transition-colors">×</button>' +
                 '</div>' +
-                '<p class="text-sm text-gray-700 mb-4 bg-gray-50 rounded-xl p-3 font-medium leading-snug">' + esc(titleVal) + '</p>' +
+                '<p class="text-sm text-gray-700 mb-4 bg-gray-50 rounded-xl p-3 font-medium leading-snug">' + esc(it.title) + '</p>' +
                 '<div class="mb-4">' +
                     '<label class="block text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wide">Důvod deaktivace *</label>' +
                     '<select id="deact-reason" class="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:border-red-400 bg-white text-sm">' +
@@ -6714,14 +6775,16 @@
                 '</div>' +
                 '<div class="flex gap-3">' +
                     '<button onclick="document.getElementById(\'' + modalId + '\').remove()" class="flex-1 py-3 rounded-xl border border-gray-200 text-gray-600 font-semibold text-sm hover:bg-gray-50 transition-colors">Zrušit</button>' +
-                    '<button id="deact-confirm-btn" onclick="_confirmDeactivateListing(\'' + itemId + '\',\'' + itemType + '\')" class="flex-1 py-3 rounded-xl bg-red-500 hover:bg-red-600 text-white font-bold text-sm transition-colors">🚫 Deaktivovat</button>' +
+                    '<button id="deact-confirm-btn" onclick="_confirmDeactivateListing(\'' + itemId + '\')" class="flex-1 py-3 rounded-xl bg-red-500 hover:bg-red-600 text-white font-bold text-sm transition-colors">🚫 Deaktivovat</button>' +
                 '</div>' +
             '</div>';
         document.body.appendChild(modal);
         modal.addEventListener('click', function(e) { if (e.target === modal) modal.remove(); });
     };
 
-    window._confirmDeactivateListing = async function(itemId, itemType) {
+    window._confirmDeactivateListing = async function(itemId) {
+        const it = (window._adminListingData || {})[itemId];
+        if (!it) { showToast('Data inzerátu chybí.', 'warning'); return; }
         const reason = (document.getElementById('deact-reason')?.value || '').trim();
         const note   = (document.getElementById('deact-note')?.value   || '').trim();
         if (!reason) { showToast('Vyberte důvod deaktivace.', 'warning'); return; }
@@ -6732,7 +6795,7 @@
         try {
             const r = await fetch(SUPABASE_URL + '/rest/v1/rpc/admin_deactivate_listing', {
                 method: 'POST', headers: hdrs,
-                body: JSON.stringify({ p_item_id: itemId, p_item_type: itemType, p_reason: reason, p_note: note })
+                body: JSON.stringify({ p_item_id: itemId, p_item_type: it.item_type, p_reason: reason, p_note: note })
             });
             if (!r.ok) throw new Error(await r.text());
             document.getElementById('admin-deact-modal')?.remove();
@@ -6744,14 +6807,16 @@
         }
     };
 
-    window.adminReactivateListing = async function(itemId, itemType, sellerId) {
-        if (!confirm('Obnovit tento inzerát zpět na aktivní?')) return;
+    window.adminReactivateListing = async function(itemId) {
+        const it = (window._adminListingData || {})[itemId];
+        if (!it) { showToast('Data inzerátu chybí — obnovte seznam.', 'warning'); return; }
+        if (!confirm('Obnovit inzerát "' + it.title.substring(0, 40) + '" zpět na aktivní?')) return;
         const token = await _ensureValidToken();
         const hdrs = { 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' };
         try {
             const r = await fetch(SUPABASE_URL + '/rest/v1/rpc/admin_reactivate_listing', {
                 method: 'POST', headers: hdrs,
-                body: JSON.stringify({ p_item_id: itemId, p_item_type: itemType, p_seller_id: sellerId })
+                body: JSON.stringify({ p_item_id: itemId, p_item_type: it.item_type, p_seller_id: it.seller_id })
             });
             if (!r.ok) throw new Error(await r.text());
             showToast('Inzerát byl obnoven.', 'success');
