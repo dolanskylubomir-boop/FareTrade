@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://*.supabase.co wss://*.supabase.co; base-uri 'self'; form-action 'self'; object-src 'none'; frame-src 'none'; upgrade-insecure-requests">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://mpioazyvtgcpxjrhbflp.supabase.co wss://mpioazyvtgcpxjrhbflp.supabase.co; base-uri 'self'; form-action 'self'; object-src 'none'; frame-src 'none'; upgrade-insecure-requests">
     <meta name="referrer" content="strict-origin-when-cross-origin">
     <meta name="description" content="FairTrade Tržiště – moderní a bezpečné aukční a inzertní prostředí s ověřenými prodejci a escrow ochranou plateb.">
     <meta name="theme-color" content="#0ea5e9">
@@ -795,7 +795,7 @@
             auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false, storageKey: 'ft_public_anon' },
             global: { fetch: _sbFetch }
         });
-    } catch(e) { console.error('Supabase init error:', e); }
+    } catch(e) { /* Supabase init failed */ }
 
     const ESCROW_FEE    = 49;
     const PAYMENT_IBAN  = 'CZ6508000000192000145399'; // ← NAHRAĎTE skutečným IBAN
@@ -1922,14 +1922,13 @@
                         reserved_until: item.reserved_until ? new Date(item.reserved_until).getTime() : null,
                         created_at: item.created_at ? new Date(item.created_at).getTime() : 0,
                         db_status: item.status || 'aktivní',
-                        condition_notes: item.condition_notes || null
+                        condition_notes: item.condition_notes ? esc(item.condition_notes) : null
                     };
                 });
             }
 
             window.dataLoaded = true;
         } catch (e) {
-            console.error('Kritická chyba načítání:', e);
             window.dataLoaded = true;
         } finally {
             clearTimeout(_fallback);
@@ -2183,7 +2182,6 @@
                 const fileName = `avatar-${user.id}-${Date.now()}.${check.ext}`;
                 const { data:sd, error:se } = await supabaseClient.storage.from('avatary').upload(fileName, file, { cacheControl:'3600', upsert:true });
                 if (se) {
-                    console.warn('Avatar upload selhal:', se.message);
                     showToast('Fotografie se nepodařilo nahrát (' + se.message + ') – profil bude uložen bez avataru.', 'warning');
                 } else if (sd) {
                     const { data:pu } = supabaseClient.storage.from('avatary').getPublicUrl(fileName);
@@ -2401,7 +2399,6 @@
             }
         } catch(e) {
             if (manual) showToast('Chyba: ' + e.message, 'warning');
-            console.warn('[push] subscribe failed:', e);
         }
     }
 
@@ -6922,9 +6919,31 @@
     // ──────────────────────────────────────────────────────────────
     // INICIALIZACE
     // ──────────────────────────────────────────────────────────────
+    function _initGdprBanner() {
+        if (localStorage.getItem('ft_gdpr_ok')) return;
+        const el = document.createElement('div');
+        el.id = 'gdpr-banner';
+        el.className = 'fixed bottom-14 md:bottom-0 left-0 right-0 z-[9997] bg-white border-t border-gray-200 shadow-2xl';
+        el.innerHTML =
+            '<div class="max-w-2xl mx-auto px-4 py-3 flex flex-col sm:flex-row items-start sm:items-center gap-3">' +
+                '<p class="flex-1 text-xs text-gray-600 leading-relaxed">' +
+                    '🍪 Tato stránka ukládá technické cookies a data do localStorage výhradně pro přihlášení, zabezpečení a předvolby. ' +
+                    'Nejsou použity žádné analytické ani reklamní sledovací nástroje. ' +
+                    '<button onclick="navigate(\'vop\')" class="text-sky-500 underline hover:text-sky-700 transition-colors">Zásady ochrany dat</button>' +
+                '</p>' +
+                '<button id="gdpr-ok" class="shrink-0 bg-sky-500 hover:bg-sky-600 text-white font-bold px-5 py-2 rounded-xl text-sm transition-colors">Rozumím</button>' +
+            '</div>';
+        document.body.appendChild(el);
+        document.getElementById('gdpr-ok').addEventListener('click', function() {
+            localStorage.setItem('ft_gdpr_ok', '1');
+            el.remove();
+        });
+    }
+
     document.addEventListener('DOMContentLoaded', () => {
         const hash = window.location.hash.replace('#','');
         navigate(hash || 'home');
+        _initGdprBanner();
 
         fetchDatabaseItems().then(() => {
             const h = window.location.hash.replace('#','');
@@ -6943,7 +6962,7 @@
                     // Zkontroluj aktualizaci každých 60 minut
                     setInterval(() => reg.update(), 3600000);
                 })
-                .catch(err => console.warn('SW registrace selhala:', err));
+                .catch(() => {});
         });
     }
 
