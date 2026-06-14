@@ -822,7 +822,7 @@
         { id:'ostatni',      name:'Ostatní',           icon:'📦', sub:[] },
     ];
     const vsechnyKategorie = ['Vše', ...KATEGORIE.map(k => k.name)];
-    const FALLBACK_IMG     = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 4 3'%3E%3Crect width='4' height='3' fill='%23f1f5f9'/%3E%3Crect x='1.4' y='0.7' width='1.2' height='1' rx='0.12' fill='%23e2e8f0'/%3E%3Ccircle cx='2' cy='1.2' r='0.28' fill='%23f8fafc'/%3E%3Ccircle cx='2' cy='1.2' r='0.16' fill='%23cbd5e1'/%3E%3Cpath d='M1.6 2 Q2 1.75 2.4 2' stroke='%23e2e8f0' stroke-width='0.07' fill='none' stroke-linecap='round'/%3E%3C/svg%3E";
+    const FALLBACK_IMG     = "data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 4 3%22%3E%3Crect width=%224%22 height=%223%22 fill=%22%23f1f5f9%22/%3E%3Crect x=%221.4%22 y=%220.7%22 width=%221.2%22 height=%221%22 rx=%220.12%22 fill=%22%23e2e8f0%22/%3E%3Ccircle cx=%222%22 cy=%221.2%22 r=%220.28%22 fill=%22%23f8fafc%22/%3E%3Ccircle cx=%222%22 cy=%221.2%22 r=%220.16%22 fill=%22%23cbd5e1%22/%3E%3C/svg%3E";
 
     // ──────────────────────────────────────────────────────────────
     // VOP MODAL
@@ -5606,8 +5606,8 @@
                 });
                 // Reply input — pro obě strany konverzace
                 const lastMsg = thread.messages[thread.messages.length - 1];
-                const replyId   = 'reply-' + thread.itemId + '_' + thread.otherId;
-                const safeTitle = encodeURIComponent(thread.itemTitle || '');
+                const replyId        = 'reply-' + thread.itemId + '_' + thread.otherId;
+                const safeTitleEncoded = encodeURIComponent(thread.itemTitle || '');
                 const qr = [
                     ['Ano, dostupné ✅', 'Ano, zboží je stále dostupné.'],
                     ['Zásilkovna ✅',    'Ano, posílám Zásilkovnou.'],
@@ -5622,7 +5622,7 @@
                 html += '</div>';
                 html += '<div class="flex gap-2">';
                 html += '<input type="text" maxlength="800" id="' + replyId + '" placeholder="Napsat zprávu…" class="flex-1 min-w-0 px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-sky-400">';
-                html += '<button onclick="sendReply(\'' + lastMsg.id + '\',\'' + thread.otherId + '\',\'' + thread.itemId + '\',decodeURIComponent(\'' + safeTitle + '\'),\'' + thread.itemType + '\')" class="shrink-0 bg-sky-500 hover:bg-sky-600 text-white font-bold px-4 py-2 rounded-xl text-sm transition-colors whitespace-nowrap">Odeslat</button>';
+                html += '<button onclick="sendReply(\'' + lastMsg.id + '\',\'' + thread.otherId + '\',\'' + thread.itemId + '\',decodeURIComponent(\'' + safeTitleEncoded + '\'),\'' + thread.itemType + '\')" class="shrink-0 bg-sky-500 hover:bg-sky-600 text-white font-bold px-4 py-2 rounded-xl text-sm transition-colors whitespace-nowrap">Odeslat</button>';
                 html += '</div></div>';
                 html += '</div></div>';
             });
