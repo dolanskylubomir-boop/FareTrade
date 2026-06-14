@@ -2289,6 +2289,58 @@
         }
     };
 
+    window._loadKontaktTicket = async function(ticketId) {
+        const el = document.getElementById('kontakt-ticket-content');
+        if (!el) return;
+        if (!ticketId) { el.innerHTML = '<p class="text-red-400 text-center py-8">Neplatný odkaz na ticket.</p>'; return; }
+        try {
+            const token = await _ensureValidToken();
+            if (!token) { navigate('login'); return; }
+            const hdrs = { 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + token };
+            const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_my_ticket`, {
+                method: 'POST', headers: { ...hdrs, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ p_ticket_id: ticketId })
+            });
+            const rows = await r.json();
+            if (!Array.isArray(rows) || !rows.length) { el.innerHTML = '<p class="text-gray-400 text-center py-8">Ticket nenalezen nebo nemáte přístup.</p>'; return; }
+            const t = rows[0];
+            const statusCls   = { open:'bg-orange-100 text-orange-700', in_progress:'bg-sky-100 text-sky-700', resolved:'bg-green-100 text-green-700', spam:'bg-gray-100 text-gray-400' };
+            const statusLabel = { open:'Nový', in_progress:'Řeší se', resolved:'Vyřešeno', spam:'Spam' };
+            const date = new Date(t.created_at).toLocaleDateString('cs-CZ', { day:'numeric', month:'long', year:'numeric', hour:'2-digit', minute:'2-digit' });
+            el.innerHTML = `
+                <div class="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
+                    <div class="flex items-start justify-between gap-3 mb-4">
+                        <div>
+                            <h2 class="text-xl font-extrabold text-gray-800">${esc(t.subject)}</h2>
+                            <p class="text-xs text-gray-400 mt-1">${date}</p>
+                        </div>
+                        <span class="shrink-0 text-xs font-bold px-3 py-1.5 rounded-full ${statusCls[t.status]||'bg-gray-100 text-gray-500'}">${statusLabel[t.status]||t.status}</span>
+                    </div>
+                    <div class="mb-2">
+                        <p class="text-xs font-bold text-gray-400 uppercase tracking-wide mb-2">Váš dotaz</p>
+                        <div class="bg-gray-50 rounded-xl p-4 text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">${esc(t.message)}</div>
+                    </div>
+                </div>
+                ${t.admin_reply ? `
+                <div class="bg-sky-50 border border-sky-100 rounded-2xl p-6 shadow-sm">
+                    <div class="flex items-center gap-2 mb-3">
+                        <span class="w-8 h-8 rounded-xl bg-sky-500 flex items-center justify-center text-white text-sm font-black">FT</span>
+                        <div>
+                            <p class="text-sm font-bold text-sky-700">Podpora FairTrade</p>
+                            <p class="text-xs text-sky-400">${new Date(t.admin_reply_at).toLocaleDateString('cs-CZ',{day:'numeric',month:'long',year:'numeric',hour:'2-digit',minute:'2-digit'})}</p>
+                        </div>
+                    </div>
+                    <div class="text-sm text-sky-900 leading-relaxed whitespace-pre-wrap">${esc(t.admin_reply)}</div>
+                </div>` : `
+                <div class="bg-amber-50 border border-amber-100 rounded-2xl p-5 text-center">
+                    <p class="text-sm text-amber-700 font-medium">Váš dotaz byl doručen. Odpovíme do 24 hodin v pracovní dny.</p>
+                </div>`}`;
+        } catch(e) {
+            const el2 = document.getElementById('kontakt-ticket-content');
+            if (el2) el2.innerHTML = '<p class="text-red-400 text-center py-8">Chyba při načítání: ' + esc(e.message) + '</p>';
+        }
+    };
+
     // ──────────────────────────────────────────────────────────────
     window.toggleAuctionFields = function(isAuction) {
         const show = (...ids) => ids.forEach(id => { const el=document.getElementById(id); if(el){ el.classList.remove('hidden'); el.classList.add('flex'); } });
@@ -3400,6 +3452,18 @@
                     <p class="text-sky-100 text-base md:text-lg max-w-xl">Máte dotaz, problém nebo nápad? Napište nám — odpovídáme zpravidla do 24 hodin v pracovní dny.</p>
                 </div>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-5">${infoCard}${rightCard}</div>
+            </div>`;
+        },
+
+        'kontakt-ticket': (ticketId) => {
+            if (!window.currentUser) { setTimeout(() => navigate('login'), 0); return ''; }
+            setTimeout(() => _loadKontaktTicket(ticketId), 0);
+            return `<div class="w-full max-w-2xl mx-auto fade-in mb-10">
+                <button onclick="navigate('profil/aktivity')" class="mb-6 text-sky-500 font-bold hover:text-sky-600 flex items-center gap-2">← Zpět na aktivity</button>
+                <div id="kontakt-ticket-content" class="flex flex-col gap-3">
+                    <div class="skeleton h-32 w-full rounded-2xl"></div>
+                    <div class="skeleton h-24 w-full rounded-2xl"></div>
+                </div>
             </div>`;
         },
 
