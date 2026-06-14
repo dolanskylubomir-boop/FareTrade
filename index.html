@@ -4945,7 +4945,7 @@
         if (!window.currentUser) return `<div class="w-full bg-white/90 backdrop-blur-xl p-8 rounded-[2rem] shadow-xl fade-in text-center"><p class="text-gray-500 mb-4">Přihlaste se.</p><button onclick="navigate('login')" class="bg-sky-500 text-white font-bold px-6 py-3 rounded-2xl">Přihlásit se</button></div>`;
         setTimeout(() => _loadObjednavkaDetail(orderId), 0);
         return `<div class="w-full max-w-2xl mx-auto bg-white/90 backdrop-blur-xl p-5 md:p-8 rounded-[2rem] shadow-xl fade-in border border-white/50">
-            <button onclick="navigate('moje-objednavky')" class="flex items-center gap-2 text-gray-400 hover:text-gray-600 text-sm font-medium mb-5 transition-colors group"><svg class="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>Zpět na objednávky</button>
+            <button onclick="history.back()" class="flex items-center gap-2 text-gray-400 hover:text-gray-600 text-sm font-medium mb-5 transition-colors group"><svg class="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>Zpět na objednávky</button>
             <div id="objednavka-detail-content"><div class="flex justify-center py-12"><div class="w-8 h-8 border-4 border-sky-200 border-t-sky-500 rounded-full animate-spin"></div></div></div>
         </div>`;
     };
@@ -4953,13 +4953,14 @@
     async function _loadObjednavkaDetail(orderId) {
         const container = document.getElementById('objednavka-detail-content');
         if (!container || !window.currentUser) return;
+        const uid = window.currentUser.id;
         const token = await _ensureValidToken();
         const hdrs = { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${token}` };
         const FI = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23f1f5f9'/%3E%3C/svg%3E";
         try {
             const [rOrder, rReview, rDispute] = await Promise.all([
-                fetch(`${SUPABASE_URL}/rest/v1/objednavky?id=eq.${orderId}&buyer_id=eq.${window.currentUser.id}&select=*,objednavka_polozky(*)`, { headers: hdrs }),
-                fetch(`${SUPABASE_URL}/rest/v1/reviews?order_id=eq.${orderId}&reviewer_id=eq.${window.currentUser.id}&select=id,rating,comment,seller_reply&limit=1`, { headers: hdrs }),
+                fetch(`${SUPABASE_URL}/rest/v1/objednavky?id=eq.${orderId}&or=(buyer_id.eq.${uid},seller_id.eq.${uid})&select=*,objednavka_polozky(*)`, { headers: hdrs }),
+                fetch(`${SUPABASE_URL}/rest/v1/reviews?order_id=eq.${orderId}&select=id,rating,comment,seller_reply,reviewer_id&limit=1`, { headers: hdrs }),
                 fetch(`${SUPABASE_URL}/rest/v1/disputes?order_id=eq.${orderId}&select=*&limit=1`, { headers: hdrs })
             ]);
             const orders   = await rOrder.json();
@@ -4968,22 +4969,28 @@
             const o = Array.isArray(orders) && orders[0];
             if (!o) { container.innerHTML = '<p class="text-center text-gray-500 py-12">Objednávka nenalezena.</p>'; return; }
 
+            const isBuyer  = o.buyer_id  === uid;
+            const isSeller = o.seller_id === uid;
             const st       = ORDER_STATUS_MAP[o.status] || { label: o.status, cls:'bg-gray-100 text-gray-500' };
             const carr     = DOPRAVCI.find(d => d.id === o.carrier) || { name: o.carrier || '—', icon:'📦' };
             const items    = o.objednavka_polozky || [];
             const isAuc    = o.item_type === 'aukce';
-            const reviewed = Array.isArray(reviews) && reviews.length > 0;
-            const rev      = reviewed ? reviews[0] : null;
+            const rev      = Array.isArray(reviews) && reviews.length ? reviews[0] : null;
+            const buyerReviewed = rev && rev.reviewer_id === uid;
             const dispute  = disputes[0] || null;
             const shipPhotos = Array.isArray(o.shipping_photos) ? o.shipping_photos : (o.shipping_photos ? JSON.parse(o.shipping_photos) : []);
             const evPhotos   = dispute && Array.isArray(dispute.evidence_photos) ? dispute.evidence_photos : [];
             const addr     = o.shipping_address || {};
-
             const starsFilled = n => '★'.repeat(n) + '☆'.repeat(5 - n);
+
+            // Role badge
+            const roleBadge = isSeller
+                ? `<span class="text-xs bg-purple-100 text-purple-600 font-bold px-2 py-0.5 rounded-lg ml-2">Prodejce</span>`
+                : `<span class="text-xs bg-sky-100 text-sky-600 font-bold px-2 py-0.5 rounded-lg ml-2">Kupující</span>`;
 
             container.innerHTML = `
             <div class="flex items-center justify-between mb-1">
-                <p class="font-mono text-sm font-bold text-gray-700">#${o.id.substring(0,8).toUpperCase()}${isAuc?' 🏆':''}</p>
+                <p class="font-mono text-sm font-bold text-gray-700">#${o.id.substring(0,8).toUpperCase()}${isAuc?' 🏆':''}${roleBadge}</p>
                 <span class="order-status-badge ${st.cls}">${st.label}</span>
             </div>
             <p class="text-xs text-gray-400 mb-5">${new Date(o.created_at).toLocaleDateString('cs-CZ',{day:'numeric',month:'long',year:'numeric',hour:'2-digit',minute:'2-digit'})}</p>
@@ -4997,7 +5004,8 @@
                 <div class="bg-gray-50 rounded-2xl p-3"><p class="text-gray-400 mb-0.5 font-semibold uppercase tracking-wide">Cena zboží</p><p class="font-bold text-gray-800">${Number(o.subtotal||0).toLocaleString('cs-CZ')} Kč</p></div>
                 <div class="bg-gray-50 rounded-2xl p-3"><p class="text-gray-400 mb-0.5 font-semibold uppercase tracking-wide">Doprava</p><p class="font-bold text-gray-800">${Number(o.shipping_fee||0).toLocaleString('cs-CZ')} Kč · ${carr.icon} ${esc(carr.name)}</p></div>
                 <div class="bg-gray-50 rounded-2xl p-3"><p class="text-gray-400 mb-0.5 font-semibold uppercase tracking-wide">Poplatek platformy</p><p class="font-bold text-gray-800">${Number(o.platform_fee||0).toLocaleString('cs-CZ')} Kč</p></div>
-                <div class="bg-pink-50 rounded-2xl p-3 border border-pink-100"><p class="text-pink-400 mb-0.5 font-semibold uppercase tracking-wide">Celkem zaplaceno</p><p class="font-extrabold text-pink-600 text-base">${Number(o.total||0).toLocaleString('cs-CZ')} Kč</p></div>
+                ${isBuyer ? `<div class="bg-pink-50 rounded-2xl p-3 border border-pink-100"><p class="text-pink-400 mb-0.5 font-semibold uppercase tracking-wide">Celkem zaplaceno</p><p class="font-extrabold text-pink-600 text-base">${Number(o.total||0).toLocaleString('cs-CZ')} Kč</p></div>`
+                          : `<div class="bg-purple-50 rounded-2xl p-3 border border-purple-100"><p class="text-purple-400 mb-0.5 font-semibold uppercase tracking-wide">Přijmete (po doručení)</p><p class="font-extrabold text-purple-600 text-base">${Number(o.subtotal||0).toLocaleString('cs-CZ')} Kč</p></div>`}
             </div>
 
             ${addr.name ? `<h3 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Doručovací adresa</h3>
@@ -5010,14 +5018,20 @@
             ${o.tracking_number ? `<h3 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Sledování zásilky</h3>
             <div class="bg-gray-50 rounded-2xl p-3 mb-5 text-sm">${_trackingHtml(o.carrier, o.tracking_number)}</div>` : ''}
 
-            ${shipPhotos.length ? `<h3 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">📦 Fotky zásilky od prodejce</h3>
+            ${shipPhotos.length ? `<h3 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">📦 Fotky zásilky</h3>
             <div class="flex gap-2 flex-wrap mb-5">${shipPhotos.map(u=>`<a href="${u}" target="_blank"><img src="${u}" class="w-16 h-16 rounded-xl object-cover border border-gray-200 hover:opacity-80 transition-opacity cursor-zoom-in"></a>`).join('')}</div>` : ''}
 
-            ${o.status==='shipped'?`<div class="bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 flex items-start gap-3 mb-5">
+            ${isBuyer && o.status==='shipped' ? `<div class="bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 flex items-start gap-3 mb-5">
                 <span class="text-2xl shrink-0">⚠️</span>
                 <div><p class="text-sm font-extrabold text-amber-800 mb-0.5">Zkontrolujte zboží!</p>
                 <p class="text-xs text-amber-700 leading-relaxed">Kliknutím na <strong>✓ Doručeno</strong> okamžitě uvolníte platbu prodejci. Je-li cokoliv v nepořádku, zahajte <strong>⚖️ Spor</strong>.</p></div>
-            </div>`:''}
+            </div>` : ''}
+
+            ${isSeller && o.status==='paid' ? `<div class="bg-orange-50 border-2 border-orange-300 rounded-2xl px-4 py-3 flex items-start gap-3 mb-5">
+                <span class="text-2xl shrink-0">📬</span>
+                <div><p class="text-sm font-extrabold text-orange-800 mb-0.5">Objednávka čeká na odeslání!</p>
+                <p class="text-xs text-orange-700 leading-relaxed">Kupující zaplatil. Zdokumentujte zásilku fotkou a označte jako odeslanou.</p></div>
+            </div>` : ''}
 
             ${dispute ? `<h3 class="text-xs font-bold text-red-400 uppercase tracking-wider mb-2">⚖️ Detail sporu</h3>
             <div class="bg-red-50 border border-red-100 rounded-2xl p-4 mb-5 text-sm">
@@ -5026,18 +5040,20 @@
                 ${evPhotos.length?`<div class="flex gap-2 flex-wrap mt-3">${evPhotos.map(u=>`<a href="${u}" target="_blank"><img src="${u}" class="w-14 h-14 rounded-xl object-cover border border-red-200 cursor-zoom-in"></a>`).join('')}</div>`:''}
             </div>`:''}
 
-            ${rev ? `<h3 class="text-xs font-bold text-yellow-500 uppercase tracking-wider mb-2">Vaše hodnocení</h3>
+            ${rev ? `<h3 class="text-xs font-bold text-yellow-500 uppercase tracking-wider mb-2">${isBuyer ? 'Vaše hodnocení' : 'Hodnocení kupujícího'}</h3>
             <div class="bg-yellow-50 border border-yellow-100 rounded-2xl p-4 mb-5">
                 <p class="text-yellow-400 text-lg tracking-widest">${starsFilled(rev.rating)}</p>
                 ${rev.comment?`<p class="text-sm text-gray-600 mt-1">${esc(rev.comment)}</p>`:''}
                 ${rev.seller_reply?`<div class="mt-2 pl-3 border-l-2 border-yellow-300 text-xs text-gray-600"><p class="font-bold text-yellow-700 mb-0.5">Reakce prodejce:</p>${esc(rev.seller_reply)}</div>`:''}
+                ${isSeller && !rev.seller_reply ? `<div id="detail-reply-area-${rev.id}" class="mt-2"><button onclick="_openReplyArea('${rev.id}','detail-reply-area-${rev.id}')" class="text-xs text-sky-500 hover:text-sky-600 font-bold">+ Reagovat na hodnocení</button></div>` : ''}
             </div>`:''}
 
             <div class="flex gap-2 flex-wrap pt-4 border-t border-gray-100">
-                ${o.status==='shipped'?`<button onclick="openDisputeModal('${o.id}')" class="flex-1 bg-white border border-red-200 hover:bg-red-50 text-red-500 font-bold px-4 py-3 rounded-2xl text-sm transition-colors">⚖️ Zahájit spor</button><button onclick="confirmDelivery('${o.id}','${o.seller_id}')" class="flex-1 bg-green-500 hover:bg-green-600 text-white font-bold px-4 py-3 rounded-2xl text-sm transition-colors">✓ Potvrdit doručení</button>`:''}
-                ${(o.status==='pending'||o.status==='created')&&!isAuc?`<button onclick="navigate('platba-objednavky','${o.id}')" class="flex-1 bg-pink-500 hover:bg-pink-600 text-white font-bold px-4 py-3 rounded-2xl text-sm transition-colors">💳 Zaplatit →</button>`:''}
-                ${(o.status==='completed'||o.status==='resolved_buyer'||o.status==='refunded')&&!reviewed?`<button onclick="_openRatingModal('${o.id}','${o.seller_id}')" class="flex-1 bg-yellow-400 hover:bg-yellow-500 text-white font-bold px-4 py-3 rounded-2xl text-sm transition-colors">⭐ Ohodnotit prodejce</button>`:''}
-                ${o.status==='dispute'?`<span class="text-sm bg-red-100 text-red-700 px-4 py-3 rounded-2xl font-semibold">⚖️ Spor probíhá — šetření adminem</span>`:''}
+                ${isBuyer && o.status==='shipped' ? `<button onclick="openDisputeModal('${o.id}')" class="flex-1 bg-white border border-red-200 hover:bg-red-50 text-red-500 font-bold px-4 py-3 rounded-2xl text-sm transition-colors">⚖️ Zahájit spor</button><button onclick="confirmDelivery('${o.id}','${o.seller_id}')" class="flex-1 bg-green-500 hover:bg-green-600 text-white font-bold px-4 py-3 rounded-2xl text-sm transition-colors">✓ Potvrdit doručení</button>` : ''}
+                ${isBuyer && (o.status==='pending'||o.status==='created') && !isAuc ? `<button onclick="navigate('platba-objednavky','${o.id}')" class="flex-1 bg-pink-500 hover:bg-pink-600 text-white font-bold px-4 py-3 rounded-2xl text-sm transition-colors">💳 Zaplatit →</button>` : ''}
+                ${isBuyer && (o.status==='completed'||o.status==='resolved_buyer'||o.status==='refunded') && !buyerReviewed ? `<button onclick="_openRatingModal('${o.id}','${o.seller_id}')" class="flex-1 bg-yellow-400 hover:bg-yellow-500 text-white font-bold px-4 py-3 rounded-2xl text-sm transition-colors">⭐ Ohodnotit prodejce</button>` : ''}
+                ${isSeller && o.status==='paid' ? `<button onclick="openShipDocsModal('${o.id}','${o.carrier||''}')" class="flex-1 bg-purple-500 hover:bg-purple-600 text-white font-bold px-4 py-3 rounded-2xl text-sm transition-colors">📦 Zdokumentovat a odeslat</button>` : ''}
+                ${o.status==='dispute' ? `<span class="text-sm bg-red-100 text-red-700 px-4 py-3 rounded-2xl font-semibold">⚖️ Spor probíhá — šetření adminem</span>` : ''}
             </div>`;
         } catch(e) { container.innerHTML = '<p class="text-red-500 text-center py-8">Chyba načítání objednávky.</p>'; }
     }
@@ -5243,24 +5259,15 @@
                 const st = expired ? { label:'Rezervace vypršela', cls:'bg-orange-100 text-orange-700' } : (ORDER_STATUS_MAP[o.status] || { label: o.status, cls:'bg-gray-100 text-gray-500' });
                 const items = o.objednavka_polozky || [];
                 const carr = DOPRAVCI.find(d => d.id === o.carrier) || { name: o.carrier || '—', icon:'📦' };
-                const firstItemId = items[0]?.item_id || '';
-                return `<div class="border ${expired?'border-orange-200 bg-orange-50/30':'border-gray-100'} rounded-2xl p-4 mb-3 hover:shadow-sm transition-shadow">
-                    ${expired?`<div class="bg-orange-100 border border-orange-200 rounded-xl px-3 py-2 mb-3 text-xs text-orange-800"><strong>⏰ Rezervace vypršela</strong> — zboží bylo uvolněno. Opakované nezaplacení může vést k omezení účtu.</div>`:''}
-                    <div class="flex items-start justify-between gap-2 mb-3"><div><p class="font-mono text-xs text-gray-400 mb-0.5">#${o.id.substring(0,8).toUpperCase()}</p><p class="text-xs text-gray-400">${new Date(o.created_at).toLocaleDateString('cs-CZ',{day:'numeric',month:'short',year:'numeric'})}</p></div><span class="order-status-badge ${st.cls} shrink-0">${st.label}</span></div>
-                    <div class="flex flex-col gap-1.5 mb-3">${items.map(i=>`<div class="flex items-center gap-2 cursor-pointer hover:text-sky-500 transition-colors" onclick="navigate('pevna-cena-detail/${i.item_id}')"><img src="${i.img||FI}" onerror="this.onerror=null;this.src='${FI}'" class="w-9 h-9 rounded-lg object-cover bg-gray-100 shrink-0"><span class="text-sm flex-1 min-w-0 truncate">${esc(i.title)}</span><span class="text-sm font-bold shrink-0 whitespace-nowrap text-pink-600">${Number(i.price).toLocaleString('cs-CZ')} Kč</span></div>`).join('')}</div>
-                    ${o.status==='shipped'?`<div class="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5 mb-2 flex items-start gap-2">
-                        <span class="text-base shrink-0">⚠️</span>
-                        <div>
-                            <p class="text-xs font-extrabold text-amber-800">Zkontrolujte zboží!</p>
-                            <p class="text-xs text-amber-700 mt-0.5 leading-relaxed">Po kliknutí na <strong>✓ Doručeno</strong> se platba <strong>okamžitě uvolní prodejci</strong>. Je-li cokoliv v nepořádku, zahajte <strong>⚖️ Spor</strong>.</p>
-                        </div>
-                    </div>`:''}
+                return `<div onclick="navigate('objednavka-detail','${o.id}')" class="border ${expired?'border-orange-200 bg-orange-50/30':'border-gray-100'} rounded-2xl p-4 mb-3 hover:shadow-md transition-shadow cursor-pointer group">
+                    ${expired?`<div class="bg-orange-100 border border-orange-200 rounded-xl px-3 py-2 mb-3 text-xs text-orange-800"><strong>⏰ Rezervace vypršela</strong> — zboží bylo uvolněno.</div>`:''}
+                    <div class="flex items-start justify-between gap-2 mb-3"><div><p class="font-mono text-xs text-gray-400 mb-0.5 group-hover:text-sky-500 transition-colors">#${o.id.substring(0,8).toUpperCase()} <span class="text-[10px] text-sky-400">→ detail</span></p><p class="text-xs text-gray-400">${new Date(o.created_at).toLocaleDateString('cs-CZ',{day:'numeric',month:'short',year:'numeric'})}</p></div><span class="order-status-badge ${st.cls} shrink-0">${st.label}</span></div>
+                    <div class="flex flex-col gap-1.5 mb-3">${items.map(i=>`<div class="flex items-center gap-2"><img src="${i.img||FI}" onerror="this.onerror=null;this.src='${FI}'" class="w-9 h-9 rounded-lg object-cover bg-gray-100 shrink-0"><span class="text-sm flex-1 min-w-0 truncate">${esc(i.title)}</span><span class="text-sm font-bold shrink-0 whitespace-nowrap text-pink-600">${Number(i.price).toLocaleString('cs-CZ')} Kč</span></div>`).join('')}</div>
                     <div class="flex items-center justify-between pt-2 border-t border-gray-100">
                         <span class="text-xs text-gray-400">${carr.icon} ${carr.name} · ${Number(o.shipping_fee||0).toLocaleString('cs-CZ')} Kč</span>
                         <div class="flex items-center gap-2"><span class="font-extrabold text-sm text-pastel-text">${Number(o.total).toLocaleString('cs-CZ')} Kč</span>
-                            ${o.status==='shipped'?`<div class="flex gap-1.5"><button onclick="openDisputeModal('${o.id}')" class="bg-white border border-red-200 hover:bg-red-50 text-red-500 font-bold px-2 py-1.5 rounded-xl text-xs transition-colors">⚖️ Spor</button><button onclick="confirmDelivery('${o.id}','${o.seller_id}')" class="bg-green-500 hover:bg-green-600 text-white font-bold px-3 py-1.5 rounded-xl text-xs transition-colors">✓ Doručeno</button></div>`:''}
-                            ${!expired&&(o.status==='pending'||o.status==='created')?`<div class="flex gap-1.5"><button onclick="navigate('moje-objednavky')" class="text-xs bg-amber-50 text-amber-700 border border-amber-200 px-3 py-1.5 rounded-xl font-semibold hover:bg-amber-100 transition-colors">Zaplatit →</button><button onclick="_testPay('${o.id}')" class="text-xs bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 rounded-xl font-bold transition-colors">🧪 TEST zaplatit</button></div>`:''}
-                            ${expired?`<button onclick="navigate('pevna-cena-detail/${firstItemId}')" class="text-xs bg-pink-50 text-pink-600 border border-pink-200 px-3 py-1.5 rounded-xl font-semibold hover:bg-pink-100 transition-colors">Zkusit znovu →</button>`:''}
+                            ${o.status==='shipped'?`<div class="flex gap-1.5"><button onclick="event.stopPropagation();openDisputeModal('${o.id}')" class="bg-white border border-red-200 hover:bg-red-50 text-red-500 font-bold px-2 py-1.5 rounded-xl text-xs transition-colors">⚖️ Spor</button><button onclick="event.stopPropagation();confirmDelivery('${o.id}','${o.seller_id}')" class="bg-green-500 hover:bg-green-600 text-white font-bold px-3 py-1.5 rounded-xl text-xs transition-colors">✓ Doručeno</button></div>`:''}
+                            ${!expired&&(o.status==='pending'||o.status==='created')?`<button onclick="event.stopPropagation();navigate('platba-objednavky','${o.id}')" class="text-xs bg-pink-500 hover:bg-pink-600 text-white px-3 py-1.5 rounded-xl font-bold transition-colors">💳 Zaplatit →</button>`:''}
                         </div>
                     </div>
                 </div>`;
@@ -5321,13 +5328,13 @@
                 const st = ORDER_STATUS_MAP[o.status] || { label: o.status, cls:'bg-gray-100 text-gray-500' };
                 const items = o.objednavka_polozky || [];
                 const carr = DOPRAVCI.find(d => d.id === o.carrier) || { name: o.carrier || '—', icon:'📦' };
-                return `<div class="border ${o.status==='paid'?'border-orange-300 bg-orange-50/40':'border-purple-100 bg-purple-50/30'} rounded-2xl p-4 mb-3 hover:shadow-sm transition-shadow">
-                    <div class="flex items-start justify-between gap-2 mb-3"><div><p class="font-mono text-xs text-gray-400 mb-0.5">#${o.id.substring(0,8).toUpperCase()}</p><p class="text-xs text-gray-400">${new Date(o.created_at).toLocaleDateString('cs-CZ',{day:'numeric',month:'short',year:'numeric'})}</p></div><span class="order-status-badge ${st.cls} shrink-0">${st.label}</span></div>
+                return `<div onclick="navigate('objednavka-detail','${o.id}')" class="border ${o.status==='paid'?'border-orange-300 bg-orange-50/40':'border-purple-100 bg-purple-50/30'} rounded-2xl p-4 mb-3 hover:shadow-md transition-shadow cursor-pointer group">
+                    <div class="flex items-start justify-between gap-2 mb-3"><div><p class="font-mono text-xs text-gray-400 mb-0.5 group-hover:text-purple-500 transition-colors">#${o.id.substring(0,8).toUpperCase()} <span class="text-[10px] text-purple-400">→ detail</span></p><p class="text-xs text-gray-400">${new Date(o.created_at).toLocaleDateString('cs-CZ',{day:'numeric',month:'short',year:'numeric'})}</p></div><span class="order-status-badge ${st.cls} shrink-0">${st.label}</span></div>
                     <div class="flex flex-col gap-1.5 mb-3">${items.map(i=>`<div class="flex items-center gap-2"><img src="${i.img||FI}" onerror="this.onerror=null;this.src='${FI}'" class="w-9 h-9 rounded-lg object-cover bg-gray-100 shrink-0"><span class="text-sm flex-1 min-w-0 truncate">${esc(i.title)}</span><span class="text-sm font-bold shrink-0 whitespace-nowrap text-purple-600">${Number(i.price).toLocaleString('cs-CZ')} Kč</span></div>`).join('')}</div>
                     <div class="flex items-center justify-between pt-2 border-t border-purple-100">
                         <span class="text-xs text-gray-400">${carr.icon} ${carr.name} · ${Number(o.shipping_fee||0).toLocaleString('cs-CZ')} Kč</span>
                         <div class="flex items-center gap-2"><span class="font-extrabold text-sm text-pastel-text">${Number(o.total).toLocaleString('cs-CZ')} Kč</span>
-                            ${o.status==='paid'?`<button onclick="openShipDocsModal('${o.id}','${o.carrier||''}')" class="bg-purple-500 hover:bg-purple-600 text-white font-bold px-3 py-1.5 rounded-xl text-xs transition-colors">📦 Zdokumentovat a odeslat</button>`:''}
+                            ${o.status==='paid'?`<button onclick="event.stopPropagation();openShipDocsModal('${o.id}','${o.carrier||''}')" class="bg-purple-500 hover:bg-purple-600 text-white font-bold px-3 py-1.5 rounded-xl text-xs transition-colors">📦 Zdokumentovat a odeslat</button>`:''}
                             ${o.status==='dispute'?`<span class="text-xs bg-red-100 text-red-700 px-3 py-1.5 rounded-xl font-semibold">⚖️ Spor — šetření</span>`:''}
                         </div>
                     </div>
@@ -5390,15 +5397,15 @@
                 const items = o.objednavka_polozky || [];
                 const addr = o.shipping_address || {};
                 const carr = DOPRAVCI.find(d => d.id === o.carrier) || { name: o.carrier || '—', icon:'📦' };
-                return `<div class="border border-gray-100 rounded-3xl p-5 mb-4 hover:shadow-md transition-shadow">
-                    <div class="flex items-start justify-between gap-3 mb-4"><div><p class="font-mono text-xs text-gray-400 mb-0.5">#${o.id.substring(0,8).toUpperCase()}</p><p class="text-xs text-gray-400">${new Date(o.created_at).toLocaleDateString('cs-CZ',{day:'numeric',month:'long',year:'numeric'})}</p></div><span class="order-status-badge ${st.cls} shrink-0">${st.label}</span></div>
+                return `<div onclick="navigate('objednavka-detail','${o.id}')" class="border border-gray-100 rounded-3xl p-5 mb-4 hover:shadow-md transition-shadow cursor-pointer group">
+                    <div class="flex items-start justify-between gap-3 mb-4"><div><p class="font-mono text-xs text-gray-400 mb-0.5 group-hover:text-purple-500 transition-colors">#${o.id.substring(0,8).toUpperCase()} <span class="text-[10px] text-purple-400">→ detail</span></p><p class="text-xs text-gray-400">${new Date(o.created_at).toLocaleDateString('cs-CZ',{day:'numeric',month:'long',year:'numeric'})}</p></div><span class="order-status-badge ${st.cls} shrink-0">${st.label}</span></div>
                     <div class="flex flex-col gap-2 mb-3">${items.map(i=>`<div class="flex items-center gap-2"><img src="${i.img||FI}" onerror="this.onerror=null;this.src='${FI}'" class="w-10 h-10 rounded-lg object-cover bg-gray-100 shrink-0"><span class="text-sm flex-1 min-w-0 truncate">${esc(i.title)}</span><span class="text-sm font-semibold shrink-0 whitespace-nowrap">${Number(i.price).toLocaleString('cs-CZ')} Kč</span></div>`).join('')}</div>
                     ${addr.name?`<div class="bg-gray-50 rounded-xl p-3 mb-3 text-xs text-gray-500"><strong class="text-gray-700">${esc(addr.name)}</strong><br>${esc(addr.street)}, ${esc(addr.city)} ${esc(addr.zip)}<br>${esc(addr.phone)}</div>`:''}
                     <div class="flex flex-col sm:flex-row gap-3 justify-between items-start sm:items-end pt-3 border-t border-gray-100">
                         <div class="text-xs text-gray-400 flex flex-col gap-0.5"><span>${carr.icon} ${carr.name}</span>${o.tracking_number ? _trackingHtml(o.carrier, o.tracking_number) : ''}</div>
                         <div class="flex flex-col sm:flex-row items-end sm:items-center gap-2">
                             <span class="font-extrabold text-lg text-pastel-text whitespace-nowrap">${Number(o.total).toLocaleString('cs-CZ')} Kč</span>
-                            ${o.status==='paid'?`<button onclick="openShipDocsModal('${o.id}','${o.carrier||''}')" class="bg-sky-500 hover:bg-sky-600 active:scale-95 text-white font-bold px-4 py-2.5 rounded-xl text-sm transition-all whitespace-nowrap flex items-center gap-2"><svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/></svg>Zdokumentovat a odeslat</button>`:''}
+                            ${o.status==='paid'?`<button onclick="event.stopPropagation();openShipDocsModal('${o.id}','${o.carrier||''}')" class="bg-sky-500 hover:bg-sky-600 active:scale-95 text-white font-bold px-4 py-2.5 rounded-xl text-sm transition-all whitespace-nowrap flex items-center gap-2"><svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/></svg>Zdokumentovat a odeslat</button>`:''}
                             ${o.status==='pending'?`<span class="text-xs bg-yellow-100 text-yellow-700 px-3 py-1.5 rounded-xl font-semibold whitespace-nowrap">Čeká na platbu kupce</span>`:''}
                             ${o.status==='delivered'?`<span class="text-xs bg-blue-100 text-blue-700 px-3 py-1.5 rounded-xl font-semibold whitespace-nowrap">Doručeno — čeká na potvrzení</span>`:''}
                             ${o.status==='completed'?`<span class="text-xs bg-green-100 text-green-700 px-3 py-1.5 rounded-xl font-semibold whitespace-nowrap">✓ Platba uvolněna</span>`:''}
@@ -5798,26 +5805,28 @@
         document.body.style.overflow = '';
     };
 
-    window._openReplyArea = function(reviewId) {
-        const area = document.getElementById('reply-area-' + reviewId);
+    window._openReplyArea = function(reviewId, areaId) {
+        const aId = areaId || ('reply-area-' + reviewId);
+        const area = document.getElementById(aId);
         if (!area) return;
         area.innerHTML = `
             <div class="mt-2 flex flex-col gap-1.5">
                 <textarea id="reply-text-${reviewId}" maxlength="500" rows="3" placeholder="Napište reakci na toto hodnocení (max. 500 znaků)…" class="w-full text-xs px-3 py-2 border border-gray-200 rounded-xl resize-none focus:outline-none focus:border-yellow-400 bg-white"></textarea>
                 <div class="flex gap-2">
-                    <button onclick="_submitSellerReply('${reviewId}')" class="bg-yellow-400 hover:bg-yellow-500 text-white font-bold text-xs px-4 py-1.5 rounded-xl transition-colors">Odeslat reakci</button>
-                    <button onclick="document.getElementById('reply-area-${reviewId}').innerHTML='<button onclick=\\'_openReplyArea(\\'${reviewId}\\')\\' class=\\'text-xs text-sky-500 hover:text-sky-600 font-bold\\'>+ Přidat reakci</button>'" class="text-xs text-gray-400 hover:text-gray-600 font-bold px-2 py-1.5">Zrušit</button>
+                    <button onclick="_submitSellerReply('${reviewId}','${areaId||''}')" class="bg-yellow-400 hover:bg-yellow-500 text-white font-bold text-xs px-4 py-1.5 rounded-xl transition-colors">Odeslat reakci</button>
+                    <button onclick="document.getElementById('${aId}').innerHTML='<button onclick=\\'_openReplyArea(\\'${reviewId}\\',\\'${aId}\\')\\' class=\\'text-xs text-sky-500 hover:text-sky-600 font-bold\\'>+ Přidat reakci</button>'" class="text-xs text-gray-400 hover:text-gray-600 font-bold px-2 py-1.5">Zrušit</button>
                 </div>
             </div>`;
         document.getElementById('reply-text-' + reviewId)?.focus();
     };
 
-    window._submitSellerReply = async function(reviewId) {
+    window._submitSellerReply = async function(reviewId, areaId) {
         const ta = document.getElementById('reply-text-' + reviewId);
         if (!ta) return;
         const reply = ta.value.trim();
         if (!reply) { showToast('Reakce nemůže být prázdná.', 'warning'); return; }
-        const area = document.getElementById('reply-area-' + reviewId);
+        const aId = areaId || ('reply-area-' + reviewId);
+        const area = document.getElementById(aId);
         if (area) area.innerHTML = '<p class="text-xs text-gray-400 mt-1">⌛ Odesílám…</p>';
         try {
             const token = await _ensureValidToken();
@@ -5830,7 +5839,7 @@
                 const e = await r.json().catch(() => ({}));
                 if ((e.message || '').includes('not_authorized')) showToast('Nemáte oprávnění k této reakci.', 'error');
                 else showToast('Chyba při ukládání reakce.', 'error');
-                if (area) area.innerHTML = '<button onclick="_openReplyArea(\'' + reviewId + '\')" class="text-xs text-sky-500 hover:text-sky-600 font-bold">+ Přidat reakci</button>';
+                if (area) area.innerHTML = '<button onclick="_openReplyArea(\'' + reviewId + '\',\'' + aId + '\')" class="text-xs text-sky-500 hover:text-sky-600 font-bold">+ Přidat reakci</button>';
                 return;
             }
             showToast('Reakce uložena.', 'success');
@@ -5840,7 +5849,7 @@
             </div>`;
         } catch(e) {
             showToast('Chyba sítě.', 'error');
-            if (area) area.innerHTML = '<button onclick="_openReplyArea(\'' + reviewId + '\')" class="text-xs text-sky-500 hover:text-sky-600 font-bold">+ Přidat reakci</button>';
+            if (area) area.innerHTML = '<button onclick="_openReplyArea(\'' + reviewId + '\',\'' + aId + '\')" class="text-xs text-sky-500 hover:text-sky-600 font-bold">+ Přidat reakci</button>';
         }
     };
 
