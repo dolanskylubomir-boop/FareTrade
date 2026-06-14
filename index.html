@@ -1821,7 +1821,7 @@
             const [r1, r2, r3, r4] = await Promise.all([
                 db.from('aukce').select('*').eq('status','aktivní').order('is_top', { ascending:false }),
                 db.from('pevna_cena').select('*').eq('status','aktivní').order('is_top', { ascending:false }),
-                db.from('profiles').select('id,first_name,last_name,display_name,is_verified,rating,avatar_url'),
+                db.from('profiles').select('id,first_name,last_name,display_name,is_verified,rating,rating_count,avatar_url'),
                 db.from('bids').select('auction_id,bidder_id,amount')
             ]);
 
