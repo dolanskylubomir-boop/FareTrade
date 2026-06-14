@@ -1064,85 +1064,79 @@
         } catch {}
     };
 
-    // Address autocomplete via native <datalist> + Nominatim
+    // Mapy.cz v1 suggest API
+    const MAPY_KEY = 'RIiwkZC637nWPlSr-WJYs4HKm06DHnPrt0cgypBbc2E';
     const _ADDR_CFG = {
-        'kyc-street': { cityId: 'kyc-city', zipId: 'kyc-zip', combined: false },
-        'co-street':  { cityId: 'co-city',  zipId: 'co-zip',  combined: true  }
+        'kyc-street': { cityId: 'kyc-city', zipId: 'kyc-zip' },
+        'co-street':  { cityId: 'co-city',  zipId: 'co-zip'  }
     };
-    window._addrCache   = {};
-    window._addrResults = {};
-    var _addrDebounce   = null;
+    window._addrSuggestions = {};
+    var _addrTimer = null;
 
     window._streetAutocomplete = function(el) {
         var cfg = _ADDR_CFG[el.id];
         if (!cfg) return;
         var q = el.value.trim();
 
-        // Pokud hodnota presne odpovida ulozene nabidce -> doplnit mesto+PSC
-        var stored = window._addrResults[el.id] || [];
-        for (var i = 0; i < stored.length; i++) {
-            if (stored[i].label === q) {
-                var r = stored[i];
-                if (cfg.cityId && r.city) {
-                    var cityEl = document.getElementById(cfg.cityId);
-                    if (cityEl) cityEl.value = r.city;
+        // Uzivatel vybral polozku z datalistu -> doplnit mesto + PSC
+        var list = window._addrSuggestions[el.id] || [];
+        for (var i = 0; i < list.length; i++) {
+            if (list[i].street === q) {
+                var hit = list[i];
+                if (cfg.cityId && hit.city) {
+                    var ce = document.getElementById(cfg.cityId);
+                    if (ce) ce.value = hit.city;
                 }
-                if (cfg.zipId && r.zip) {
-                    var zipEl = document.getElementById(cfg.zipId);
-                    if (zipEl) zipEl.value = r.zip.length === 5 ? r.zip.slice(0,3) + ' ' + r.zip.slice(3) : r.zip;
+                if (cfg.zipId && hit.zip) {
+                    var ze = document.getElementById(cfg.zipId);
+                    if (ze) ze.value = hit.zip;
                 }
                 return;
             }
         }
 
         if (q.length < 3) return;
-
-        // Vytvor datalist pokud neexistuje
-        var listId = '_addrlist_' + el.id;
-        if (!document.getElementById(listId)) {
-            var dl = document.createElement('datalist');
-            dl.id = listId;
-            document.body.appendChild(dl);
-            el.setAttribute('list', listId);
-        }
-
-        clearTimeout(_addrDebounce);
-        _addrDebounce = setTimeout(function() {
-            if (window._addrCache[q]) {
-                _fillAddrDatalist(listId, el.id, window._addrCache[q]);
-                return;
-            }
-            fetch('https://nominatim.openstreetmap.org/search?q=' + encodeURIComponent(q) +
-                  '&countrycodes=cz&format=json&limit=6&addressdetails=1')
-            .then(function(resp) { return resp.ok ? resp.json() : []; })
+        clearTimeout(_addrTimer);
+        _addrTimer = setTimeout(function() {
+            var url = 'https://api.mapy.cz/v1/suggest?lang=cs&limit=6&type=regional.address&apikey='
+                      + MAPY_KEY + '&query=' + encodeURIComponent(q);
+            fetch(url)
+            .then(function(r) { return r.json(); })
             .then(function(data) {
-                var results = (Array.isArray(data) ? data : []).map(function(item) {
-                    var a = item.address || {};
-                    var street = a.road || a.pedestrian || a.path || a.footway || item.name || '';
-                    var city   = a.city || a.town || a.village || a.municipality || a.county || '';
-                    var zip    = (a.postcode || '').replace(/\s/g, '');
-                    return { label: street, city: city, zip: zip };
-                }).filter(function(x) { return x.label; });
-                window._addrCache[q] = results;
-                var existing = window._addrResults[el.id] || [];
-                results.forEach(function(r) {
-                    if (!existing.some(function(x) { return x.label === r.label; })) existing.push(r);
-                });
-                window._addrResults[el.id] = existing;
-                _fillAddrDatalist(listId, el.id, results);
-            })
-            .catch(function() {});
-        }, 400);
-    };
+                var items = data.items || [];
+                var results = items.map(function(item) {
+                    var city = '';
+                    var reg = item.regionalStructure || [];
+                    for (var j = 0; j < reg.length; j++) {
+                        if (reg[j].type === 'regional.municipality') { city = reg[j].name; break; }
+                    }
+                    if (!city) {
+                        for (var k = 0; k < reg.length; k++) {
+                            if (reg[k].type === 'regional.municipality_part') { city = reg[k].name; break; }
+                        }
+                    }
+                    var zip = (item.zip || '').replace(/\s/g, '');
+                    if (zip.length === 5) zip = zip.slice(0,3) + ' ' + zip.slice(3);
+                    return { street: item.name || '', city: city, zip: zip };
+                }).filter(function(x) { return x.street; });
 
-    function _fillAddrDatalist(listId, inputId, results) {
-        var list = document.getElementById(listId);
-        if (!list) return;
-        list.innerHTML = results.map(function(r) {
-            var v = r.label.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
-            return '<option value="' + v + '">';
-        }).join('');
-    }
+                window._addrSuggestions[el.id] = results;
+
+                var dlId = '_dl_' + el.id;
+                var dl = document.getElementById(dlId);
+                if (!dl) {
+                    dl = document.createElement('datalist');
+                    dl.id = dlId;
+                    document.body.appendChild(dl);
+                    el.setAttribute('list', dlId);
+                }
+                dl.innerHTML = results.map(function(s) {
+                    return '<option value="' + s.street.replace(/&/g,'&amp;').replace(/"/g,'&quot;') + '">';
+                }).join('');
+            })
+            .catch(function(e) { console.error('Mapy suggest error:', e); });
+        }, 300);
+    };
     window.validateAge = function(input) {
         if (!input.value) return true;
         const birth = new Date(input.value);
