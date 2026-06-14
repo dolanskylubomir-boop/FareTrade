@@ -1064,6 +1064,92 @@
         } catch {}
     };
 
+    // Photon (OSM) address autocomplete — config per input ID
+    const _ADDR_CFG = {
+        'kyc-street': { cityId: 'kyc-city', zipId: 'kyc-zip', combined: false },
+        'co-street':  { cityId: 'co-city',  zipId: 'co-zip',  combined: true  }
+    };
+    window._addrCache = {};
+    let _addrDebounce = null;
+
+    window._streetAutocomplete = async function(el) {
+        const cfg = _ADDR_CFG[el.id];
+        if (!cfg) return;
+        const q = el.value.trim();
+        const dropId = '_addrdrop_' + el.id;
+        const removeDrop = () => { const d = document.getElementById(dropId); if (d) d.remove(); };
+        if (q.length < 3) { removeDrop(); return; }
+        clearTimeout(_addrDebounce);
+        _addrDebounce = setTimeout(async () => {
+            let results = window._addrCache[q];
+            if (!results) {
+                try {
+                    const r = await fetch(
+                        `https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&lang=cs&limit=5&bbox=12.09,48.55,18.87,51.06`,
+                        { headers: { 'User-Agent': 'FairTrade-Trziste/1.0' } }
+                    );
+                    if (!r.ok) return;
+                    const data = await r.json();
+                    results = (data.features || []).map(f => ({
+                        street:      f.properties.street || f.properties.name || '',
+                        housenumber: f.properties.housenumber || '',
+                        city:        f.properties.city || f.properties.town || f.properties.village || f.properties.municipality || '',
+                        zip:        (f.properties.postcode || '').replace(/\s/g, '')
+                    })).filter(r => r.street || r.city);
+                    window._addrCache[q] = results;
+                } catch { return; }
+            }
+            removeDrop();
+            if (!results.length) return;
+            const drop = document.createElement('div');
+            drop.id = dropId;
+            drop.className = 'absolute left-0 right-0 top-full z-50 bg-white border border-gray-200 rounded-xl shadow-xl mt-1 overflow-hidden text-left';
+            el.parentElement.style.position = 'relative';
+            el.parentElement.appendChild(drop);
+            drop.innerHTML = results.map((r, i) => {
+                const streetFull = [r.street, r.housenumber].filter(Boolean).join(' ');
+                const sub = [r.city, r.zip ? r.zip.slice(0,3)+' '+r.zip.slice(3) : ''].filter(Boolean).join(', ');
+                return `<div class="px-4 py-2.5 hover:bg-sky-50 cursor-pointer border-b border-gray-100 last:border-0 transition-colors"
+                    data-i="${i}" data-cfgid="${el.id}"
+                    onmousedown="window._pickAddress(this,event)">
+                  <div class="text-sm font-medium text-gray-800">${esc(streetFull || r.city)}</div>
+                  <div class="text-xs text-gray-400">${esc(sub)}</div>
+                </div>`;
+            }).join('');
+            // Ulož výsledky pro onmousedown handler
+            drop._results = results;
+        }, 280);
+    };
+
+    window._pickAddress = function(el, e) {
+        e.preventDefault();
+        const cfgId = el.dataset.cfgid;
+        const cfg = _ADDR_CFG[cfgId];
+        if (!cfg) return;
+        const drop = el.closest('[id^="_addrdrop_"]');
+        const results = drop?._results;
+        const r = results?.[+el.dataset.i];
+        if (!r) return;
+        const streetFull = cfg.combined
+            ? [r.street, r.housenumber].filter(Boolean).join(' ')
+            : r.street;
+        const inp = document.getElementById(cfgId);
+        if (inp) inp.value = streetFull;
+        if (cfg.cityId) { const c = document.getElementById(cfg.cityId); if (c) c.value = r.city; }
+        if (cfg.zipId && r.zip) {
+            const z = document.getElementById(cfg.zipId);
+            if (z) z.value = r.zip.length === 5 ? r.zip.slice(0,3)+' '+r.zip.slice(3) : r.zip;
+        }
+        if (drop) drop.remove();
+    };
+
+    // Zavři dropdown při kliku mimo
+    document.addEventListener('click', function(e) {
+        document.querySelectorAll('[id^="_addrdrop_"]').forEach(d => {
+            if (!d.contains(e.target)) d.remove();
+        });
+    });
+
     window.validateAge = function(input) {
         if (!input.value) return true;
         const birth = new Date(input.value);
@@ -4021,7 +4107,8 @@
                 </div>
                 <div class="flex flex-col gap-1 sm:col-span-2">
                     <label class="text-xs font-bold text-gray-500 pl-1">Ulice <span class="text-red-400">*</span></label>
-                    <input type="text" id="kyc-street" required minlength="2" maxlength="100" placeholder="např. Václavské náměstí" autocomplete="street-address"
+                    <input type="text" id="kyc-street" required minlength="2" maxlength="100" placeholder="např. Václavské náměstí" autocomplete="off"
+                        oninput="window._streetAutocomplete(this)"
                         class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-sky-400 bg-white/60 transition-colors">
                     <span class="text-xs text-gray-400 pl-1">Jen název ulice bez čísla popisného</span>
                 </div>
@@ -4978,10 +5065,10 @@
                         </div>
                         <div class="flex flex-col gap-3">
                             <input id="co-name"   type="text" placeholder="Jméno a příjmení *"      class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-sky-400 bg-white" autocomplete="name">
-                            <input id="co-street" type="text" placeholder="Ulice a číslo popisné *"  class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-sky-400 bg-white" autocomplete="street-address">
+                            <input id="co-street" type="text" placeholder="Ulice a číslo popisné *" autocomplete="off" oninput="window._streetAutocomplete(this)" class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-sky-400 bg-white">
                             <div class="grid grid-cols-2 gap-3">
                                 <input id="co-city" type="text" placeholder="Město *" class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-sky-400 bg-white" autocomplete="address-level2">
-                                <input id="co-zip"  type="text" placeholder="PSČ *"   class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-sky-400 bg-white" maxlength="6" autocomplete="postal-code">
+                                <input id="co-zip"  type="text" placeholder="PSČ *"   class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-sky-400 bg-white" maxlength="6" autocomplete="postal-code" inputmode="numeric" oninput="formatPSC(this); if(this.value.replace(/\s/g,'').length===5) _zipLookup(this, document.getElementById('co-city'))">
                             </div>
                             <input id="co-phone" type="tel" placeholder="Telefon *"                class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-sky-400 bg-white" autocomplete="tel">
                         </div>
