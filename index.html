@@ -1049,10 +1049,14 @@
         const zip = zipInputEl.value.replace(/\s/g, '');
         if (zip.length !== 5 || !/^\d+$/.test(zip)) return;
         try {
-            const r = await fetch(`https://api.zmapy.cz/psc?psc=${zip}`);
+            const r = await fetch(
+                `https://nominatim.openstreetmap.org/search?postalcode=${zip}&countrycodes=cz&format=json&limit=1&addressdetails=1`,
+                { headers: { 'Accept-Language': 'cs', 'User-Agent': 'FairTrade-Trziste/1.0' } }
+            );
             if (!r.ok) return;
             const d = await r.json();
-            const city = d?.obec || d?.nazev || (Array.isArray(d) && d[0]?.nazev) || '';
+            const addr = d?.[0]?.address;
+            const city = addr?.city || addr?.town || addr?.village || addr?.municipality || addr?.suburb || '';
             if (city && cityInputEl) {
                 cityInputEl.value = city;
                 cityInputEl.dispatchEvent(new Event('input'));
@@ -1870,7 +1874,7 @@
             const [r1, r2, r3, r4] = await Promise.all([
                 db.from('aukce').select('*').eq('status','aktivní').order('is_top', { ascending:false }),
                 db.from('pevna_cena').select('*').eq('status','aktivní').order('is_top', { ascending:false }),
-                db.from('profiles').select('id,first_name,last_name,display_name,is_verified,rating,rating_count,avatar_url'),
+                db.from('profiles').select('id,first_name,last_name,display_name,is_verified,rating,rating_count,total_sold_count,avatar_url'),
                 db.from('bids').select('auction_id,bidder_id,amount')
             ]);
 
@@ -4443,6 +4447,7 @@
         const sellerProfile = window._profilesMap?.[sellerId] || {};
         const sellerRating = Number(sellerProfile.rating) || (all.length > 0 ? Number(all[0].rating) : 0);
         const sellerRatingCount = Number(sellerProfile.rating_count) || (all.length > 0 ? Number(all[0].rating_count) : 0);
+        const sellerTotalSold = Number(sellerProfile.total_sold_count) || 0;
         return `
         <div class="w-full bg-white/90 backdrop-blur-xl p-5 md:p-8 rounded-[2rem] shadow-xl fade-in min-h-[500px] border border-white/50">
             <button onclick="history.back()" class="mb-5 text-sky-500 font-bold hover:text-sky-600 flex items-center gap-2">← Zpět</button>
@@ -4452,12 +4457,12 @@
             </div>
             <div class="grid grid-cols-3 gap-3 mb-6">
               <div class="bg-gray-50 rounded-xl p-3 text-center">
-                <div class="text-xl font-extrabold text-gray-800">${all.length}</div>
-                <div class="text-xs text-gray-500 mt-0.5">Inzerátů</div>
+                <div class="text-xl font-extrabold text-green-600">${sellerTotalSold}</div>
+                <div class="text-xs text-gray-500 mt-0.5">Prodejů celkem</div>
               </div>
               <div class="bg-gray-50 rounded-xl p-3 text-center">
-                <div class="text-xl font-extrabold ${sellerRating>=4?'text-green-600':'text-gray-800'}">${sellerRating?sellerRating.toFixed(1):'—'}</div>
-                <div class="text-xs text-gray-500 mt-0.5">Hodnocení</div>
+                <div class="text-xl font-extrabold ${sellerRating>=4?'text-green-600':sellerRating>0?'text-gray-800':'text-gray-400'}">${sellerRating?sellerRating.toFixed(1):'—'}</div>
+                <div class="text-xs text-gray-500 mt-0.5">Hodnocení ⭐</div>
               </div>
               <div class="bg-gray-50 rounded-xl p-3 text-center">
                 <div class="text-xl font-extrabold text-gray-800">${sellerRatingCount}</div>
