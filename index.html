@@ -3083,12 +3083,12 @@
             return `<div class="fade-in">
                 <div class="flex items-center justify-between mb-5"><h3 class="text-xl font-bold text-gray-800">⚙️ Admin panel</h3><span class="text-xs bg-red-100 text-red-700 px-3 py-1 rounded-full font-bold uppercase">Admin</span></div>
                 <div class="flex gap-2 mb-5 border-b border-gray-100 pb-4 flex-wrap">
-                    <button onclick="window._loadAdminTab('kyc')" class="px-4 py-2 rounded-xl text-sm font-semibold bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200 transition-colors">🪪 KYC ke schválení</button>
-                    <button onclick="window._loadAdminTab('spory')" class="px-4 py-2 rounded-xl text-sm font-semibold bg-red-50 text-red-700 hover:bg-red-100 border border-red-200 transition-colors">⚖️ Spory</button>
+                    <button onclick="window._loadAdminTab('kyc')" class="px-4 py-2 rounded-xl text-sm font-semibold bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200 transition-colors">🪪 KYC ke schválení<span id="admin-badge-kyc" class="${(window._adminCounts&&window._adminCounts.kyc>0)?'':'hidden'} ml-1.5 min-w-[17px] h-[17px] rounded-full bg-amber-500 text-white text-[9px] font-black inline-flex items-center justify-center px-1">${(window._adminCounts&&window._adminCounts.kyc>0)?(window._adminCounts.kyc>99?'99+':window._adminCounts.kyc):''}</span></button>
+                    <button onclick="window._loadAdminTab('spory')" class="px-4 py-2 rounded-xl text-sm font-semibold bg-red-50 text-red-700 hover:bg-red-100 border border-red-200 transition-colors">⚖️ Spory<span id="admin-badge-spory" class="${(window._adminCounts&&window._adminCounts.spory>0)?'':'hidden'} ml-1.5 min-w-[17px] h-[17px] rounded-full bg-red-500 text-white text-[9px] font-black inline-flex items-center justify-center px-1">${(window._adminCounts&&window._adminCounts.spory>0)?(window._adminCounts.spory>99?'99+':window._adminCounts.spory):''}</span></button>
                     <button onclick="window._loadAdminTab('dac7')" class="px-4 py-2 rounded-xl text-sm font-semibold bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 transition-colors">🇪🇺 DAC7 report</button>
                     <button onclick="window._loadAdminTab('inzeraty')" class="px-4 py-2 rounded-xl text-sm font-semibold bg-orange-50 text-orange-700 hover:bg-orange-100 border border-orange-200 transition-colors">📋 Inzeráty</button>
                     <button onclick="window._loadAdminTab('ban')" class="px-4 py-2 rounded-xl text-sm font-semibold bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-200 transition-colors">🚫 Ruční BAN</button>
-                    <button onclick="window._loadAdminTab('podpora')" class="px-4 py-2 rounded-xl text-sm font-semibold bg-sky-50 text-sky-700 hover:bg-sky-100 border border-sky-200 transition-colors">💬 Podpora</button>
+                    <button onclick="window._loadAdminTab('podpora')" class="px-4 py-2 rounded-xl text-sm font-semibold bg-sky-50 text-sky-700 hover:bg-sky-100 border border-sky-200 transition-colors">💬 Podpora<span id="admin-badge-podpora" class="${(window._adminCounts&&window._adminCounts.podpora>0)?'':'hidden'} ml-1.5 min-w-[17px] h-[17px] rounded-full bg-sky-500 text-white text-[9px] font-black inline-flex items-center justify-center px-1">${(window._adminCounts&&window._adminCounts.podpora>0)?(window._adminCounts.podpora>99?'99+':window._adminCounts.podpora):''}</span></button>
                 </div>
                 <div id="admin-content"><div class="flex justify-center py-12"><div class="w-8 h-8 border-4 border-gray-200 border-t-gray-500 rounded-full animate-spin"></div></div></div>
             </div>`;
@@ -6846,15 +6846,25 @@
                 r2.ok ? r2.json().catch(function() { return []; }) : Promise.resolve([]),
                 r3.ok ? r3.json().catch(function() { return []; }) : Promise.resolve([])
             ]);
-            const total = (Array.isArray(kyc)      ? kyc.length      : 0)
-                        + (Array.isArray(disputes)  ? disputes.length  : 0)
-                        + (Array.isArray(tickets)   ? tickets.length   : 0);
+            const counts = {
+                kyc:     Array.isArray(kyc)     ? kyc.length     : 0,
+                spory:   Array.isArray(disputes) ? disputes.length : 0,
+                podpora: Array.isArray(tickets)  ? tickets.length  : 0
+            };
+            const total = counts.kyc + counts.spory + counts.podpora;
             window._adminBadgeCount = total;
-            const badge = document.getElementById('admin-activity-badge');
-            if (badge) {
-                badge.textContent = total > 99 ? '99+' : (total > 0 ? String(total) : '');
-                badge.classList.toggle('hidden', total === 0);
-            }
+            window._adminCounts     = counts;
+            // Helper: update badge element
+            var upd = function(id, n) {
+                var el = document.getElementById(id);
+                if (!el) return;
+                el.textContent = n > 99 ? '99+' : (n > 0 ? String(n) : '');
+                el.classList.toggle('hidden', n === 0);
+            };
+            upd('admin-activity-badge', total);
+            upd('admin-badge-kyc',     counts.kyc);
+            upd('admin-badge-spory',   counts.spory);
+            upd('admin-badge-podpora', counts.podpora);
         } catch(e) { /* silent */ }
     };
 
@@ -6863,7 +6873,7 @@
     // ──────────────────────────────────────────────────────────────
     window._teardownUserRTChannels = function() {
         if (!supabaseClient) return;
-        const USER_CHANNELS = ['rt_tx_b','rt_tx_s','rt_notif','rt_profile','rt_objednavky_b','rt_objednavky_s','rt_auction_offers_s'];
+        const USER_CHANNELS = ['rt_tx_b','rt_tx_s','rt_notif','rt_profile','rt_objednavky_b','rt_objednavky_s','rt_auction_offers_s','rt_admin_kyc','rt_admin_disputes','rt_admin_support'];
         USER_CHANNELS.forEach(name => {
             try {
                 const ch = supabaseClient.channel(name);
@@ -7022,6 +7032,36 @@
                     if (h.includes('prodejce-objednavky')) window.loadProdejceObjednavky();
                 }
             }).subscribe();
+
+        // ── Admin realtime — jen pro adminy ──────────────────────
+        if (window._userRole === 'admin') {
+            // KYC: nové podání (profiles UPDATE kde kyc_status se změní)
+            supabaseClient.channel('rt_admin_kyc')
+                .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'profiles' }, function() {
+                    window._checkAdminBadge();
+                })
+                .subscribe();
+            // Spory: nový spor nebo změna stavu objednávky
+            supabaseClient.channel('rt_admin_disputes')
+                .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'disputes' }, function() {
+                    window._checkAdminBadge();
+                    showToast('⚖️ Nový spor byl otevřen!', 'warning', 6000);
+                })
+                .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'objednavky' }, function(p) {
+                    if (p.new && p.new.status === 'dispute') {
+                        window._checkAdminBadge();
+                        showToast('⚖️ Objednávka přešla do stavu sporu!', 'warning', 6000);
+                    }
+                })
+                .subscribe();
+            // Podpora: nový ticket
+            supabaseClient.channel('rt_admin_support')
+                .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'support_tickets' }, function() {
+                    window._checkAdminBadge();
+                    showToast('💬 Nový support ticket!', 'info', 5000);
+                })
+                .subscribe();
+        }
     };
 
     // ──────────────────────────────────────────────────────────────
