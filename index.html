@@ -5276,7 +5276,7 @@
                         <span class="text-xs text-gray-400">${carr.icon} ${carr.name} · ${Number(o.shipping_fee||0).toLocaleString('cs-CZ')} Kč</span>
                         <div class="flex items-center gap-2"><span class="font-extrabold text-sm text-pastel-text">${Number(o.total).toLocaleString('cs-CZ')} Kč</span>
                             ${o.status==='shipped'?`<div class="flex gap-1.5"><button onclick="event.stopPropagation();openDisputeModal('${o.id}')" class="bg-white border border-red-200 hover:bg-red-50 text-red-500 font-bold px-2 py-1.5 rounded-xl text-xs transition-colors">⚖️ Spor</button><button onclick="event.stopPropagation();confirmDelivery('${o.id}','${o.seller_id}')" class="bg-green-500 hover:bg-green-600 text-white font-bold px-3 py-1.5 rounded-xl text-xs transition-colors">✓ Doručeno</button></div>`:''}
-                            ${!expired&&(o.status==='pending'||o.status==='created')?`<button onclick="event.stopPropagation();navigate('platba-objednavky','${o.id}')" class="text-xs bg-pink-500 hover:bg-pink-600 text-white px-3 py-1.5 rounded-xl font-bold transition-colors">💳 Zaplatit →</button>`:''}
+                            ${!expired&&(o.status==='pending'||o.status==='created')?`<div class="flex gap-1.5"><button onclick="event.stopPropagation();navigate('platba-objednavky','${o.id}')" class="text-xs bg-pink-500 hover:bg-pink-600 text-white px-3 py-1.5 rounded-xl font-bold transition-colors">💳 Zaplatit →</button><button onclick="event.stopPropagation();_testPay('${o.id}')" class="text-xs bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 rounded-xl font-bold transition-colors">🧪 TEST</button></div>`:''}
                         </div>
                     </div>
                 </div>`;
