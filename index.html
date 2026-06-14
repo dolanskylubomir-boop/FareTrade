@@ -2297,12 +2297,20 @@
             const token = await _ensureValidToken();
             if (!token) { navigate('login'); return; }
             const hdrs = { 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + token };
-            const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_my_ticket`, {
+            let rows = null;
+            // Zkus RPC (vyžaduje support-reply.sql), fallback na přímý REST
+            const rpcResp = await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_my_ticket`, {
                 method: 'POST', headers: { ...hdrs, 'Content-Type': 'application/json' },
                 body: JSON.stringify({ p_ticket_id: ticketId })
             });
-            const rows = await r.json();
-            if (!Array.isArray(rows) || !rows.length) { el.innerHTML = '<p class="text-gray-400 text-center py-8">Ticket nenalezen nebo nemáte přístup.</p>'; return; }
+            if (rpcResp.ok) {
+                rows = await rpcResp.json();
+            } else {
+                // Fallback: přímý SELECT (funguje pokud má tabulka RLS pro vlastníka)
+                const restResp = await fetch(`${SUPABASE_URL}/rest/v1/support_tickets?id=eq.${encodeURIComponent(ticketId)}&select=id,subject,message,status,created_at,admin_reply,admin_reply_at,user_id`, { headers: hdrs });
+                if (restResp.ok) rows = await restResp.json();
+            }
+            if (!Array.isArray(rows) || !rows.length) { el.innerHTML = '<p class="text-gray-400 text-center py-8">Ticket nenalezen. Pokud jste jej právě odeslali, spusťte prosím support-reply.sql v Supabase.</p>'; return; }
             const t = rows[0];
             const statusCls   = { open:'bg-orange-100 text-orange-700', in_progress:'bg-sky-100 text-sky-700', resolved:'bg-green-100 text-green-700', spam:'bg-gray-100 text-gray-400' };
             const statusLabel = { open:'Nový', in_progress:'Řeší se', resolved:'Vyřešeno', spam:'Spam' };
@@ -6938,7 +6946,7 @@
     // ──────────────────────────────────────────────────────────────
     window._teardownUserRTChannels = function() {
         if (!supabaseClient) return;
-        const USER_CHANNELS = ['rt_tx_b','rt_tx_s','rt_notif','rt_profile','rt_objednavky_b','rt_objednavky_s','rt_auction_offers_s','rt_admin_kyc','rt_admin_disputes','rt_admin_support'];
+        const USER_CHANNELS = ['rt_tx_b','rt_tx_s','rt_notif','rt_profile','rt_objednavky_b','rt_objednavky_s','rt_auction_offers_b','rt_auction_offers_s','rt_admin_kyc','rt_admin_disputes','rt_admin_support'];
         USER_CHANNELS.forEach(name => {
             try {
                 const ch = supabaseClient.channel(name);
